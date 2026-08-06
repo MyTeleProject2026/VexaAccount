@@ -20,8 +20,9 @@ const allowedOrigins = [
   'http://localhost:5174',
   'https://vexastore.onrender.com',
   'https://vexastore-admin.onrender.com',
-  'https://vexatrade.onrender.com', // Add VexaTrade later
-  // Add any other Vexa app URLs here
+  'https://vexatrade.onrender.com',
+  'https://vexatrade-v.2bd.net',        // ✅ ADD THIS
+  'https://www.vexatrade-v.2bd.net',    // ✅ ADD THIS
 ];
 
 app.use(cors({
