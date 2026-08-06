@@ -3,7 +3,7 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/database');
-const { sendOtpEmail, sendResetEmail } = require('../services/emailService');
+const { sendEmail, sendOtpEmail, sendResetEmail } = require('../services/emailService');
 const { authUser } = require('../middleware/auth');
 const { authenticator } = require('otplib');
 const QRCode = require('qrcode');
@@ -482,7 +482,7 @@ router.post('/change-password', authUser, async (req, res, next) => {
 });
 
 // ============================================================
-// POST: Resend Verification
+// POST: Resend Verification Email
 // ============================================================
 router.post('/resend-verification', authUser, async (req, res, next) => {
   try {
@@ -518,7 +518,7 @@ router.post('/resend-verification', authUser, async (req, res, next) => {
 });
 
 // ============================================================
-// 2FA: Generate QR Code
+// 2FA: Generate Secret & QR Code
 // ============================================================
 router.post('/twofa/generate', authUser, async (req, res, next) => {
   try {
@@ -526,10 +526,14 @@ router.post('/twofa/generate', authUser, async (req, res, next) => {
     const email = req.user.email;
 
     const secret = authenticator.generateSecret();
-    const otpauth = authenticator.keyuri(email, 'VexaAccount', secret);
+    const otpauth = authenticator.keyuri(email, 'VexaStore', secret);
     const qrCode = await QRCode.toDataURL(otpauth);
 
-    res.json({ success: true, secret, qrCode });
+    res.json({
+      success: true,
+      secret,
+      qrCode,
+    });
   } catch (error) {
     console.error('❌ 2FA generate error:', error);
     next(error);
@@ -574,7 +578,7 @@ router.post('/twofa/verify-enable', authUser, async (req, res, next) => {
 });
 
 // ============================================================
-// 2FA: Disable
+// POST: Disable 2FA
 // ============================================================
 router.post('/twofa/disable', authUser, async (req, res, next) => {
   try {
@@ -590,7 +594,7 @@ router.post('/twofa/disable', authUser, async (req, res, next) => {
 });
 
 // ============================================================
-// GET: Sessions (Connected Devices)
+// GET: Sessions
 // ============================================================
 router.get('/sessions', authUser, async (req, res, next) => {
   try {
@@ -598,12 +602,13 @@ router.get('/sessions', authUser, async (req, res, next) => {
       'SELECT user_agent, ip_address, created_at FROM user_activity_logs WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
       [req.user.id]
     );
+    
     res.json({
       success: true,
       data: [
         {
           device: 'Current Device',
-          browser: req.headers['user-agent'] || 'VexaAccount App',
+          browser: req.headers['user-agent'] || 'VexaStore App',
           ip: req.ip || 'Unknown',
           last_active: new Date().toISOString(),
           is_current: true,
@@ -642,19 +647,23 @@ router.get('/activity-log', authUser, async (req, res, next) => {
 router.get('/export-data', authUser, async (req, res, next) => {
   try {
     const userId = req.user.id;
+    
     const [userRows] = await pool.query(
       'SELECT id, email, name, avatar_url, phone, bio, is_verified, is_active, created_at FROM store_users WHERE id = ?',
       [userId]
     );
+    
     const [activityRows] = await pool.query(
       'SELECT action, ip_address, user_agent, created_at FROM user_activity_logs WHERE user_id = ? ORDER BY created_at DESC LIMIT 100',
       [userId]
     );
+    
     const exportData = {
       user: userRows[0] || null,
       activity: activityRows || [],
       exported_at: new Date().toISOString(),
     };
+    
     res.json({ success: true, data: exportData });
   } catch (error) {
     next(error);
@@ -675,10 +684,12 @@ router.post('/delete-account', authUser, async (req, res, next) => {
     }
 
     await connection.beginTransaction();
+
     await connection.query('DELETE FROM otp_codes WHERE user_id = ?', [userId]);
     await connection.query('DELETE FROM user_activity_logs WHERE user_id = ?', [userId]);
     await connection.query('DELETE FROM user_connected_apps WHERE user_id = ?', [userId]);
     await connection.query('DELETE FROM store_users WHERE id = ?', [userId]);
+
     await connection.commit();
 
     res.json({ success: true, message: 'Account deleted successfully' });
@@ -696,23 +707,27 @@ router.post('/delete-account', authUser, async (req, res, next) => {
 router.get('/connected-apps', authUser, async (req, res, next) => {
   try {
     const userId = req.user.id;
+    
     const [rows] = await pool.query(
       'SELECT app_name, app_slug, status, connected_at, last_used_at FROM user_connected_apps WHERE user_id = ? ORDER BY connected_at DESC',
       [userId]
     );
+    
     if (!rows.length) {
-      // Auto-connect VexaStore for this user
       await pool.query(
         `INSERT INTO user_connected_apps (user_id, app_name, app_slug, status, connected_at, last_used_at)
          VALUES (?, 'VexaStore', 'vexastore', 'connected', NOW(), NOW())`,
         [userId]
       );
+      
       const [newRows] = await pool.query(
         'SELECT app_name, app_slug, status, connected_at, last_used_at FROM user_connected_apps WHERE user_id = ? ORDER BY connected_at DESC',
         [userId]
       );
+      
       return res.json({ success: true, data: newRows });
     }
+    
     res.json({ success: true, data: rows });
   } catch (error) {
     next(error);
@@ -726,15 +741,18 @@ router.post('/connect-app', authUser, async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { app_name, app_slug } = req.body;
+    
     if (!app_name || !app_slug) {
       return res.status(400).json({ success: false, message: 'App name and slug required' });
     }
+    
     await pool.query(
       `INSERT INTO user_connected_apps (user_id, app_name, app_slug, status, connected_at, last_used_at)
        VALUES (?, ?, ?, 'connected', NOW(), NOW())
        ON DUPLICATE KEY UPDATE status = 'connected', last_used_at = NOW()`,
       [userId, app_name, app_slug]
     );
+    
     res.json({ success: true, message: `App "${app_name}" connected successfully` });
   } catch (error) {
     next(error);
@@ -748,25 +766,20 @@ router.post('/disconnect-app', authUser, async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { app_slug } = req.body;
+    
     if (!app_slug) {
       return res.status(400).json({ success: false, message: 'App slug required' });
     }
+    
     await pool.query(
       'UPDATE user_connected_apps SET status = "disconnected", updated_at = NOW() WHERE user_id = ? AND app_slug = ?',
       [userId, app_slug]
     );
+    
     res.json({ success: true, message: 'App disconnected successfully' });
   } catch (error) {
     next(error);
   }
-});
-
-// ============================================================
-// GET: Validate Token (for other apps)
-// ============================================================
-router.get('/validate', authUser, (req, res) => {
-  // If authUser passes, the token is valid.
-  res.json({ success: true, user: req.user });
 });
 
 module.exports = router;
