@@ -16,15 +16,34 @@
 </head>
 <body class="min-h-screen flex items-center justify-center p-4 text-white">
     <div class="w-full max-w-md">
+        <!-- Logo -->
         <div class="text-center mb-8">
             <div class="inline-flex items-center gap-2 bg-cyan-500/10 px-4 py-2 rounded-full border border-cyan-500/20">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" class="w-8 h-8"><!-- SVG --></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" class="w-8 h-8">
+                    <defs>
+                        <linearGradient id="vGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#06b6d4"/>
+                            <stop offset="100%" stop-color="#10b981"/>
+                        </linearGradient>
+                    </defs>
+                    <rect width="100" height="100" rx="20" ry="20" fill="#0a0e1a" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(6,182,212,0.15)" stroke-width="1"/>
+                    <g transform="translate(50, 50) scale(0.8)">
+                        <path d="M-25,-25 L-5,15 L5,15 L25,-25" fill="none" stroke="url(#vGrad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M25,-25 L5,15" fill="none" stroke="url(#vGrad)" stroke-width="6" stroke-linecap="round"/>
+                        <path d="M-12,22 L0,30 L12,22" fill="none" stroke="url(#vGrad)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <circle cx="0" cy="-28" r="4" fill="#06b6d4"/>
+                        <circle cx="0" cy="-28" r="8" fill="none" stroke="rgba(6,182,212,0.3)" stroke-width="1.5"/>
+                    </g>
+                    <circle cx="30" cy="30" r="20" fill="rgba(255,255,255,0.03)"/>
+                </svg>
                 <span class="text-sm text-cyan-300 font-medium">VexaAccount</span>
             </div>
             <h1 class="text-3xl font-bold gradient-text mt-4">Choose an Account</h1>
             <p class="text-slate-400 text-sm mt-1">Select the account you want to use</p>
         </div>
 
+        <!-- Account Switcher -->
         <div class="glass rounded-3xl p-6 shadow-2xl">
             <div id="accountList" class="space-y-3">
                 <!-- Loading state -->
@@ -34,37 +53,58 @@
                 </div>
             </div>
 
+            <!-- Divider -->
             <div class="relative my-4">
-                <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-white/10"></div></div>
-                <div class="relative flex justify-center text-xs text-slate-500"><span class="bg-[#0a0e1a] px-2">or</span></div>
+                <div class="absolute inset-0 flex items-center">
+                    <div class="w-full border-t border-white/10"></div>
+                </div>
+                <div class="relative flex justify-center text-xs text-slate-500">
+                    <span class="bg-[#0a0e1a] px-2">or</span>
+                </div>
             </div>
 
+            <!-- Actions -->
             <div class="space-y-2">
-                <button id="addAccountBtn" class="w-full text-center text-cyan-400 hover:text-cyan-300 text-sm py-2 px-4 rounded-xl border border-white/5 hover:border-cyan-500/20 transition">➕ Use another account</button>
-                <button id="createAccountBtn" class="w-full text-center text-slate-400 hover:text-white text-sm py-2 px-4 rounded-xl border border-white/5 hover:border-white/10 transition">✨ Create new account</button>
+                <button id="addAccountBtn" class="w-full text-center text-cyan-400 hover:text-cyan-300 text-sm py-2 px-4 rounded-xl border border-white/5 hover:border-cyan-500/20 transition">
+                    ➕ Use another account
+                </button>
+                <button id="createAccountBtn" class="w-full text-center text-slate-400 hover:text-white text-sm py-2 px-4 rounded-xl border border-white/5 hover:border-white/10 transition">
+                    ✨ Create new account
+                </button>
             </div>
 
             <div class="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
                 <div class="text-xs uppercase tracking-wider text-slate-500">Security</div>
-                <div class="mt-1 text-xs text-slate-400">Your Vexa Account works across all Vexa apps</div>
+                <div class="mt-1 text-xs text-slate-400">
+                    Your Vexa Account works across all Vexa apps
+                </div>
             </div>
         </div>
     </div>
 
     <script>
+        // ✅ Get redirect URI from URL
         const urlParams = new URLSearchParams(window.location.search);
         const redirectUri = urlParams.get('redirect_uri') || 'https://vexatrade-v.2bd.net/auth/callback';
+
+        // ✅ Debug logging
+        console.log('🔄 Account switcher loaded');
+        console.log('🔄 Redirect URI:', redirectUri);
+        console.log('🔄 Full URL:', window.location.href);
+        console.log('🔄 Cookies:', document.cookie);
 
         // ✅ Get stored accounts from localStorage
         function getStoredAccounts() {
             try {
                 const data = localStorage.getItem('vexaccount_sessions');
+                console.log('🔄 Stored accounts data:', data);
                 if (data) {
                     const parsed = JSON.parse(data);
                     if (Array.isArray(parsed)) return parsed;
                 }
                 return [];
-            } catch {
+            } catch (err) {
+                console.error('🔄 Error parsing stored accounts:', err);
                 return [];
             }
         }
@@ -76,22 +116,25 @@
             accounts.unshift(account);
             if (accounts.length > 5) accounts = accounts.slice(0, 5);
             localStorage.setItem('vexaccount_sessions', JSON.stringify(accounts));
+            console.log('🔄 Account saved:', account.email);
         }
 
         // ✅ Get current session from cookie (via API)
         async function getCurrentSession() {
             try {
+                console.log('🔄 Checking session...');
                 const response = await fetch('/api/auth/session', { 
                     credentials: 'include',
                     headers: { 'Accept': 'application/json' }
                 });
                 const data = await response.json();
+                console.log('🔄 Session response:', data);
                 if (data.success && data.user) {
                     return data.user;
                 }
                 return null;
             } catch (err) {
-                console.error('Session check error:', err);
+                console.error('🔄 Session check error:', err);
                 return null;
             }
         }
@@ -101,8 +144,12 @@
             const container = document.getElementById('accountList');
             
             try {
+                console.log('🔄 Rendering accounts...');
                 const currentUser = await getCurrentSession();
                 let accounts = getStoredAccounts();
+
+                console.log('🔄 Current user:', currentUser);
+                console.log('🔄 Stored accounts:', accounts);
 
                 // ✅ If user has active session but not in localStorage, add them
                 if (currentUser && !accounts.find(a => a.email === currentUser.email)) {
@@ -112,6 +159,7 @@
                         avatar_url: currentUser.avatar_url || null
                     });
                     localStorage.setItem('vexaccount_sessions', JSON.stringify(accounts));
+                    console.log('🔄 Added current user to stored accounts');
                 }
 
                 if (accounts.length === 0) {
@@ -149,7 +197,7 @@
                 }).join('');
                 
             } catch (err) {
-                console.error('Render error:', err);
+                console.error('🔄 Render error:', err);
                 container.innerHTML = `
                     <div class="text-center py-8">
                         <p class="text-red-400 text-sm">Error loading accounts</p>
@@ -163,7 +211,12 @@
         async function selectAccount(email, index) {
             const accounts = getStoredAccounts();
             const account = accounts[index];
-            if (!account) return;
+            if (!account) {
+                console.error('🔄 Account not found at index:', index);
+                return;
+            }
+
+            console.log('🔄 Selecting account:', email);
 
             // Show loading
             document.getElementById('accountList').innerHTML = `
@@ -181,6 +234,7 @@
                 });
 
                 const data = await response.json();
+                console.log('🔄 Session login response:', data);
 
                 if (data.success) {
                     // ✅ Save account
@@ -196,13 +250,14 @@
                     if (data.user) {
                         redirectUrl.searchParams.set('user', JSON.stringify(data.user));
                     }
+                    console.log('🔄 Redirecting with token to:', redirectUrl.toString());
                     window.location.href = redirectUrl.toString();
                 } else {
-                    // Session expired - go to login
+                    console.log('🔄 Session login failed, redirecting to login');
                     window.location.href = `/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}`;
                 }
             } catch (err) {
-                console.error('Login error:', err);
+                console.error('🔄 Login error:', err);
                 window.location.href = `/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}`;
             }
         }
