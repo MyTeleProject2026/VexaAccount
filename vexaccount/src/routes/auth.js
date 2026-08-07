@@ -16,10 +16,9 @@ function generateOTP() {
 }
 
 // ============================================================
-// ✅ POST: Register with improved flow
+// POST: Register
 // ============================================================
 router.post('/register', async (req, res, next) => {
-  const start = Date.now();
   const connection = await pool.getConnection();
   try {
     const { email, password, name } = req.body;
@@ -35,11 +34,6 @@ router.post('/register', async (req, res, next) => {
       'SELECT id, is_verified FROM store_users WHERE email = ?',
       [email.trim().toLowerCase()]
     );
-
-    console.log('🔍 [REGISTER] Existing user found:', existing.length > 0);
-    if (existing.length > 0) {
-      console.log('🔍 [REGISTER] is_verified:', existing[0].is_verified);
-    }
 
     if (existing.length) {
       const user = existing[0];
@@ -63,7 +57,6 @@ router.post('/register', async (req, res, next) => {
         
         try {
           await sendOtpEmail(email, otp);
-          console.log('✅ OTP resent to:', email);
         } catch (emailError) {
           console.error('❌ Failed to send OTP email:', emailError.message);
         }
@@ -104,13 +97,10 @@ router.post('/register', async (req, res, next) => {
 
     try {
       await sendOtpEmail(email, otp);
-      console.log('✅ OTP sent to:', email);
     } catch (emailError) {
       console.error('❌ Failed to send OTP email:', emailError.message);
     }
 
-    console.log('⏱️ Registration completed in:', Date.now() - start, 'ms');
-    
     res.json({
       success: true,
       message: 'Registration successful. Please verify your email with OTP.',
@@ -215,7 +205,7 @@ router.post('/resend-otp', async (req, res, next) => {
 });
 
 // ============================================================
-// POST: Login with 2FA Support
+// POST: Login
 // ============================================================
 router.post('/login', async (req, res, next) => {
   try {
