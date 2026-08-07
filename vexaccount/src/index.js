@@ -1,18 +1,25 @@
+// vexaccount/src/index.js
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const path = require('path'); // ✅ ADD THIS
+const cookieParser = require('cookie-parser'); // ✅ ADD THIS
+const path = require('path');
+const jwt = require('jsonwebtoken');
 const { testConnection } = require('./config/database');
+const { pool } = require('./config/database');
 
-app.use(cookieParser());
 const authRoutes = require('./routes/auth');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const JWT_SECRET = process.env.JWT_SECRET || 'vexastore_jwt_secret_key';
 
 app.set('trust proxy', 1);
+
+// ✅ Cookie Parser Middleware
+app.use(cookieParser());
 
 // CORS – allow all Vexa apps origins
 const allowedOrigins = [
@@ -37,30 +44,37 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Remove this line:
-// const cookieParser = require('cookie-parser');
+// ✅ Serve static files (HTML, CSS, JS)
+app.use(express.static(path.join(__dirname, '../public')));
 
-// Add this helper function instead:
-function parseCookies(cookieHeader) {
-  const cookies = {};
-  if (!cookieHeader) return cookies;
-  cookieHeader.split(';').forEach(cookie => {
-    const parts = cookie.split('=');
-    const name = parts[0].trim();
-    const value = parts.slice(1).join('=').trim();
-    if (name && value) cookies[name] = decodeURIComponent(value);
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { success: false, message: 'Too many requests, please try again later.' }
+});
+app.use('/api/', limiter);
+
+// Routes
+app.use('/api/auth', authRoutes);
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({
+    success: true,
+    message: 'VexaAccount Service is running',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0'
   });
-  return cookies;
-}
+});
 
-// Then in your routes, use:
-const cookies = parseCookies(req.headers.cookie);
-const sessionToken = cookies.vexaccount_session;
+// ============================================================
+// ✅ SESSION ROUTES (for account switcher)
+// ============================================================
 
-// ✅ Check if user has active session (via cookie)
+// ✅ Check if user has active session
 app.get('/api/auth/session', async (req, res) => {
   try {
-    // Get session token from cookie
     const sessionToken = req.cookies?.vexaccount_session;
     if (!sessionToken) {
       return res.json({ success: false, message: 'No session' });
@@ -91,7 +105,7 @@ app.post('/api/auth/session-login', async (req, res) => {
     }
 
     const [rows] = await pool.query(
-      'SELECT id, email, name, is_verified, is_active FROM store_users WHERE email = ?',
+      'SELECT id, email, name, is_verified, is_active, twofa_enabled FROM store_users WHERE email = ?',
       [email]
     );
     
@@ -106,7 +120,6 @@ app.post('/api/auth/session-login', async (req, res) => {
 
     // Check if authenticator 2FA is enabled
     if (user.twofa_enabled === 1) {
-      // Redirect to 2FA page
       return res.json({
         success: true,
         requires2fa: true,
@@ -122,7 +135,7 @@ app.post('/api/auth/session-login', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    // Set session cookie (optional - for account switcher)
+    // Set session cookie
     res.cookie('vexaccount_session', token, {
       httpOnly: true,
       secure: true,
@@ -141,17 +154,20 @@ app.post('/api/auth/session-login', async (req, res) => {
   }
 });
 
-// ✅ Logout (clear session)
+// ✅ Logout
 app.post('/api/auth/logout', (req, res) => {
   res.clearCookie('vexaccount_session');
   res.json({ success: true, message: 'Logged out successfully' });
 });
 
+// ============================================================
+// ✅ SSO PAGE ROUTES
+// ============================================================
+
 // ✅ SSO Redirect - Check session first
 app.get('/api/auth/login', async (req, res) => {
   const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
   
-  // Check if user has active session
   const sessionToken = req.cookies?.vexaccount_session;
   if (sessionToken) {
     try {
@@ -161,7 +177,6 @@ app.get('/api/auth/login', async (req, res) => {
         [decoded.id]
       );
       if (rows.length) {
-        // User has active session - show account switcher
         return res.redirect(`/auth/account-switcher?redirect_uri=${encodeURIComponent(redirectUri)}`);
       }
     } catch (error) {
@@ -169,7 +184,6 @@ app.get('/api/auth/login', async (req, res) => {
     }
   }
   
-  // No active session - redirect to login page
   res.redirect(`/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}`);
 });
 
@@ -177,7 +191,6 @@ app.get('/api/auth/login', async (req, res) => {
 app.get('/api/auth/register', async (req, res) => {
   const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
   
-  // Check if user has active session
   const sessionToken = req.cookies?.vexaccount_session;
   if (sessionToken) {
     try {
@@ -187,7 +200,6 @@ app.get('/api/auth/register', async (req, res) => {
         [decoded.id]
       );
       if (rows.length) {
-        // User has active session - show account switcher
         return res.redirect(`/auth/account-switcher?redirect_uri=${encodeURIComponent(redirectUri)}`);
       }
     } catch (error) {
@@ -195,64 +207,22 @@ app.get('/api/auth/register', async (req, res) => {
     }
   }
   
-  // No active session - redirect to register page
   res.redirect(`/auth/register-page?redirect_uri=${encodeURIComponent(redirectUri)}`);
+});
+
+// ✅ Login Page
+app.get('/auth/login-page', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/login.html'));
+});
+
+// ✅ Register Page
+app.get('/auth/register-page', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/register.html'));
 });
 
 // ✅ Account Switcher Page
 app.get('/auth/account-switcher', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/account-switcher.html'));
-});
-
-// ✅ Serve static files (HTML, CSS, JS)
-app.use(express.static(path.join(__dirname, '../public')));
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: { success: false, message: 'Too many requests, please try again later.' }
-});
-app.use('/api/', limiter);
-
-// Routes
-app.use('/api/auth', authRoutes);
-
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'VexaAccount Service is running',
-    timestamp: new Date().toISOString(),
-    version: '1.0.0'
-  });
-});
-
-// ============================================================
-// ✅ SSO PAGE ROUTES – Serve the HTML pages
-// ============================================================
-
-// ✅ Login Page Route
-app.get('/auth/login-page', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/login.html'));
-});
-
-// ✅ Register Page Route
-app.get('/auth/register-page', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/register.html'));
-});
-
-// ✅ SSO Redirect from frontend – goes to login page
-app.get('/api/auth/login', (req, res) => {
-  const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
-  // Redirect to the login page with redirect_uri
-  res.redirect(`/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}`);
-});
-
-// ✅ SSO Redirect from frontend – goes to register page
-app.get('/api/auth/register', (req, res) => {
-  const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
-  res.redirect(`/auth/register-page?redirect_uri=${encodeURIComponent(redirectUri)}`);
 });
 
 // 404
@@ -282,6 +252,7 @@ async function startServer() {
     console.log(`⚙️  Frontend Admin: ${process.env.FRONTEND_ADMIN_URL || 'http://localhost:5174'}`);
     console.log(`🔐 SSO Login Page: /auth/login-page`);
     console.log(`🔐 SSO Register Page: /auth/register-page`);
+    console.log(`🔄 Account Switcher: /auth/account-switcher`);
   });
 }
 
