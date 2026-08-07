@@ -56,6 +56,21 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// In vexaccount-service/src/index.js
+
+// ✅ Add this route for SSO redirect
+app.get('/api/auth/login', (req, res) => {
+  // Redirect to the frontend login page
+  const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
+  res.redirect(`${redirectUri}?sso=vexaccount`);
+});
+
+// ✅ Add this route for SSO register redirect
+app.get('/api/auth/register', (req, res) => {
+  const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
+  res.redirect(`${redirectUri}?sso=vexaccount`);
+});
+
 // 404
 app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' });
