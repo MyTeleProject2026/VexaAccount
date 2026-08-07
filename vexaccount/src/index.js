@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const path = require('path'); // ✅ ADD THIS
 const { testConnection } = require('./config/database');
 
 const authRoutes = require('./routes/auth');
@@ -21,8 +22,8 @@ const allowedOrigins = [
   'https://vexastore.onrender.com',
   'https://vexastore-admin.onrender.com',
   'https://vexatrade.onrender.com',
-  'https://vexatrade-v.2bd.net',        // ✅ ADD THIS
-  'https://www.vexatrade-v.2bd.net',    // ✅ ADD THIS
+  'https://vexatrade-v.2bd.net',
+  'https://www.vexatrade-v.2bd.net',
 ];
 
 app.use(cors({
@@ -34,6 +35,9 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// ✅ Serve static files (HTML, CSS, JS)
+app.use(express.static(path.join(__dirname, '../public')));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -56,19 +60,31 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// In vexaccount-service/src/index.js
+// ============================================================
+// ✅ SSO PAGE ROUTES – Serve the HTML pages
+// ============================================================
 
-// ✅ Add this route for SSO redirect
-app.get('/api/auth/login', (req, res) => {
-  // Redirect to the frontend login page
-  const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
-  res.redirect(`${redirectUri}?sso=vexaccount`);
+// ✅ Login Page Route
+app.get('/auth/login-page', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/login.html'));
 });
 
-// ✅ Add this route for SSO register redirect
+// ✅ Register Page Route
+app.get('/auth/register-page', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/register.html'));
+});
+
+// ✅ SSO Redirect from frontend – goes to login page
+app.get('/api/auth/login', (req, res) => {
+  const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
+  // Redirect to the login page with redirect_uri
+  res.redirect(`/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}`);
+});
+
+// ✅ SSO Redirect from frontend – goes to register page
 app.get('/api/auth/register', (req, res) => {
   const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
-  res.redirect(`${redirectUri}?sso=vexaccount`);
+  res.redirect(`/auth/register-page?redirect_uri=${encodeURIComponent(redirectUri)}`);
 });
 
 // 404
@@ -96,6 +112,8 @@ async function startServer() {
     console.log(`🚀 VexaAccount Service running on port ${PORT}`);
     console.log(`📱 Frontend User: ${process.env.FRONTEND_USER_URL || 'http://localhost:5173'}`);
     console.log(`⚙️  Frontend Admin: ${process.env.FRONTEND_ADMIN_URL || 'http://localhost:5174'}`);
+    console.log(`🔐 SSO Login Page: /auth/login-page`);
+    console.log(`🔐 SSO Register Page: /auth/register-page`);
   });
 }
 
