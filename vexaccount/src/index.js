@@ -27,8 +27,8 @@ const allowedOrigins = [
   'https://vexatrade.onrender.com',
   'https://vexatrade-v.2bd.net',
   'https://www.vexatrade-v.2bd.net',
-  'https://vexawallet.onrender.com',  // future
-  'https://vexabrowser.onrender.com', // future
+  'https://vexawallet.onrender.com',
+  'https://vexabrowser.onrender.com',
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:3000',
@@ -66,6 +66,13 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     version: '2.0.0'
   });
+});
+
+// ============================================================
+// ✅ OTP VERIFY PAGE (Optional – for standalone OTP verification)
+// ============================================================
+app.get('/auth/otp-verify', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/otp-verify.html'));
 });
 
 // ============================================================
@@ -174,7 +181,6 @@ app.get('/api/auth/login', async (req, res) => {
         return res.redirect(`/auth/account-switcher?redirect_uri=${encodeURIComponent(redirectUri)}`);
       }
     } catch (error) {
-      // Invalid session, clear cookie
       res.clearCookie('vexaccount_session');
     }
   }
@@ -217,10 +223,11 @@ app.get('/auth/account-switcher', (req, res) => {
 });
 
 // ============================================================
-// CLEANUP – Delete unverified users after 1 hour
+// ✅ AUTO-CLEANUP – Delete unverified users after 1 hour
 // ============================================================
 async function cleanupUnverifiedUsers() {
   try {
+    // ✅ Delete unverified users older than 1 hour
     const [result] = await pool.query(
       `DELETE FROM store_users 
        WHERE is_verified = 0 
@@ -230,6 +237,7 @@ async function cleanupUnverifiedUsers() {
       console.log(`🧹 Cleaned up ${result.affectedRows} unverified users`);
     }
 
+    // ✅ Also clean up expired OTP codes
     const [otpResult] = await pool.query(
       `DELETE FROM otp_codes 
        WHERE expires_at < NOW() 
@@ -238,12 +246,25 @@ async function cleanupUnverifiedUsers() {
     if (otpResult.affectedRows > 0) {
       console.log(`🧹 Cleaned up ${otpResult.affectedRows} expired OTPs`);
     }
+
+    // ✅ Clean up orphaned OTPs (where user no longer exists)
+    const [orphanResult] = await pool.query(
+      `DELETE FROM otp_codes 
+       WHERE user_id NOT IN (SELECT id FROM store_users)`
+    );
+    if (orphanResult.affectedRows > 0) {
+      console.log(`🧹 Cleaned up ${orphanResult.affectedRows} orphaned OTPs`);
+    }
+
   } catch (error) {
     console.error('❌ Cleanup error:', error.message);
   }
 }
 
+// ✅ Run cleanup every hour
 setInterval(cleanupUnverifiedUsers, 60 * 60 * 1000);
+
+// ✅ Run cleanup on startup (after 5 seconds)
 setTimeout(cleanupUnverifiedUsers, 5000);
 
 // 404
@@ -272,6 +293,7 @@ async function startServer() {
     console.log(`🔐 SSO Login Page: /auth/login-page`);
     console.log(`🔐 SSO Register Page: /auth/register-page`);
     console.log(`🔄 Account Switcher: /auth/account-switcher`);
+    console.log(`📧 OTP Verify Page: /auth/otp-verify`);
   });
 }
 
