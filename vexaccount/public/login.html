@@ -164,13 +164,14 @@
                 console.log('Login response:', data);
 
                 // ✅ Check if login was successful
-                if (data.success === true && data.token) {
-                    // Redirect back with token
+                if (data.success && data.token) { 
                     const redirectUrl = new URL(redirectUri);
                     redirectUrl.searchParams.set('token', data.token);
                     if (data.user) {
                         redirectUrl.searchParams.set('user', JSON.stringify(data.user));
                     }
+                    // ✅ Add a cache buster to prevent browser caching issues
+                    redirectUrl.searchParams.set('_t', Date.now());
                     window.location.href = redirectUrl.toString();
                     return;
                 }
