@@ -16,57 +16,87 @@ function generateOTP() {
 }
 
 // ============================================================
-// POST: Register
+// ✅ POST: Register with improved flow
 // ============================================================
 router.post('/register', async (req, res, next) => {
   const start = Date.now();
   const connection = await pool.getConnection();
   try {
     const { email, password, name } = req.body;
+    
+    console.log('📝 [REGISTER] Attempt for:', email);
+
     if (!email || !password || !name) {
       return res.status(400).json({ success: false, message: 'All fields required' });
     }
 
+    // Check if user already exists
     const [existing] = await connection.query(
       'SELECT id, is_verified FROM store_users WHERE email = ?',
       [email.trim().toLowerCase()]
     );
 
+    console.log('🔍 [REGISTER] Existing user found:', existing.length > 0);
+    if (existing.length > 0) {
+      console.log('🔍 [REGISTER] is_verified:', existing[0].is_verified);
+    }
+
     if (existing.length) {
       const user = existing[0];
+      
+      // If user exists but NOT verified → resend OTP
       if (user.is_verified === 0) {
+        console.log('📧 [REGISTER] Unverified user exists, resending OTP');
+        
         const otp = generateOTP();
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+        
         await connection.query(
           'DELETE FROM otp_codes WHERE user_id = ? AND purpose = "email_verification"',
           [user.id]
         );
+        
         await connection.query(
           `INSERT INTO otp_codes (user_id, otp_code, purpose, expires_at) VALUES (?, ?, 'email_verification', ?)`,
           [user.id, otp, expiresAt]
         );
+        
         try {
           await sendOtpEmail(email, otp);
+          console.log('✅ OTP resent to:', email);
         } catch (emailError) {
           console.error('❌ Failed to send OTP email:', emailError.message);
         }
+        
         return res.status(409).json({
           success: false,
           message: 'Account already registered but not verified. New OTP sent to your email.',
           action: 'verify'
         });
       }
-      return res.status(409).json({ success: false, message: 'Email already registered. Please login.' });
+      
+      // User exists and IS verified → tell them to login
+      return res.status(409).json({ 
+        success: false, 
+        message: 'Email already registered. Please login instead.',
+        action: 'login'
+      });
     }
 
+    // Create new user
+    console.log('🆕 [REGISTER] Creating new user for:', email);
+    
     const hashed = await bcrypt.hash(password, 10);
     const [result] = await connection.query(
-      `INSERT INTO store_users (email, password, name, is_verified) VALUES (?, ?, ?, 0)`,
+      `INSERT INTO store_users (email, password, name, is_verified, created_at) 
+       VALUES (?, ?, ?, 0, NOW())`,
       [email.trim().toLowerCase(), hashed, name.trim()]
     );
 
+    // Generate and send OTP
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    
     await connection.query(
       `INSERT INTO otp_codes (user_id, otp_code, purpose, expires_at) VALUES (?, ?, 'email_verification', ?)`,
       [result.insertId, otp, expiresAt]
@@ -74,16 +104,19 @@ router.post('/register', async (req, res, next) => {
 
     try {
       await sendOtpEmail(email, otp);
+      console.log('✅ OTP sent to:', email);
     } catch (emailError) {
       console.error('❌ Failed to send OTP email:', emailError.message);
     }
 
     console.log('⏱️ Registration completed in:', Date.now() - start, 'ms');
+    
     res.json({
       success: true,
       message: 'Registration successful. Please verify your email with OTP.',
       data: { id: result.insertId }
     });
+    
   } catch (error) {
     console.error('❌ Registration error:', error);
     next(error);
@@ -112,7 +145,9 @@ router.post('/verify-otp', async (req, res, next) => {
     }
 
     const [otpRows] = await connection.query(
-      `SELECT id, expires_at, is_used FROM otp_codes WHERE user_id = ? AND otp_code = ? AND purpose = 'email_verification' AND is_used = 0 ORDER BY id DESC LIMIT 1`,
+      `SELECT id, expires_at, is_used FROM otp_codes 
+       WHERE user_id = ? AND otp_code = ? AND purpose = 'email_verification' AND is_used = 0 
+       ORDER BY id DESC LIMIT 1`,
       [userRows[0].id, otp]
     );
     if (!otpRows.length) {
@@ -156,6 +191,7 @@ router.post('/resend-otp', async (req, res, next) => {
     const userId = userRows[0].id;
     const otp = generateOTP();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    
     await connection.query(
       'DELETE FROM otp_codes WHERE user_id = ? AND purpose = "email_verification"',
       [userId]
@@ -179,7 +215,7 @@ router.post('/resend-otp', async (req, res, next) => {
 });
 
 // ============================================================
-// POST: Login
+// POST: Login with 2FA Support
 // ============================================================
 router.post('/login', async (req, res, next) => {
   try {
@@ -408,7 +444,207 @@ router.post('/twofa/verify', async (req, res, next) => {
   }
 });
 
-// ... (rest of auth routes - profile, sessions, connected apps, etc.)
-// These remain the same as your existing file
+// ============================================================
+// GET: Email 2FA Status
+// ============================================================
+router.get('/email-2fa/status', authUser, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const [rows] = await pool.query(
+      'SELECT email_2fa_enabled FROM store_users WHERE id = ?',
+      [userId]
+    );
+    res.json({
+      success: true,
+      enabled: rows[0]?.email_2fa_enabled === 1
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
-module.exports = router;
+// ============================================================
+// POST: Enable Email 2FA
+// ============================================================
+router.post('/email-2fa/enable', authUser, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    await pool.query(
+      'UPDATE store_users SET email_2fa_enabled = 1 WHERE id = ?',
+      [userId]
+    );
+    res.json({ success: true, message: 'Email 2FA enabled successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================================
+// POST: Disable Email 2FA
+// ============================================================
+router.post('/email-2fa/disable', authUser, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    await pool.query(
+      'UPDATE store_users SET email_2fa_enabled = 0 WHERE id = ?',
+      [userId]
+    );
+    res.json({ success: true, message: 'Email 2FA disabled successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================================
+// POST: Google Login
+// ============================================================
+router.post('/google', async (req, res, next) => {
+  try {
+    const { google_id, email, name } = req.body;
+    if (!google_id || !email) {
+      return res.status(400).json({ success: false, message: 'Missing Google data' });
+    }
+
+    let [rows] = await pool.query(
+      'SELECT * FROM store_users WHERE google_id = ? OR email = ?',
+      [google_id, email]
+    );
+    let user;
+    if (rows.length) {
+      user = rows[0];
+      if (!user.google_id) {
+        await pool.query('UPDATE store_users SET google_id = ? WHERE id = ?', [google_id, user.id]);
+        user.google_id = google_id;
+      }
+    } else {
+      const [result] = await pool.query(
+        `INSERT INTO store_users (email, name, google_id, is_verified) VALUES (?, ?, ?, 1)`,
+        [email, name || email.split('@')[0], google_id]
+      );
+      const [newUser] = await pool.query('SELECT * FROM store_users WHERE id = ?', [result.insertId]);
+      user = newUser[0];
+    }
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: 'user' },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      success: true,
+      token,
+      user: { id: user.id, email: user.email, name: user.name }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================================
+// POST: Forgot Password
+// ============================================================
+router.post('/forgot-password', async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email is required' });
+    }
+
+    const [rows] = await pool.query(
+      'SELECT id, email FROM store_users WHERE email = ?',
+      [email.trim().toLowerCase()]
+    );
+    if (!rows.length) {
+      return res.json({ success: true, message: 'If your email is registered, you will receive a reset link.' });
+    }
+
+    const user = rows[0];
+    const resetToken = jwt.sign(
+      { id: user.id, email: user.email, purpose: 'password_reset' },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    await pool.query(
+      `INSERT INTO otp_codes (user_id, otp_code, purpose, expires_at) 
+       VALUES (?, ?, 'password_reset', DATE_ADD(NOW(), INTERVAL 1 HOUR))
+       ON DUPLICATE KEY UPDATE otp_code = VALUES(otp_code), expires_at = VALUES(expires_at)`,
+      [user.id, resetToken]
+    );
+
+    const resetLink = `${process.env.FRONTEND_USER_URL || 'https://vexastore.onrender.com'}/reset-password?token=${resetToken}`;
+
+    try {
+      await sendResetEmail(email, resetLink);
+    } catch (emailError) {
+      console.error('❌ Failed to send reset email:', emailError.message);
+    }
+
+    res.json({ success: true, message: 'If your email is registered, you will receive a reset link.' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================================
+// POST: Reset Password
+// ============================================================
+router.post('/reset-password', async (req, res, next) => {
+  const connection = await pool.getConnection();
+  try {
+    const { token, newPassword } = req.body;
+    if (!token || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Token and new password required' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch {
+      return res.status(400).json({ success: false, message: 'Invalid or expired token' });
+    }
+    if (decoded.purpose !== 'password_reset') {
+      return res.status(400).json({ success: false, message: 'Invalid token purpose' });
+    }
+
+    const [otpRows] = await connection.query(
+      `SELECT id FROM otp_codes WHERE user_id = ? AND otp_code = ? AND purpose = 'password_reset' AND is_used = 0 AND expires_at > NOW()`,
+      [decoded.id, token]
+    );
+    if (!otpRows.length) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired token' });
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await connection.query('UPDATE store_users SET password = ? WHERE id = ?', [hashed, decoded.id]);
+    await connection.query('UPDATE otp_codes SET is_used = 1 WHERE id = ?', [otpRows[0].id]);
+
+    res.json({ success: true, message: 'Password reset successfully' });
+  } catch (error) {
+    next(error);
+  } finally {
+    connection.release();
+  }
+});
+
+// ============================================================
+// GET: User Profile
+// ============================================================
+router.get('/profile', authUser, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const [rows] = await pool.query(
+      `SELECT id, email, name, avatar_url, phone, bio, is_verified, is_active, created_at, 
+              twofa_enabled, email_2fa_enabled 
+       FROM store_users WHERE id = ?`,
+      [userId]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    res.json({ success: true, user: rows[0] });
+  }
