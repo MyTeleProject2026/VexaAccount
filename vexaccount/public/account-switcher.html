@@ -83,75 +83,77 @@
     </div>
 
     <script>
-        // ✅ Get redirect URI from URL
+        // ============================================================
+        // ✅ GLOBAL VARIABLES
+        // ============================================================
         const urlParams = new URLSearchParams(window.location.search);
         const redirectUri = urlParams.get('redirect_uri') || 'https://vexatrade-v.2bd.net/auth/callback';
+        
+        console.log('🔄 [account-switcher.html] Page loaded');
+        console.log('🔄 [account-switcher.html] Redirect URI:', redirectUri);
 
-        // ✅ Debug logging
-        console.log('🔄 Account switcher loaded');
-        console.log('🔄 Redirect URI:', redirectUri);
-        console.log('🔄 Full URL:', window.location.href);
-        console.log('🔄 Cookies:', document.cookie);
-
-        // ✅ Get stored accounts from localStorage
+        // ============================================================
+        // ✅ STORED ACCOUNTS
+        // ============================================================
         function getStoredAccounts() {
             try {
                 const data = localStorage.getItem('vexaccount_sessions');
-                console.log('🔄 Stored accounts data:', data);
                 if (data) {
                     const parsed = JSON.parse(data);
                     if (Array.isArray(parsed)) return parsed;
                 }
                 return [];
-            } catch (err) {
-                console.error('🔄 Error parsing stored accounts:', err);
+            } catch {
                 return [];
             }
         }
 
-        // ✅ Save account to localStorage
         function saveAccount(account) {
             let accounts = getStoredAccounts();
             accounts = accounts.filter(a => a.email !== account.email);
             accounts.unshift(account);
             if (accounts.length > 5) accounts = accounts.slice(0, 5);
             localStorage.setItem('vexaccount_sessions', JSON.stringify(accounts));
-            console.log('🔄 Account saved:', account.email);
+            console.log('🔄 [account-switcher] Account saved:', account.email);
         }
 
-        // ✅ Get current session from cookie (via API)
+        // ============================================================
+        // ✅ SESSION CHECK
+        // ============================================================
         async function getCurrentSession() {
             try {
-                console.log('🔄 Checking session...');
+                console.log('🔄 [account-switcher] Checking session...');
                 const response = await fetch('/api/auth/session', { 
                     credentials: 'include',
                     headers: { 'Accept': 'application/json' }
                 });
                 const data = await response.json();
-                console.log('🔄 Session response:', data);
+                console.log('🔄 [account-switcher] Session response:', data);
                 if (data.success && data.user) {
                     return data.user;
                 }
                 return null;
             } catch (err) {
-                console.error('🔄 Session check error:', err);
+                console.error('🔄 [account-switcher] Session error:', err);
                 return null;
             }
         }
 
-        // ✅ Render account list
+        // ============================================================
+        // ✅ RENDER ACCOUNT LIST
+        // ============================================================
         async function renderAccounts() {
             const container = document.getElementById('accountList');
             
             try {
-                console.log('🔄 Rendering accounts...');
+                console.log('🔄 [account-switcher] Rendering accounts...');
                 const currentUser = await getCurrentSession();
                 let accounts = getStoredAccounts();
 
-                console.log('🔄 Current user:', currentUser);
-                console.log('🔄 Stored accounts:', accounts);
+                console.log('🔄 [account-switcher] Current user:', currentUser);
+                console.log('🔄 [account-switcher] Stored accounts:', accounts);
 
-                // ✅ If user has active session but not in localStorage, add them
+                // If user has active session but not in localStorage, add them
                 if (currentUser && !accounts.find(a => a.email === currentUser.email)) {
                     accounts.unshift({
                         email: currentUser.email,
@@ -159,7 +161,7 @@
                         avatar_url: currentUser.avatar_url || null
                     });
                     localStorage.setItem('vexaccount_sessions', JSON.stringify(accounts));
-                    console.log('🔄 Added current user to stored accounts');
+                    console.log('🔄 [account-switcher] Added current user to stored accounts');
                 }
 
                 if (accounts.length === 0) {
@@ -197,7 +199,7 @@
                 }).join('');
                 
             } catch (err) {
-                console.error('🔄 Render error:', err);
+                console.error('🔄 [account-switcher] Render error:', err);
                 container.innerHTML = `
                     <div class="text-center py-8">
                         <p class="text-red-400 text-sm">Error loading accounts</p>
@@ -207,16 +209,18 @@
             }
         }
 
-        // ✅ Select an account
+        // ============================================================
+        // ✅ SELECT ACCOUNT
+        // ============================================================
         async function selectAccount(email, index) {
             const accounts = getStoredAccounts();
             const account = accounts[index];
             if (!account) {
-                console.error('🔄 Account not found at index:', index);
+                console.error('🔄 [account-switcher] Account not found at index:', index);
                 return;
             }
 
-            console.log('🔄 Selecting account:', email);
+            console.log('🔄 [account-switcher] Selecting account:', email);
 
             // Show loading
             document.getElementById('accountList').innerHTML = `
@@ -234,45 +238,51 @@
                 });
 
                 const data = await response.json();
-                console.log('🔄 Session login response:', data);
+                console.log('🔄 [account-switcher] Session login response:', data);
 
                 if (data.success) {
-                    // ✅ Save account
+                    // Save account
                     saveAccount({ 
                         email: account.email, 
                         name: account.name || account.email,
                         avatar_url: account.avatar_url || null
                     });
                     
-                    // ✅ Redirect with token
+                    // Redirect with token
                     const redirectUrl = new URL(redirectUri);
                     redirectUrl.searchParams.set('token', data.token);
                     if (data.user) {
                         redirectUrl.searchParams.set('user', JSON.stringify(data.user));
                     }
-                    console.log('🔄 Redirecting with token to:', redirectUrl.toString());
+                    console.log('🔄 [account-switcher] Redirecting to:', redirectUrl.toString());
                     window.location.href = redirectUrl.toString();
+                } else if (data.requires2fa) {
+                    // Handle 2FA if needed
+                    window.location.href = `/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}&2fa=${data.userId}`;
                 } else {
-                    console.log('🔄 Session login failed, redirecting to login');
+                    console.log('🔄 [account-switcher] Session login failed, redirecting to login');
                     window.location.href = `/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}`;
                 }
             } catch (err) {
-                console.error('🔄 Login error:', err);
+                console.error('🔄 [account-switcher] Login error:', err);
                 window.location.href = `/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}`;
             }
         }
 
-        // ✅ Add account
+        // ============================================================
+        // ✅ BUTTON HANDLERS
+        // ============================================================
         document.getElementById('addAccountBtn').addEventListener('click', () => {
             window.location.href = `/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}`;
         });
 
-        // ✅ Create account
         document.getElementById('createAccountBtn').addEventListener('click', () => {
             window.location.href = `/auth/register-page?redirect_uri=${encodeURIComponent(redirectUri)}`;
         });
 
-        // ✅ Initialize
+        // ============================================================
+        // ✅ INITIALIZE
+        // ============================================================
         renderAccounts();
     </script>
 </body>
