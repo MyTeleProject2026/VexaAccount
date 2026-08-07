@@ -11,12 +11,11 @@
         .gradient-text { background: linear-gradient(135deg, #06b6d4, #10b981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         input:focus { border-color: #06b6d4 !important; outline: none; box-shadow: 0 0 0 3px rgba(6,182,212,0.15); }
         .btn-loading { opacity: 0.7; pointer-events: none; }
-        .success-text { color: #34d399; }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4 text-white">
     <div class="w-full max-w-md">
-        <!-- VexaAccount Logo -->
+        <!-- Logo -->
         <div class="text-center mb-8">
             <div class="inline-flex items-center gap-2 bg-cyan-500/10 px-4 py-2 rounded-full border border-cyan-500/20">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" class="w-8 h-8">
@@ -51,35 +50,15 @@
                 
                 <div>
                     <label class="block text-sm text-slate-400 mb-2">Email</label>
-                    <input
-                        type="email"
-                        id="email"
-                        placeholder="you@example.com"
-                        class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-white placeholder:text-slate-600 focus:border-cyan-500 transition"
-                        required
-                        autocomplete="email"
-                    />
+                    <input type="email" id="email" placeholder="you@example.com" class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-white placeholder:text-slate-600 focus:border-cyan-500 transition" required autocomplete="email" />
                 </div>
 
                 <div>
                     <label class="block text-sm text-slate-400 mb-2">Password</label>
-                    <input
-                        type="password"
-                        id="password"
-                        placeholder="Enter your password"
-                        class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-white placeholder:text-slate-600 focus:border-cyan-500 transition"
-                        required
-                        autocomplete="current-password"
-                    />
+                    <input type="password" id="password" placeholder="Enter your password" class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-white placeholder:text-slate-600 focus:border-cyan-500 transition" required autocomplete="current-password" />
                 </div>
 
-                <button
-                    type="submit"
-                    id="loginBtn"
-                    class="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition disabled:opacity-60"
-                >
-                    Sign In
-                </button>
+                <button type="submit" id="loginBtn" class="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition disabled:opacity-60">Sign In</button>
             </form>
 
             <div class="mt-6 text-center text-sm text-slate-400">
@@ -88,71 +67,18 @@
 
             <div class="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                 <div class="text-xs uppercase tracking-wider text-slate-500">Security</div>
-                <div class="mt-2 text-sm text-slate-400">
-                    Your Vexa Account works across all Vexa apps
-                </div>
+                <div class="mt-2 text-sm text-slate-400">Your Vexa Account works across all Vexa apps</div>
             </div>
         </div>
     </div>
 
     <script>
-        // ✅ Get redirect URI from URL
+        // ✅ Get redirect URI from URL - this is the VexaTrade callback URL
         const urlParams = new URLSearchParams(window.location.search);
         const redirectUri = urlParams.get('redirect_uri') || 'https://vexatrade-v.2bd.net/auth/callback';
-        const registered = urlParams.get('registered');
-
-        // ✅ Debug logging
+        
         console.log('🔐 Login page loaded');
         console.log('🔐 Redirect URI:', redirectUri);
-        console.log('🔐 Registered param:', registered);
-        console.log('🔐 Document referrer:', document.referrer);
-
-        // ✅ Show success message if just registered
-        if (registered === 'true') {
-            const successDiv = document.getElementById('successMessage');
-            successDiv.textContent = '✅ Account created! Please login.';
-            successDiv.className = 'bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3 text-sm text-emerald-300';
-            successDiv.classList.remove('hidden');
-        }
-
-        // ✅ Get session cookie status
-        function getSessionCookie() {
-            const cookies = document.cookie.split(';');
-            for (const cookie of cookies) {
-                const [name, value] = cookie.trim().split('=');
-                if (name === 'vexaccount_session') {
-                    return value;
-                }
-            }
-            return null;
-        }
-
-        console.log('🔐 Session cookie present:', !!getSessionCookie());
-
-        // ✅ Check if user has valid session and redirect to switcher
-        async function checkSessionAndRedirect() {
-            try {
-                const response = await fetch('/api/auth/session', {
-                    credentials: 'include',
-                    headers: { 'Accept': 'application/json' }
-                });
-                const data = await response.json();
-                console.log('🔐 Session check response:', data);
-                
-                if (data.success && data.user) {
-                    console.log('🔐 User has active session, redirecting to switcher');
-                    window.location.href = `/auth/account-switcher?redirect_uri=${encodeURIComponent(redirectUri)}`;
-                    return true;
-                }
-                return false;
-            } catch (err) {
-                console.error('🔐 Session check error:', err);
-                return false;
-            }
-        }
-
-        // ✅ Run session check immediately
-        checkSessionAndRedirect();
 
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -160,12 +86,9 @@
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const errorDiv = document.getElementById('errorMessage');
-            const successDiv = document.getElementById('successMessage');
             const loginBtn = document.getElementById('loginBtn');
 
-            // ✅ Reset messages
             errorDiv.className = 'hidden';
-            successDiv.className = 'hidden';
             
             if (!email || !password) {
                 errorDiv.textContent = 'Please enter both email and password';
@@ -193,18 +116,23 @@
                 const data = await response.json();
                 console.log('🔐 Login response:', data);
 
+                // ✅ Check if login was successful
                 if (data.success === true && data.token) {
-                    // ✅ Redirect with token
+                    console.log('🔐 Login successful, redirecting to:', redirectUri);
+                    
+                    // ✅ Build redirect URL with token
                     const redirectUrl = new URL(redirectUri);
                     redirectUrl.searchParams.set('token', data.token);
                     if (data.user) {
                         redirectUrl.searchParams.set('user', JSON.stringify(data.user));
                     }
-                    console.log('🔐 Redirecting with token to:', redirectUrl.toString());
+                    
+                    console.log('🔐 Final redirect URL:', redirectUrl.toString());
                     window.location.href = redirectUrl.toString();
                     return;
                 }
 
+                // ✅ Check if 2FA is required
                 if (data.requiresAuthenticator2fa) {
                     show2faInput(data.userId);
                     return;
@@ -215,6 +143,7 @@
                     return;
                 }
 
+                // ❌ Show error
                 errorDiv.textContent = data.message || 'Login failed. Please try again.';
                 errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
                 errorDiv.classList.remove('hidden');
@@ -246,16 +175,9 @@
                     <p class="text-slate-400 text-sm mt-1">Enter your authenticator code</p>
                 </div>
                 <div id="errorMessage" class="hidden bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300"></div>
-                <input type="text" id="otpCode" placeholder="000000" maxlength="6" 
-                       class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-center text-2xl tracking-widest text-white focus:border-cyan-500 transition" 
-                       required autofocus />
-                <button onclick="verify2fa('${userId}')" 
-                       class="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition">
-                    Verify & Login
-                </button>
-                <div class="mt-4 text-center">
-                    <a href="/auth/login-page" class="text-sm text-slate-400 hover:text-white">Back to Login</a>
-                </div>
+                <input type="text" id="otpCode" placeholder="000000" maxlength="6" class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-center text-2xl tracking-widest text-white focus:border-cyan-500 transition" required autofocus />
+                <button onclick="verify2fa('${userId}')" class="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition">Verify & Login</button>
+                <div class="mt-4 text-center"><a href="/auth/login-page" class="text-sm text-slate-400 hover:text-white">Back to Login</a></div>
                 <div class="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                     <div class="text-xs uppercase tracking-wider text-slate-500">Security</div>
                     <div class="mt-2 text-sm text-slate-400">Your Vexa Account works across all Vexa apps</div>
@@ -276,16 +198,9 @@
                     <p class="text-slate-400 text-sm mt-1">Enter the OTP sent to your email</p>
                 </div>
                 <div id="errorMessage" class="hidden bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300"></div>
-                <input type="text" id="otpCode" placeholder="000000" maxlength="6" 
-                       class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-center text-2xl tracking-widest text-white focus:border-cyan-500 transition" 
-                       required autofocus />
-                <button onclick="verifyOtp('${userId}')" 
-                       class="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition">
-                    Verify & Login
-                </button>
-                <div class="mt-4 text-center">
-                    <a href="/auth/login-page" class="text-sm text-slate-400 hover:text-white">Back to Login</a>
-                </div>
+                <input type="text" id="otpCode" placeholder="000000" maxlength="6" class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-center text-2xl tracking-widest text-white focus:border-cyan-500 transition" required autofocus />
+                <button onclick="verifyOtp('${userId}')" class="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition">Verify & Login</button>
+                <div class="mt-4 text-center"><a href="/auth/login-page" class="text-sm text-slate-400 hover:text-white">Back to Login</a></div>
                 <div class="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                     <div class="text-xs uppercase tracking-wider text-slate-500">Security</div>
                     <div class="mt-2 text-sm text-slate-400">Your Vexa Account works across all Vexa apps</div>
@@ -319,10 +234,7 @@
                 if (data.success) {
                     const redirectUrl = new URL(redirectUri);
                     redirectUrl.searchParams.set('token', data.token);
-                    if (data.user) {
-                        redirectUrl.searchParams.set('user', JSON.stringify(data.user));
-                    }
-                    console.log('🔐 2FA Success, redirecting to:', redirectUrl.toString());
+                    if (data.user) redirectUrl.searchParams.set('user', JSON.stringify(data.user));
                     window.location.href = redirectUrl.toString();
                 } else {
                     errorDiv.textContent = data.message || 'Invalid code';
@@ -331,7 +243,7 @@
                 }
             } catch (err) {
                 console.error('2FA error:', err);
-                errorDiv.textContent = 'Network error: ' + (err.message || 'Please try again.');
+                errorDiv.textContent = 'Network error. Please try again.';
                 errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
                 errorDiv.classList.remove('hidden');
             }
@@ -363,10 +275,7 @@
                 if (data.success) {
                     const redirectUrl = new URL(redirectUri);
                     redirectUrl.searchParams.set('token', data.token);
-                    if (data.user) {
-                        redirectUrl.searchParams.set('user', JSON.stringify(data.user));
-                    }
-                    console.log('🔐 OTP Success, redirecting to:', redirectUrl.toString());
+                    if (data.user) redirectUrl.searchParams.set('user', JSON.stringify(data.user));
                     window.location.href = redirectUrl.toString();
                 } else {
                     errorDiv.textContent = data.message || 'Invalid OTP';
@@ -375,7 +284,7 @@
                 }
             } catch (err) {
                 console.error('OTP error:', err);
-                errorDiv.textContent = 'Network error: ' + (err.message || 'Please try again.');
+                errorDiv.textContent = 'Network error. Please try again.';
                 errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
                 errorDiv.classList.remove('hidden');
             }
