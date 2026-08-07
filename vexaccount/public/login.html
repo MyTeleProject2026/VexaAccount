@@ -1,28 +1,156 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Login - VexAccount</title>
-  <style>
-    body { font-family: Arial, sans-serif; background:#f6f8fa; display:flex; align-items:center; justify-content:center; height:100vh; margin:0 }
-    .card { background:#fff; padding:24px; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.06); width:320px }
-    input { width:100%; padding:8px 10px; margin:8px 0; box-sizing:border-box }
-    button { width:100%; padding:10px; margin-top:12px; background:#0366d6; color:#fff; border:none; border-radius:4px }
-    a { display:block; margin-top:12px; text-align:center; color:#0366d6; text-decoration:none }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VexaAccount - Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: #050812;
+        }
+        .glass {
+            background: rgba(10, 14, 26, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #06b6d4, #10b981);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        input:focus {
+            border-color: #06b6d4 !important;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
+        }
+    </style>
 </head>
-<body>
-  <div class="card">
-    <h2>Login</h2>
-    <form id="loginForm" action="/auth/login" method="post">
-      <label for="email">Email</label>
-      <input id="email" name="email" type="email" required>
-      <label for="password">Password</label>
-      <input id="password" name="password" type="password" required>
-      <button type="submit">Sign in</button>
-    </form>
-    <a href="/public/register.html">Create an account</a>
-  </div>
+<body class="min-h-screen flex items-center justify-center p-4 text-white">
+    <div class="w-full max-w-md">
+        <!-- VexaAccount Logo -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center gap-2 bg-cyan-500/10 px-4 py-2 rounded-full border border-cyan-500/20">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" class="w-8 h-8">
+                    <defs>
+                        <linearGradient id="vGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#06b6d4"/>
+                            <stop offset="100%" stop-color="#10b981"/>
+                        </linearGradient>
+                    </defs>
+                    <rect width="100" height="100" rx="20" ry="20" fill="#0a0e1a" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(6,182,212,0.15)" stroke-width="1"/>
+                    <g transform="translate(50, 50) scale(0.8)">
+                        <path d="M-25,-25 L-5,15 L5,15 L25,-25" fill="none" stroke="url(#vGrad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M25,-25 L5,15" fill="none" stroke="url(#vGrad)" stroke-width="6" stroke-linecap="round"/>
+                        <path d="M-12,22 L0,30 L12,22" fill="none" stroke="url(#vGrad)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <circle cx="0" cy="-28" r="4" fill="#06b6d4"/>
+                        <circle cx="0" cy="-28" r="8" fill="none" stroke="rgba(6,182,212,0.3)" stroke-width="1.5"/>
+                    </g>
+                    <circle cx="30" cy="30" r="20" fill="rgba(255,255,255,0.03)"/>
+                </svg>
+                <span class="text-sm text-cyan-300 font-medium">VexaAccount</span>
+            </div>
+            <h1 class="text-3xl font-bold gradient-text mt-4">Welcome Back</h1>
+            <p class="text-slate-400 text-sm mt-1">Sign in to access all Vexa apps</p>
+        </div>
+
+        <!-- Login Form -->
+        <div class="glass rounded-3xl p-8 shadow-2xl">
+            <form id="loginForm" class="space-y-4">
+                <div id="errorMessage" class="hidden bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300"></div>
+                
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">Email</label>
+                    <input
+                        type="email"
+                        id="email"
+                        placeholder="you@example.com"
+                        class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-white placeholder:text-slate-600 focus:border-cyan-500 transition"
+                        required
+                    />
+                </div>
+
+                <div>
+                    <label class="block text-sm text-slate-400 mb-2">Password</label>
+                    <input
+                        type="password"
+                        id="password"
+                        placeholder="Enter your password"
+                        class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-white placeholder:text-slate-600 focus:border-cyan-500 transition"
+                        required
+                    />
+                </div>
+
+                <button
+                    type="submit"
+                    id="loginBtn"
+                    class="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition disabled:opacity-60"
+                >
+                    Sign In
+                </button>
+            </form>
+
+            <div class="mt-6 text-center text-sm text-slate-400">
+                Don't have an account? <a href="/auth/register-page" class="text-cyan-400 hover:underline">Create one</a>
+            </div>
+
+            <div class="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <div class="text-xs uppercase tracking-wider text-slate-500">Security</div>
+                <div class="mt-2 text-sm text-slate-400">
+                    Your Vexa Account works across all Vexa apps
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get redirect URI from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectUri = urlParams.get('redirect_uri') || 'https://vexatrade-v.2bd.net/auth/callback';
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('errorMessage');
+            const loginBtn = document.getElementById('loginBtn');
+
+            errorDiv.classList.add('hidden');
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Signing in...';
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Redirect back with token
+                    const redirectUrl = new URL(redirectUri);
+                    redirectUrl.searchParams.set('token', data.token);
+                    if (data.user) {
+                        redirectUrl.searchParams.set('user', JSON.stringify(data.user));
+                    }
+                    window.location.href = redirectUrl.toString();
+                } else {
+                    errorDiv.textContent = data.message || 'Login failed';
+                    errorDiv.classList.remove('hidden');
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = 'Sign In';
+                }
+            } catch (err) {
+                errorDiv.textContent = 'Network error. Please try again.';
+                errorDiv.classList.remove('hidden');
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Sign In';
+            }
+        });
+    </script>
 </body>
 </html>
