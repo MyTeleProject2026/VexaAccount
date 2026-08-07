@@ -1,3 +1,4 @@
+// vexaccount/src/config/database.js
 const mysql = require('mysql2/promise');
 const dotenv = require('dotenv');
 
@@ -7,7 +8,7 @@ const pool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+  database: process.env.DB_NAME || 'vexastore',
   port: 4000,
   waitForConnections: true,
   connectionLimit: 10,
