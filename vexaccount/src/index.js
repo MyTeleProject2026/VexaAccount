@@ -4,7 +4,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const cookieParser = require('cookie-parser'); // ✅ ADD THIS
+const cookieParser = require('cookie-parser');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 const { testConnection } = require('./config/database');
@@ -18,7 +18,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'vexastore_jwt_secret_key';
 
 app.set('trust proxy', 1);
 
-// ✅ Cookie Parser Middleware
+// Cookie Parser Middleware
 app.use(cookieParser());
 
 // CORS – allow all Vexa apps origins
@@ -44,7 +44,7 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ✅ Serve static files (HTML, CSS, JS)
+// Serve static files (HTML, CSS, JS)
 app.use(express.static(path.join(__dirname, '../public')));
 
 // Rate limiting
@@ -55,7 +55,7 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-// Routes
+// ✅ IMPORTANT: Auth routes MUST be mounted before other routes
 app.use('/api/auth', authRoutes);
 
 // Health check
@@ -72,7 +72,7 @@ app.get('/api/health', (req, res) => {
 // ✅ SESSION ROUTES (for account switcher)
 // ============================================================
 
-// ✅ Check if user has active session
+// Check if user has active session
 app.get('/api/auth/session', async (req, res) => {
   try {
     const sessionToken = req.cookies?.vexaccount_session;
@@ -96,7 +96,7 @@ app.get('/api/auth/session', async (req, res) => {
   }
 });
 
-// ✅ Session login (for account switcher)
+// Session login (for account switcher)
 app.post('/api/auth/session-login', async (req, res) => {
   try {
     const { email } = req.body;
@@ -118,7 +118,6 @@ app.post('/api/auth/session-login', async (req, res) => {
       return res.status(403).json({ success: false, message: 'Account disabled' });
     }
 
-    // Check if authenticator 2FA is enabled
     if (user.twofa_enabled === 1) {
       return res.json({
         success: true,
@@ -128,14 +127,12 @@ app.post('/api/auth/session-login', async (req, res) => {
       });
     }
 
-    // Generate token
     const token = jwt.sign(
       { id: user.id, email: user.email, role: 'user' },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    // Set session cookie
     res.cookie('vexaccount_session', token, {
       httpOnly: true,
       secure: true,
@@ -154,7 +151,7 @@ app.post('/api/auth/session-login', async (req, res) => {
   }
 });
 
-// ✅ Logout
+// Logout
 app.post('/api/auth/logout', (req, res) => {
   res.clearCookie('vexaccount_session');
   res.json({ success: true, message: 'Logged out successfully' });
@@ -164,7 +161,7 @@ app.post('/api/auth/logout', (req, res) => {
 // ✅ SSO PAGE ROUTES
 // ============================================================
 
-// ✅ SSO Redirect - Check session first
+// ✅ SSO Redirect - Check session first (GET only)
 app.get('/api/auth/login', async (req, res) => {
   const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
   
@@ -187,7 +184,7 @@ app.get('/api/auth/login', async (req, res) => {
   res.redirect(`/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}`);
 });
 
-// ✅ SSO Register - Check session first
+// ✅ SSO Register - Check session first (GET only)
 app.get('/api/auth/register', async (req, res) => {
   const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
   
@@ -253,6 +250,7 @@ async function startServer() {
     console.log(`🔐 SSO Login Page: /auth/login-page`);
     console.log(`🔐 SSO Register Page: /auth/register-page`);
     console.log(`🔄 Account Switcher: /auth/account-switcher`);
+    console.log(`📝 POST /api/auth/login → authRoutes`);
   });
 }
 
