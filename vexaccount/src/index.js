@@ -18,10 +18,10 @@ const JWT_SECRET = process.env.JWT_SECRET || 'vexastore_jwt_secret_key';
 
 app.set('trust proxy', 1);
 
-// ✅ Cookie Parser Middleware
+// Cookie Parser Middleware
 app.use(cookieParser());
 
-// ✅ CORS – Allow all Vexa apps origins
+// CORS – allow all Vexa apps origins
 const allowedOrigins = [
   process.env.FRONTEND_USER_URL || 'http://localhost:5173',
   process.env.FRONTEND_ADMIN_URL || 'http://localhost:5174',
@@ -45,7 +45,7 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ✅ Serve static files
+// Serve static files
 app.use(express.static(path.join(__dirname, '../public')));
 
 // Rate limiting
@@ -59,6 +59,17 @@ app.use('/api/', limiter);
 // Routes
 app.use('/api/auth', authRoutes);
 
+// ============================================================
+// ✅ LOGGING MIDDLEWARE
+// ============================================================
+app.use((req, res, next) => {
+  console.log(`📨 ${req.method} ${req.url}`);
+  if (req.body && Object.keys(req.body).length) {
+    console.log('📦 Body:', JSON.stringify(req.body, null, 2));
+  }
+  next();
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({
@@ -69,17 +80,32 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Test endpoint to check database
+app.get('/api/test-db', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT COUNT(*) as count FROM store_users');
+    const [sample] = await pool.query('SELECT id, email, is_verified FROM store_users LIMIT 5');
+    res.json({
+      success: true,
+      userCount: rows[0].count,
+      sampleUsers: sample
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
 // ============================================================
 // ✅ SESSION ROUTES
 // ============================================================
 
-// ✅ Check if user has active session
 app.get('/api/auth/session', async (req, res) => {
   try {
-    // Try to get session token from cookie
     let sessionToken = req.cookies?.vexaccount_session;
     
-    // If no cookie, try from Authorization header
     if (!sessionToken) {
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -111,7 +137,6 @@ app.get('/api/auth/session', async (req, res) => {
   }
 });
 
-// ✅ Session login (for account switcher)
 app.post('/api/auth/session-login', async (req, res) => {
   try {
     const { email } = req.body;
@@ -150,14 +175,12 @@ app.post('/api/auth/session-login', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    // ✅ Set session cookie with correct options
     res.cookie('vexaccount_session', token, {
       httpOnly: true,
-      secure: false, // ✅ Set to false for testing (true only in production)
+      secure: false,
       sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/',
-      domain: process.env.COOKIE_DOMAIN || undefined // ✅ Optional: set for cross-subdomain
+      path: '/'
     });
 
     console.log('🔐 Session cookie set for:', email);
@@ -173,22 +196,19 @@ app.post('/api/auth/session-login', async (req, res) => {
   }
 });
 
-// ✅ Logout
 app.post('/api/auth/logout', (req, res) => {
   res.clearCookie('vexaccount_session');
   res.json({ success: true, message: 'Logged out successfully' });
 });
 
 // ============================================================
-// ✅ SSO PAGE ROUTES – Check session FIRST
+// ✅ SSO PAGE ROUTES
 // ============================================================
 
-// ✅ SSO Login Redirect
 app.get('/api/auth/login', async (req, res) => {
   const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
   console.log('🔐 SSO Login request from:', redirectUri);
   
-  // ✅ Check session cookie
   const sessionToken = req.cookies?.vexaccount_session;
   console.log('🔐 Session token present:', !!sessionToken);
   
@@ -208,7 +228,6 @@ app.get('/api/auth/login', async (req, res) => {
       }
     } catch (error) {
       console.error('🔐 Session verification failed:', error.message);
-      // Invalid session - clear it and continue
       res.clearCookie('vexaccount_session');
     }
   }
@@ -217,7 +236,6 @@ app.get('/api/auth/login', async (req, res) => {
   res.redirect(`/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}`);
 });
 
-// ✅ SSO Register Redirect
 app.get('/api/auth/register', async (req, res) => {
   const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
   
@@ -240,32 +258,66 @@ app.get('/api/auth/register', async (req, res) => {
   res.redirect(`/auth/register-page?redirect_uri=${encodeURIComponent(redirectUri)}`);
 });
 
-// ✅ Login Page
 app.get('/auth/login-page', (req, res) => {
-  // Check if user is already logged in and redirect to switcher
   const sessionToken = req.cookies?.vexaccount_session;
   if (sessionToken) {
     try {
       const decoded = jwt.verify(sessionToken, JWT_SECRET);
-      // If valid, redirect to switcher
       const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
       return res.redirect(`/auth/account-switcher?redirect_uri=${encodeURIComponent(redirectUri)}`);
-    } catch (error) {
-      // Invalid session - ignore
-    }
+    } catch (error) {}
   }
   res.sendFile(path.join(__dirname, '../public/login.html'));
 });
 
-// ✅ Register Page
 app.get('/auth/register-page', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/register.html'));
 });
 
-// ✅ Account Switcher Page
 app.get('/auth/account-switcher', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/account-switcher.html'));
 });
+
+// ============================================================
+// ✅ CLEANUP – Delete unverified users after 1 hour
+// ============================================================
+async function cleanupUnverifiedUsers() {
+  try {
+    console.log('🧹 Running cleanup for unverified users...');
+    
+    const [result] = await pool.query(
+      `DELETE FROM store_users 
+       WHERE is_verified = 0 
+       AND created_at < DATE_SUB(NOW(), INTERVAL 1 HOUR)`
+    );
+    
+    if (result.affectedRows > 0) {
+      console.log(`🧹 Cleaned up ${result.affectedRows} unverified users`);
+    } else {
+      console.log('🧹 No unverified users to clean up');
+    }
+    
+    // Also clean up expired OTP codes
+    const [otpResult] = await pool.query(
+      `DELETE FROM otp_codes 
+       WHERE expires_at < NOW() 
+       AND is_used = 0`
+    );
+    
+    if (otpResult.affectedRows > 0) {
+      console.log(`🧹 Cleaned up ${otpResult.affectedRows} expired OTPs`);
+    }
+    
+  } catch (error) {
+    console.error('❌ Cleanup error:', error.message);
+  }
+}
+
+// Run cleanup every hour
+setInterval(cleanupUnverifiedUsers, 60 * 60 * 1000);
+
+// Run cleanup on startup
+setTimeout(cleanupUnverifiedUsers, 5000);
 
 // 404
 app.use((req, res) => {
