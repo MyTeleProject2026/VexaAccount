@@ -15,70 +15,138 @@
 </head>
 <body class="min-h-screen flex items-center justify-center p-4 text-white">
     <div class="w-full max-w-md">
+        <!-- Logo -->
         <div class="text-center mb-8">
             <div class="inline-flex items-center gap-2 bg-cyan-500/10 px-4 py-2 rounded-full border border-cyan-500/20">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" class="w-8 h-8"><!-- SVG --></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" class="w-8 h-8">
+                    <defs>
+                        <linearGradient id="vGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#06b6d4"/>
+                            <stop offset="100%" stop-color="#10b981"/>
+                        </linearGradient>
+                    </defs>
+                    <rect width="100" height="100" rx="20" ry="20" fill="#0a0e1a" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(6,182,212,0.15)" stroke-width="1"/>
+                    <g transform="translate(50, 50) scale(0.8)">
+                        <path d="M-25,-25 L-5,15 L5,15 L25,-25" fill="none" stroke="url(#vGrad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M25,-25 L5,15" fill="none" stroke="url(#vGrad)" stroke-width="6" stroke-linecap="round"/>
+                        <path d="M-12,22 L0,30 L12,22" fill="none" stroke="url(#vGrad)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <circle cx="0" cy="-28" r="4" fill="#06b6d4"/>
+                        <circle cx="0" cy="-28" r="8" fill="none" stroke="rgba(6,182,212,0.3)" stroke-width="1.5"/>
+                    </g>
+                    <circle cx="30" cy="30" r="20" fill="rgba(255,255,255,0.03)"/>
+                </svg>
                 <span class="text-sm text-cyan-300 font-medium">VexaAccount</span>
             </div>
             <h1 class="text-3xl font-bold gradient-text mt-4">Create Account</h1>
             <p class="text-slate-400 text-sm mt-1">One account for all Vexa apps</p>
         </div>
 
-        <div class="glass rounded-3xl p-8 shadow-2xl">
-            <form id="registerForm" class="space-y-4">
-                <div id="errorMessage" class="hidden bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300"></div>
-                <div id="successMessage" class="hidden bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3 text-sm text-emerald-300"></div>
-                
-                <div>
-                    <label class="block text-sm text-slate-400 mb-2">Full Name</label>
-                    <input type="text" id="name" placeholder="John Doe" class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-white placeholder:text-slate-600 focus:border-cyan-500 transition" required />
+        <!-- Register Form Container -->
+        <div id="registerContainer" class="glass rounded-3xl p-8 shadow-2xl">
+            <!-- Step 1: Registration Form -->
+            <div id="step1">
+                <form id="registerForm" class="space-y-4">
+                    <div id="errorMessage" class="hidden bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300"></div>
+                    <div id="successMessage" class="hidden bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3 text-sm text-emerald-300"></div>
+                    
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-2">Full Name</label>
+                        <input type="text" id="name" name="name" placeholder="John Doe" class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-white placeholder:text-slate-600 focus:border-cyan-500 transition" required />
+                    </div>
+
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-2">Email</label>
+                        <input type="email" id="email" name="email" placeholder="you@example.com" class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-white placeholder:text-slate-600 focus:border-cyan-500 transition" required />
+                    </div>
+
+                    <div>
+                        <label class="block text-sm text-slate-400 mb-2">Password</label>
+                        <input type="password" id="password" name="password" placeholder="Min 6 characters" class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-white placeholder:text-slate-600 focus:border-cyan-500 transition" required />
+                    </div>
+
+                    <button type="submit" id="registerBtn" class="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition disabled:opacity-60">
+                        Create Account
+                    </button>
+                </form>
+
+                <div class="mt-6 text-center text-sm text-slate-400">
+                    Already have an account? <a href="/auth/login-page" class="text-cyan-400 hover:underline">Sign In</a>
                 </div>
 
-                <div>
-                    <label class="block text-sm text-slate-400 mb-2">Email</label>
-                    <input type="email" id="email" placeholder="you@example.com" class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-white placeholder:text-slate-600 focus:border-cyan-500 transition" required />
+                <div class="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <div class="text-xs uppercase tracking-wider text-slate-500">Setup</div>
+                    <div class="mt-2 text-sm text-slate-400">After registration, you can access all Vexa apps with one account</div>
                 </div>
-
-                <div>
-                    <label class="block text-sm text-slate-400 mb-2">Password</label>
-                    <input type="password" id="password" placeholder="Min 6 characters" class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-white placeholder:text-slate-600 focus:border-cyan-500 transition" required />
-                </div>
-
-                <button type="submit" id="registerBtn" class="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition disabled:opacity-60">
-                    Create Account
-                </button>
-            </form>
-
-            <div class="mt-6 text-center text-sm text-slate-400">
-                Already have an account? <a href="/auth/login-page" class="text-cyan-400 hover:underline">Sign In</a>
             </div>
 
-            <div class="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                <div class="text-xs uppercase tracking-wider text-slate-500">Setup</div>
-                <div class="mt-2 text-sm text-slate-400">After registration, you can access all Vexa apps with one account</div>
+            <!-- Step 2: OTP Verification (hidden initially) -->
+            <div id="step2" class="hidden">
+                <div class="text-center mb-4">
+                    <div class="w-16 h-16 rounded-full bg-cyan-500/10 flex items-center justify-center mx-auto mb-3">
+                        <svg class="w-8 h-8 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                        </svg>
+                    </div>
+                    <h2 class="text-xl font-bold text-white">Verify Your Email</h2>
+                    <p class="text-slate-400 text-sm mt-1">We sent a 6-digit code to <span id="otpEmailDisplay" class="text-white font-medium"></span></p>
+                    <p class="text-slate-500 text-xs mt-1">Check your inbox or spam folder</p>
+                </div>
+
+                <div id="otpErrorMessage" class="hidden bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300"></div>
+                <div id="otpSuccessMessage" class="hidden bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3 text-sm text-emerald-300"></div>
+
+                <form id="otpForm" class="space-y-4">
+                    <div>
+                        <label class="mb-1 block text-center text-sm text-slate-400">Enter OTP</label>
+                        <input type="text" id="otpCode" maxlength="6" placeholder="000000" class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-center text-2xl tracking-widest text-white focus:border-cyan-500 transition" required autofocus />
+                    </div>
+                    <button type="submit" id="verifyBtn" class="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition disabled:opacity-60">
+                        Verify
+                    </button>
+                </form>
+
+                <div class="mt-4 text-center">
+                    <button id="resendBtn" class="text-sm text-cyan-400 hover:underline disabled:opacity-50">
+                        Resend OTP
+                    </button>
+                    <span class="text-xs text-slate-500 ml-2">(expires in 10 min)</span>
+                </div>
+
+                <p class="mt-6 text-center text-xs text-slate-500">
+                    Didn't receive the code? Check your spam folder.
+                    <br />
+                    <span class="text-slate-600">If you still don't see it, try resending.</span>
+                </p>
             </div>
         </div>
     </div>
 
     <script>
+        // ============================================================
+        // ✅ GLOBAL VARIABLES
+        // ============================================================
         const urlParams = new URLSearchParams(window.location.search);
         const redirectUri = urlParams.get('redirect_uri') || 'https://vexatrade-v.2bd.net/auth/callback';
+        let registeredEmail = '';
+        
+        console.log('🔐 [register.html] Page loaded');
+        console.log('🔐 [register.html] Redirect URI:', redirectUri);
 
-        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+        // ============================================================
+        // ✅ STEP 1: REGISTRATION
+        // ============================================================
+        document.getElementById('registerForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const name = document.getElementById('name').value.trim();
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
             const errorDiv = document.getElementById('errorMessage');
-            const successDiv = document.getElementById('successMessage');
             const registerBtn = document.getElementById('registerBtn');
 
-            // ✅ Reset messages
             errorDiv.className = 'hidden';
-            successDiv.className = 'hidden';
             
-            // ✅ Validation
             if (!name) {
                 errorDiv.textContent = 'Full name is required';
                 errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
@@ -100,14 +168,13 @@
                 return;
             }
 
-            // ✅ Show loading
             registerBtn.disabled = true;
             registerBtn.textContent = 'Creating...';
             registerBtn.className = 'w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition disabled:opacity-60 btn-loading';
 
             try {
-                console.log('📤 Registering:', { name, email });
-
+                console.log('📤 [register.html] Registering:', { name, email });
+                
                 const response = await fetch('/api/auth/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -115,39 +182,139 @@
                 });
 
                 const data = await response.json();
-                console.log('📥 Register response:', data);
+                console.log('📥 [register.html] Register response:', data);
 
                 if (data.success) {
-                    // ✅ Show success
-                    successDiv.textContent = '✅ Account created! Redirecting to login...';
-                    successDiv.className = 'bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3 text-sm text-emerald-300';
-                    successDiv.classList.remove('hidden');
-                    
-                    registerBtn.textContent = 'Redirecting...';
-
-                    // ✅ Redirect to login
-                    setTimeout(() => {
-                        window.location.href = `/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}&registered=true`;
-                    }, 1500);
+                    // ✅ Show OTP step
+                    registeredEmail = email;
+                    document.getElementById('otpEmailDisplay').textContent = email;
+                    document.getElementById('step1').classList.add('hidden');
+                    document.getElementById('step2').classList.remove('hidden');
+                    document.getElementById('otpCode').focus();
                 } else {
-                    // ❌ Show error
                     errorDiv.textContent = data.message || 'Registration failed. Please try again.';
                     errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
                     errorDiv.classList.remove('hidden');
-                    
                     registerBtn.disabled = false;
                     registerBtn.textContent = 'Create Account';
                     registerBtn.className = 'w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition';
                 }
             } catch (err) {
-                console.error('❌ Registration error:', err);
-                errorDiv.textContent = 'Network error. Please check your connection and try again.';
+                console.error('❌ [register.html] Error:', err);
+                errorDiv.textContent = 'Network error. Please check your connection.';
                 errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
                 errorDiv.classList.remove('hidden');
-                
                 registerBtn.disabled = false;
                 registerBtn.textContent = 'Create Account';
                 registerBtn.className = 'w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition';
+            }
+        });
+
+        // ============================================================
+        // ✅ STEP 2: OTP VERIFICATION
+        // ============================================================
+        document.getElementById('otpForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const otp = document.getElementById('otpCode').value;
+            const errorDiv = document.getElementById('otpErrorMessage');
+            const successDiv = document.getElementById('otpSuccessMessage');
+            const verifyBtn = document.getElementById('verifyBtn');
+
+            errorDiv.className = 'hidden';
+            successDiv.className = 'hidden';
+            
+            if (!otp || otp.length !== 6) {
+                errorDiv.textContent = 'Please enter a valid 6-digit OTP';
+                errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            verifyBtn.disabled = true;
+            verifyBtn.textContent = 'Verifying...';
+
+            try {
+                console.log('📤 [register.html] Verifying OTP for:', registeredEmail);
+                
+                const response = await fetch('/api/auth/verify-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: registeredEmail, otp })
+                });
+
+                const data = await response.json();
+                console.log('📥 [register.html] OTP response:', data);
+
+                if (data.success) {
+                    successDiv.textContent = '✅ Email verified successfully! Redirecting to login...';
+                    successDiv.className = 'bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3 text-sm text-emerald-300';
+                    successDiv.classList.remove('hidden');
+                    verifyBtn.textContent = 'Redirecting...';
+
+                    setTimeout(() => {
+                        window.location.href = `/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}&registered=true`;
+                    }, 1500);
+                } else {
+                    errorDiv.textContent = data.message || 'Invalid OTP. Please try again.';
+                    errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
+                    errorDiv.classList.remove('hidden');
+                    verifyBtn.disabled = false;
+                    verifyBtn.textContent = 'Verify';
+                }
+            } catch (err) {
+                console.error('❌ [register.html] OTP error:', err);
+                errorDiv.textContent = 'Network error. Please try again.';
+                errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
+                errorDiv.classList.remove('hidden');
+                verifyBtn.disabled = false;
+                verifyBtn.textContent = 'Verify';
+            }
+        });
+
+        // ============================================================
+        // ✅ RESEND OTP
+        // ============================================================
+        document.getElementById('resendBtn').addEventListener('click', async function() {
+            const btn = this;
+            const errorDiv = document.getElementById('otpErrorMessage');
+            
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+            errorDiv.className = 'hidden';
+
+            try {
+                console.log('📤 [register.html] Resending OTP for:', registeredEmail);
+                
+                const response = await fetch('/api/auth/resend-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: registeredEmail })
+                });
+
+                const data = await response.json();
+                console.log('📥 [register.html] Resend response:', data);
+
+                if (data.success) {
+                    btn.textContent = '✓ Resent!';
+                    setTimeout(() => {
+                        btn.textContent = 'Resend OTP';
+                        btn.disabled = false;
+                    }, 3000);
+                } else {
+                    errorDiv.textContent = data.message || 'Failed to resend OTP';
+                    errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
+                    errorDiv.classList.remove('hidden');
+                    btn.textContent = 'Resend OTP';
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                console.error('❌ [register.html] Resend error:', err);
+                errorDiv.textContent = 'Network error. Please try again.';
+                errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
+                errorDiv.classList.remove('hidden');
+                btn.textContent = 'Resend OTP';
+                btn.disabled = false;
             }
         });
     </script>
