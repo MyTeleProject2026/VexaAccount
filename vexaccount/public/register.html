@@ -19,7 +19,7 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
-        input:focus, select:focus {
+        input:focus {
             border-color: #06b6d4 !important;
             outline: none;
             box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
@@ -59,7 +59,6 @@
         <div class="glass rounded-3xl p-8 shadow-2xl">
             <form id="registerForm" class="space-y-4">
                 <div id="errorMessage" class="hidden bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300"></div>
-                <div id="successMessage" class="hidden bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3 text-sm text-emerald-300"></div>
                 
                 <div>
                     <label class="block text-sm text-slate-400 mb-2">Full Name</label>
@@ -127,11 +126,9 @@
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const errorDiv = document.getElementById('errorMessage');
-            const successDiv = document.getElementById('successMessage');
             const registerBtn = document.getElementById('registerBtn');
 
             errorDiv.classList.add('hidden');
-            successDiv.classList.add('hidden');
             registerBtn.disabled = true;
             registerBtn.textContent = 'Creating...';
 
@@ -145,13 +142,8 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    successDiv.textContent = 'Account created! Redirecting to login...';
-                    successDiv.classList.remove('hidden');
-                    registerBtn.textContent = 'Redirecting...';
-                    
-                    setTimeout(() => {
-                        window.location.href = `/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}`;
-                    }, 2000);
+                    // Redirect to login page with success message
+                    window.location.href = `/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}&registered=true`;
                 } else {
                     errorDiv.textContent = data.message || 'Registration failed';
                     errorDiv.classList.remove('hidden');
