@@ -42,7 +42,6 @@
             <p class="text-slate-400 text-sm mt-1">Sign in to access all Vexa apps</p>
         </div>
 
-        <!-- Login Form Container -->
         <div id="loginContainer" class="glass rounded-3xl p-8 shadow-2xl">
             <form id="loginForm" class="space-y-4">
                 <div id="errorMessage" class="hidden bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300"></div>
@@ -50,12 +49,12 @@
                 
                 <div>
                     <label class="block text-sm text-slate-400 mb-2">Email</label>
-                    <input type="email" id="email" placeholder="you@example.com" class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-white placeholder:text-slate-600 focus:border-cyan-500 transition" required autocomplete="email" />
+                    <input type="email" id="email" name="email" placeholder="you@example.com" class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-white placeholder:text-slate-600 focus:border-cyan-500 transition" required autocomplete="email" />
                 </div>
 
                 <div>
                     <label class="block text-sm text-slate-400 mb-2">Password</label>
-                    <input type="password" id="password" placeholder="Enter your password" class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-white placeholder:text-slate-600 focus:border-cyan-500 transition" required autocomplete="current-password" />
+                    <input type="password" id="password" name="password" placeholder="Enter your password" class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-white placeholder:text-slate-600 focus:border-cyan-500 transition" required autocomplete="current-password" />
                 </div>
 
                 <button type="submit" id="loginBtn" class="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition disabled:opacity-60">Sign In</button>
@@ -73,15 +72,14 @@
     </div>
 
     <script>
-        // ✅ Get redirect URI from URL - this is the VexaTrade callback URL
         const urlParams = new URLSearchParams(window.location.search);
         const redirectUri = urlParams.get('redirect_uri') || 'https://vexatrade-v.2bd.net/auth/callback';
         
-        console.log('🔐 Login page loaded');
-        console.log('🔐 Redirect URI:', redirectUri);
+        console.log('🔐 [login.html] Page loaded');
+        console.log('🔐 [login.html] Redirect URI:', redirectUri);
 
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault(); // ✅ Prevents page refresh
             
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
@@ -102,7 +100,7 @@
             loginBtn.className = 'w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition disabled:opacity-60 btn-loading';
 
             try {
-                console.log('🔐 Login attempt for:', email);
+                console.log('🔐 [login.html] Sending POST /api/auth/login for:', email);
                 
                 const response = await fetch('/api/auth/login', {
                     method: 'POST',
@@ -114,25 +112,19 @@
                 });
 
                 const data = await response.json();
-                console.log('🔐 Login response:', data);
+                console.log('🔐 [login.html] Login response:', data);
 
-                // ✅ Check if login was successful
                 if (data.success === true && data.token) {
-                    console.log('🔐 Login successful, redirecting to:', redirectUri);
-                    
-                    // ✅ Build redirect URL with token
                     const redirectUrl = new URL(redirectUri);
                     redirectUrl.searchParams.set('token', data.token);
                     if (data.user) {
                         redirectUrl.searchParams.set('user', JSON.stringify(data.user));
                     }
-                    
-                    console.log('🔐 Final redirect URL:', redirectUrl.toString());
+                    console.log('🔐 [login.html] Redirecting to:', redirectUrl.toString());
                     window.location.href = redirectUrl.toString();
                     return;
                 }
 
-                // ✅ Check if 2FA is required
                 if (data.requiresAuthenticator2fa) {
                     show2faInput(data.userId);
                     return;
@@ -143,7 +135,6 @@
                     return;
                 }
 
-                // ❌ Show error
                 errorDiv.textContent = data.message || 'Login failed. Please try again.';
                 errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
                 errorDiv.classList.remove('hidden');
@@ -152,8 +143,8 @@
                 loginBtn.className = 'w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition';
 
             } catch (err) {
-                console.error('🔐 Login error:', err);
-                errorDiv.textContent = 'Network error: ' + (err.message || 'Please try again.');
+                console.error('🔐 [login.html] Error:', err);
+                errorDiv.textContent = 'Network error. Please try again.';
                 errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
                 errorDiv.classList.remove('hidden');
                 loginBtn.disabled = false;
@@ -229,7 +220,7 @@
                 });
                 
                 const data = await response.json();
-                console.log('🔐 2FA Response:', data);
+                console.log('🔐 [login.html] 2FA Response:', data);
 
                 if (data.success) {
                     const redirectUrl = new URL(redirectUri);
@@ -270,7 +261,7 @@
                 });
                 
                 const data = await response.json();
-                console.log('🔐 OTP Response:', data);
+                console.log('🔐 [login.html] OTP Response:', data);
 
                 if (data.success) {
                     const redirectUrl = new URL(redirectUri);
