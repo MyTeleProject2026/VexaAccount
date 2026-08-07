@@ -10,13 +10,15 @@
         .glass { background: rgba(10,14,26,0.95); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); }
         .gradient-text { background: linear-gradient(135deg, #06b6d4, #10b981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .account-card:hover { border-color: rgba(6,182,212,0.5); background: rgba(6,182,212,0.05); }
+        .spinner { border: 3px solid rgba(255,255,255,0.1); border-top-color: #06b6d4; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4 text-white">
     <div class="w-full max-w-md">
         <div class="text-center mb-8">
             <div class="inline-flex items-center gap-2 bg-cyan-500/10 px-4 py-2 rounded-full border border-cyan-500/20">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" class="w-8 h-8"><!-- SVG same as login --></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" class="w-8 h-8"><!-- SVG --></svg>
                 <span class="text-sm text-cyan-300 font-medium">VexaAccount</span>
             </div>
             <h1 class="text-3xl font-bold gradient-text mt-4">Choose an Account</h1>
@@ -24,7 +26,13 @@
         </div>
 
         <div class="glass rounded-3xl p-6 shadow-2xl">
-            <div id="accountList" class="space-y-3"></div>
+            <div id="accountList" class="space-y-3">
+                <!-- Loading state -->
+                <div class="text-center py-8">
+                    <div class="spinner"></div>
+                    <p class="text-slate-400 text-sm mt-4">Loading accounts...</p>
+                </div>
+            </div>
 
             <div class="relative my-4">
                 <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-white/10"></div></div>
@@ -47,71 +55,121 @@
         const urlParams = new URLSearchParams(window.location.search);
         const redirectUri = urlParams.get('redirect_uri') || 'https://vexatrade-v.2bd.net/auth/callback';
 
+        // ✅ Get stored accounts from localStorage
         function getStoredAccounts() {
-            try { return JSON.parse(localStorage.getItem('vexaccount_sessions') || '[]'); } catch { return []; }
+            try {
+                const data = localStorage.getItem('vexaccount_sessions');
+                if (data) {
+                    const parsed = JSON.parse(data);
+                    if (Array.isArray(parsed)) return parsed;
+                }
+                return [];
+            } catch {
+                return [];
+            }
         }
 
+        // ✅ Save account to localStorage
         function saveAccount(account) {
-            let accounts = getStoredAccounts().filter(a => a.email !== account.email);
+            let accounts = getStoredAccounts();
+            accounts = accounts.filter(a => a.email !== account.email);
             accounts.unshift(account);
             if (accounts.length > 5) accounts = accounts.slice(0, 5);
             localStorage.setItem('vexaccount_sessions', JSON.stringify(accounts));
         }
 
+        // ✅ Get current session from cookie (via API)
         async function getCurrentSession() {
             try {
-                const response = await fetch('/api/auth/session', { credentials: 'include' });
+                const response = await fetch('/api/auth/session', { 
+                    credentials: 'include',
+                    headers: { 'Accept': 'application/json' }
+                });
                 const data = await response.json();
-                return data.success && data.user ? data.user : null;
-            } catch { return null; }
+                if (data.success && data.user) {
+                    return data.user;
+                }
+                return null;
+            } catch (err) {
+                console.error('Session check error:', err);
+                return null;
+            }
         }
 
+        // ✅ Render account list
         async function renderAccounts() {
             const container = document.getElementById('accountList');
-            const currentUser = await getCurrentSession();
-            let accounts = getStoredAccounts();
+            
+            try {
+                const currentUser = await getCurrentSession();
+                let accounts = getStoredAccounts();
 
-            if (currentUser && !accounts.find(a => a.email === currentUser.email)) {
-                accounts.unshift(currentUser);
-                localStorage.setItem('vexaccount_sessions', JSON.stringify(accounts));
-            }
+                // ✅ If user has active session but not in localStorage, add them
+                if (currentUser && !accounts.find(a => a.email === currentUser.email)) {
+                    accounts.unshift({
+                        email: currentUser.email,
+                        name: currentUser.name || currentUser.email,
+                        avatar_url: currentUser.avatar_url || null
+                    });
+                    localStorage.setItem('vexaccount_sessions', JSON.stringify(accounts));
+                }
 
-            if (accounts.length === 0) {
+                if (accounts.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center py-8">
+                            <p class="text-slate-400 text-sm">No accounts found</p>
+                            <button onclick="window.location.href='/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}'" 
+                                    class="mt-4 text-cyan-400 hover:underline text-sm">
+                                Sign in to your account
+                            </button>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = accounts.map((account, index) => {
+                    const isCurrent = currentUser && account.email === currentUser.email;
+                    const initial = (account.name || account.email)[0].toUpperCase();
+                    return `
+                        <div class="account-card flex items-center gap-4 p-3 rounded-2xl border border-white/10 bg-white/[0.02] cursor-pointer transition hover:border-cyan-500/30" 
+                             onclick="selectAccount('${account.email}', ${index})">
+                            <div class="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-300 font-bold text-lg flex-shrink-0">
+                                ${account.avatar_url ? `<img src="${account.avatar_url}" class="w-full h-full rounded-full object-cover" />` : initial}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="font-medium text-white truncate">${account.name || account.email}</div>
+                                <div class="text-sm text-slate-400 truncate">${account.email}</div>
+                            </div>
+                            ${isCurrent ? '<span class="text-xs text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-full">Active</span>' : ''}
+                            <svg class="w-5 h-5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                            </svg>
+                        </div>
+                    `;
+                }).join('');
+                
+            } catch (err) {
+                console.error('Render error:', err);
                 container.innerHTML = `
                     <div class="text-center py-8">
-                        <p class="text-slate-400 text-sm">No accounts found</p>
-                        <button onclick="window.location.href='/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}'" class="mt-4 text-cyan-400 hover:underline text-sm">Sign in to your account</button>
+                        <p class="text-red-400 text-sm">Error loading accounts</p>
+                        <button onclick="location.reload()" class="mt-4 text-cyan-400 hover:underline text-sm">Retry</button>
                     </div>
                 `;
-                return;
             }
-
-            container.innerHTML = accounts.map((account, index) => {
-                const isCurrent = currentUser && account.email === currentUser.email;
-                const initial = (account.name || account.email)[0].toUpperCase();
-                return `
-                    <div class="account-card flex items-center gap-4 p-3 rounded-2xl border border-white/10 bg-white/[0.02] cursor-pointer transition hover:border-cyan-500/30" onclick="selectAccount('${account.email}', ${index})">
-                        <div class="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-300 font-bold text-lg flex-shrink-0">${initial}</div>
-                        <div class="flex-1 min-w-0">
-                            <div class="font-medium text-white truncate">${account.name || account.email}</div>
-                            <div class="text-sm text-slate-400 truncate">${account.email}</div>
-                        </div>
-                        ${isCurrent ? '<span class="text-xs text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-full">Active</span>' : ''}
-                        <svg class="w-5 h-5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                    </div>
-                `;
-            }).join('');
         }
 
+        // ✅ Select an account
         async function selectAccount(email, index) {
             const accounts = getStoredAccounts();
             const account = accounts[index];
             if (!account) return;
 
+            // Show loading
             document.getElementById('accountList').innerHTML = `
                 <div class="text-center py-8">
-                    <div class="animate-spin h-8 w-8 border-2 border-cyan-500 border-t-transparent rounded-full mx-auto"></div>
-                    <p class="text-slate-400 text-sm mt-4">Signing in...</p>
+                    <div class="spinner"></div>
+                    <p class="text-slate-400 text-sm mt-4">Signing in as ${account.email}...</p>
                 </div>
             `;
 
@@ -125,27 +183,41 @@
                 const data = await response.json();
 
                 if (data.success) {
-                    saveAccount({ email: account.email, name: account.name });
+                    // ✅ Save account
+                    saveAccount({ 
+                        email: account.email, 
+                        name: account.name || account.email,
+                        avatar_url: account.avatar_url || null
+                    });
+                    
+                    // ✅ Redirect with token
                     const redirectUrl = new URL(redirectUri);
                     redirectUrl.searchParams.set('token', data.token);
-                    if (data.user) redirectUrl.searchParams.set('user', JSON.stringify(data.user));
+                    if (data.user) {
+                        redirectUrl.searchParams.set('user', JSON.stringify(data.user));
+                    }
                     window.location.href = redirectUrl.toString();
                 } else {
+                    // Session expired - go to login
                     window.location.href = `/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}`;
                 }
             } catch (err) {
+                console.error('Login error:', err);
                 window.location.href = `/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}`;
             }
         }
 
+        // ✅ Add account
         document.getElementById('addAccountBtn').addEventListener('click', () => {
             window.location.href = `/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}`;
         });
 
+        // ✅ Create account
         document.getElementById('createAccountBtn').addEventListener('click', () => {
             window.location.href = `/auth/register-page?redirect_uri=${encodeURIComponent(redirectUri)}`;
         });
 
+        // ✅ Initialize
         renderAccounts();
     </script>
 </body>
