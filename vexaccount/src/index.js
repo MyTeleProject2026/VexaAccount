@@ -5,7 +5,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path'); // ✅ ADD THIS
 const { testConnection } = require('./config/database');
-const cookieParser = require('cookie-parser');
+
 app.use(cookieParser());
 const authRoutes = require('./routes/auth');
 
@@ -37,7 +37,25 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// In vexaccount/src/index.js - add these routes
+// Remove this line:
+// const cookieParser = require('cookie-parser');
+
+// Add this helper function instead:
+function parseCookies(cookieHeader) {
+  const cookies = {};
+  if (!cookieHeader) return cookies;
+  cookieHeader.split(';').forEach(cookie => {
+    const parts = cookie.split('=');
+    const name = parts[0].trim();
+    const value = parts.slice(1).join('=').trim();
+    if (name && value) cookies[name] = decodeURIComponent(value);
+  });
+  return cookies;
+}
+
+// Then in your routes, use:
+const cookies = parseCookies(req.headers.cookie);
+const sessionToken = cookies.vexaccount_session;
 
 // ✅ Check if user has active session (via cookie)
 app.get('/api/auth/session', async (req, res) => {
