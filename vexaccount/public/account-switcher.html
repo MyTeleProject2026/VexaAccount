@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VexaAccount - Switch Account</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: #050812;
+        }
+        .glass {
+            background: rgba(10, 14, 26, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #06b6d4, #10b981);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .account-card:hover {
+            border-color: rgba(6, 182, 212, 0.5);
+            background: rgba(6, 182, 212, 0.05);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 text-white">
+    <div class="w-full max-w-md">
+        <!-- Logo -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center gap-2 bg-cyan-500/10 px-4 py-2 rounded-full border border-cyan-500/20">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" class="w-8 h-8">
+                    <defs>
+                        <linearGradient id="vGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#06b6d4"/>
+                            <stop offset="100%" stop-color="#10b981"/>
+                        </linearGradient>
+                    </defs>
+                    <rect width="100" height="100" rx="20" ry="20" fill="#0a0e1a" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(6,182,212,0.15)" stroke-width="1"/>
+                    <g transform="translate(50, 50) scale(0.8)">
+                        <path d="M-25,-25 L-5,15 L5,15 L25,-25" fill="none" stroke="url(#vGrad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M25,-25 L5,15" fill="none" stroke="url(#vGrad)" stroke-width="6" stroke-linecap="round"/>
+                        <path d="M-12,22 L0,30 L12,22" fill="none" stroke="url(#vGrad)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <circle cx="0" cy="-28" r="4" fill="#06b6d4"/>
+                        <circle cx="0" cy="-28" r="8" fill="none" stroke="rgba(6,182,212,0.3)" stroke-width="1.5"/>
+                    </g>
+                    <circle cx="30" cy="30" r="20" fill="rgba(255,255,255,0.03)"/>
+                </svg>
+                <span class="text-sm text-cyan-300 font-medium">VexaAccount</span>
+            </div>
+            <h1 class="text-3xl font-bold gradient-text mt-4">Choose an Account</h1>
+            <p class="text-slate-400 text-sm mt-1">Select the account you want to use</p>
+        </div>
+
+        <!-- Account Switcher -->
+        <div class="glass rounded-3xl p-6 shadow-2xl">
+            <div id="accountList" class="space-y-3">
+                <!-- Accounts will be rendered here -->
+            </div>
+
+            <!-- Divider -->
+            <div class="relative my-4">
+                <div class="absolute inset-0 flex items-center">
+                    <div class="w-full border-t border-white/10"></div>
+                </div>
+                <div class="relative flex justify-center text-xs text-slate-500">
+                    <span class="bg-[#0a0e1a] px-2">or</span>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="space-y-2">
+                <button
+                    id="addAccountBtn"
+                    class="w-full text-center text-cyan-400 hover:text-cyan-300 text-sm py-2 px-4 rounded-xl border border-white/5 hover:border-cyan-500/20 transition"
+                >
+                    ➕ Use another account
+                </button>
+                <button
+                    id="createAccountBtn"
+                    class="w-full text-center text-slate-400 hover:text-white text-sm py-2 px-4 rounded-xl border border-white/5 hover:border-white/10 transition"
+                >
+                    ✨ Create new account
+                </button>
+            </div>
+
+            <div class="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                <div class="text-xs uppercase tracking-wider text-slate-500">Security</div>
+                <div class="mt-1 text-xs text-slate-400">
+                    Your Vexa Account works across all Vexa apps
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectUri = urlParams.get('redirect_uri') || 'https://vexatrade-v.2bd.net/auth/callback';
+
+        // Get stored accounts from localStorage
+        function getStoredAccounts() {
+            try {
+                return JSON.parse(localStorage.getItem('vexaccount_sessions') || '[]');
+            } catch {
+                return [];
+            }
+        }
+
+        // Save account to localStorage
+        function saveAccount(account) {
+            let accounts = getStoredAccounts();
+            // Remove duplicate
+            accounts = accounts.filter(a => a.email !== account.email);
+            accounts.unshift(account);
+            // Keep only last 5 accounts
+            if (accounts.length > 5) accounts = accounts.slice(0, 5);
+            localStorage.setItem('vexaccount_sessions', JSON.stringify(accounts));
+        }
+
+        // Get current account from session
+        async function getCurrentSession() {
+            try {
+                const response = await fetch('/api/auth/session', {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                if (data.success && data.user) {
+                    return data.user;
+                }
+                return null;
+            } catch {
+                return null;
+            }
+        }
+
+        // Render account list
+        async function renderAccounts() {
+            const container = document.getElementById('accountList');
+            const currentUser = await getCurrentSession();
+            const accounts = getStoredAccounts();
+
+            // If current user is logged in and not in stored accounts, add them
+            if (currentUser && !accounts.find(a => a.email === currentUser.email)) {
+                accounts.unshift(currentUser);
+                localStorage.setItem('vexaccount_sessions', JSON.stringify(accounts));
+            }
+
+            if (accounts.length === 0) {
+                // No accounts - show login option
+                container.innerHTML = `
+                    <div class="text-center py-8">
+                        <p class="text-slate-400 text-sm">No accounts found</p>
+                        <button
+                            onclick="window.location.href = '/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}'"
+                            class="mt-4 text-cyan-400 hover:underline text-sm"
+                        >
+                            Sign in to your account
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            // Render each account
+            container.innerHTML = accounts.map((account, index) => {
+                const isCurrent = currentUser && account.email === currentUser.email;
+                const avatarUrl = account.avatar_url || '';
+                const initial = (account.name || account.email)[0].toUpperCase();
+
+                return `
+                    <div class="account-card flex items-center gap-4 p-3 rounded-2xl border border-white/10 bg-white/[0.02] cursor-pointer transition hover:border-cyan-500/30"
+                         onclick="selectAccount('${account.email}', ${index})"
+                         data-email="${account.email}">
+                        <div class="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-300 font-bold text-lg flex-shrink-0">
+                            ${avatarUrl ? `<img src="${avatarUrl}" class="w-full h-full rounded-full object-cover" />` : initial}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="font-medium text-white truncate">${account.name || account.email}</div>
+                            <div class="text-sm text-slate-400 truncate">${account.email}</div>
+                        </div>
+                        ${isCurrent ? '<span class="text-xs text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-full">Active</span>' : ''}
+                        <svg class="w-5 h-5 text-slate-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Select an account
+        async function selectAccount(email, index) {
+            const accounts = getStoredAccounts();
+            const account = accounts[index];
+            if (!account) return;
+
+            // Show loading
+            document.getElementById('accountList').innerHTML = `
+                <div class="text-center py-8">
+                    <div class="animate-spin h-8 w-8 border-2 border-cyan-500 border-t-transparent rounded-full mx-auto"></div>
+                    <p class="text-slate-400 text-sm mt-4">Signing in...</p>
+                </div>
+            `;
+
+            try {
+                // Try to login with stored session
+                const response = await fetch('/api/auth/session-login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: account.email })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Update active account
+                    saveAccount({ email: account.email, name: account.name, avatar_url: account.avatar_url });
+                    
+                    // Redirect with token
+                    const redirectUrl = new URL(redirectUri);
+                    redirectUrl.searchParams.set('token', data.token);
+                    if (data.user) {
+                        redirectUrl.searchParams.set('user', JSON.stringify(data.user));
+                    }
+                    window.location.href = redirectUrl.toString();
+                } else {
+                    // Session expired - redirect to login
+                    window.location.href = `/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}`;
+                }
+            } catch (err) {
+                console.error('Login error:', err);
+                window.location.href = `/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}`;
+            }
+        }
+
+        // Add another account
+        document.getElementById('addAccountBtn').addEventListener('click', () => {
+            window.location.href = `/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}`;
+        });
+
+        // Create new account
+        document.getElementById('createAccountBtn').addEventListener('click', () => {
+            window.location.href = `/auth/register-page?redirect_uri=${encodeURIComponent(redirectUri)}`;
+        });
+
+        // Initialize
+        renderAccounts();
+    </script>
+</body>
+</html>
