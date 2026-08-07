@@ -1,84 +1,192 @@
+// vexaccount/src/services/emailService.js
 const nodemailer = require('nodemailer');
 
 let transporter = null;
 
 function getTransporter() {
   if (transporter) return transporter;
-  if (process.env.KEPLERS_SMTP_HOST && process.env.KEPLERS_EMAIL && process.env.KEPLERS_PASSWORD) {
+  
+  // ✅ Priority 1: Brevo SMTP (formerly Sendinblue)
+  if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
     transporter = nodemailer.createTransport({
-      host: process.env.KEPLERS_SMTP_HOST,
-      port: parseInt(process.env.KEPLERS_SMTP_PORT) || 587,
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT) || 587,
       secure: false,
       auth: {
-        user: process.env.KEPLERS_EMAIL,
-        pass: process.env.KEPLERS_PASSWORD,
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
       },
     });
-  } else if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
+    console.log('✅ Brevo SMTP transporter configured');
+    return transporter;
+  }
+  
+  // ✅ Priority 2: Gmail (fallback)
+  if (process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) {
     transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
         user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD,
+        pass: process.env.GMAIL_APP_PASSWORD.replace(/\s/g, ''),
       },
     });
-  } else {
-    console.warn('⚠️ No mail service configured. Emails will be logged to console.');
-    transporter = {
-      sendMail: (mailOptions) => {
-        console.log('📧 [FAKE EMAIL] To:', mailOptions.to);
-        console.log('📧 [FAKE EMAIL] Subject:', mailOptions.subject);
-        console.log('📧 [FAKE EMAIL] Body:', mailOptions.html);
-        return Promise.resolve();
-      }
-    };
+    console.log('✅ Gmail transporter configured (fallback)');
+    return transporter;
   }
+  
+  console.warn('⚠️ No mail service configured. Emails will be logged to console.');
+  transporter = {
+    sendMail: (mailOptions) => {
+      console.log('📧 [FAKE EMAIL] To:', mailOptions.to);
+      console.log('📧 [FAKE EMAIL] Subject:', mailOptions.subject);
+      console.log('📧 [FAKE EMAIL] Body:', mailOptions.html);
+      return Promise.resolve();
+    }
+  };
   return transporter;
 }
 
 async function sendEmail({ to, subject, html }) {
   const transporter = getTransporter();
   try {
-    await transporter.sendMail({
-      from: `"${process.env.MAIL_FROM_NAME || 'VexaAccount'}" <${process.env.FROM_EMAIL || 'noreply@vexastore.com'}>`,
+    const fromEmail = process.env.FROM_EMAIL || process.env.SMTP_USER || 'noreply@vexastore.com';
+    const fromName = process.env.MAIL_FROM_NAME || 'VexaAccount';
+    
+    const info = await transporter.sendMail({
+      from: `"${fromName}" <${fromEmail}>`,
       to,
       subject,
       html
     });
-    console.log('✅ Email sent to:', to);
+    console.log('✅ Email sent to:', to, 'Message ID:', info.messageId);
     return true;
   } catch (error) {
     console.error('❌ Email send failed:', error.message);
+    console.error('❌ Error details:', error);
     return false;
   }
 }
 
 async function sendOtpEmail(to, otp) {
   const html = `
-    <div style="font-family: Arial, sans-serif; padding: 24px; background: #0b0b0b; color: #ffffff;">
-      <h2 style="margin:0 0 16px;">VexaAccount Verification</h2>
-      <p style="margin:0 0 16px;">Your 6-digit verification code is:</p>
-      <div style="font-size:32px; font-weight:700; letter-spacing:8px; color:#06b6d4; margin:16px 0;">
-        ${otp}
-      </div>
-      <p style="margin:16px 0 0; color:#cbd5e1;">This code expires in 10 minutes.</p>
-    </div>
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #050812; margin: 0; padding: 0;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background: #050812; padding: 20px;">
+        <tr>
+          <td align="center">
+            <table width="100%" max-width="600" cellpadding="0" cellspacing="0" style="background: #0a0e1a; border-radius: 24px; border: 1px solid rgba(255,255,255,0.08); padding: 40px; max-width: 600px;">
+              <tr>
+                <td align="center">
+                  <!-- Logo -->
+                  <div style="margin-bottom: 20px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="60" height="60">
+                      <defs>
+                        <linearGradient id="vGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stop-color="#06b6d4"/>
+                          <stop offset="100%" stop-color="#10b981"/>
+                        </linearGradient>
+                      </defs>
+                      <rect width="100" height="100" rx="20" ry="20" fill="#0a0e1a" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+                      <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(6,182,212,0.15)" stroke-width="1"/>
+                      <g transform="translate(50, 50) scale(0.8)">
+                        <path d="M-25,-25 L-5,15 L5,15 L25,-25" fill="none" stroke="url(#vGrad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M25,-25 L5,15" fill="none" stroke="url(#vGrad)" stroke-width="6" stroke-linecap="round"/>
+                        <path d="M-12,22 L0,30 L12,22" fill="none" stroke="url(#vGrad)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <circle cx="0" cy="-28" r="4" fill="#06b6d4"/>
+                        <circle cx="0" cy="-28" r="8" fill="none" stroke="rgba(6,182,212,0.3)" stroke-width="1.5"/>
+                      </g>
+                      <circle cx="30" cy="30" r="20" fill="rgba(255,255,255,0.03)"/>
+                    </svg>
+                  </div>
+                  
+                  <h1 style="color: #06b6d4; font-size: 28px; margin: 0 0 8px 0; font-weight: 700;">VexaAccount</h1>
+                  <p style="color: #94a3b8; font-size: 16px; margin: 0 0 30px 0;">Your verification code</p>
+                  
+                  <div style="background: rgba(6, 182, 212, 0.05); border-radius: 16px; padding: 30px; border: 1px solid rgba(6, 182, 212, 0.1); margin-bottom: 30px;">
+                    <p style="color: #ffffff; font-size: 14px; margin: 0 0 16px 0;">Enter this code to verify your email:</p>
+                    <div style="font-size: 48px; font-weight: 700; letter-spacing: 12px; color: #06b6d4; background: rgba(6, 182, 212, 0.05); padding: 16px 24px; border-radius: 12px; font-family: monospace;">
+                      ${otp}
+                    </div>
+                  </div>
+                  
+                  <p style="color: #64748b; font-size: 14px; margin: 0 0 8px 0;">This code expires in <strong style="color: #94a3b8;">10 minutes</strong>.</p>
+                  <p style="color: #64748b; font-size: 12px; margin: 0;">If you didn't request this, please ignore this email.</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
   `;
-  return sendEmail({ to, subject: 'VexaAccount Email Verification', html });
+  
+  return sendEmail({ to, subject: '🔐 VexaAccount Verification Code', html });
 }
 
 async function sendResetEmail(to, resetLink) {
   const html = `
-    <div style="font-family: Arial, sans-serif; padding: 24px; background: #0b0b0b; color: #ffffff;">
-      <h2 style="margin:0 0 16px;">Reset Your Password</h2>
-      <p style="margin:0 0 16px;">Click the link below to reset your password. This link expires in 1 hour.</p>
-      <a href="${resetLink}" style="display: inline-block; background: #06b6d4; color: #000000; padding: 12px 24px; text-decoration: none; border-radius: 12px; font-weight: bold; margin: 16px 0;">
-        Reset Password
-      </a>
-      <p style="margin:16px 0 0; color:#cbd5e1;">If you didn't request this, please ignore this email.</p>
-    </div>
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #050812; margin: 0; padding: 0;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background: #050812; padding: 20px;">
+        <tr>
+          <td align="center">
+            <table width="100%" max-width="600" cellpadding="0" cellspacing="0" style="background: #0a0e1a; border-radius: 24px; border: 1px solid rgba(255,255,255,0.08); padding: 40px; max-width: 600px;">
+              <tr>
+                <td align="center">
+                  <div style="margin-bottom: 20px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="60" height="60">
+                      <defs>
+                        <linearGradient id="vGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stop-color="#06b6d4"/>
+                          <stop offset="100%" stop-color="#10b981"/>
+                        </linearGradient>
+                      </defs>
+                      <rect width="100" height="100" rx="20" ry="20" fill="#0a0e1a" stroke="rgba(255,255,255,0.08)" stroke-width="1.5"/>
+                      <circle cx="50" cy="50" r="40" fill="none" stroke="rgba(6,182,212,0.15)" stroke-width="1"/>
+                      <g transform="translate(50, 50) scale(0.8)">
+                        <path d="M-25,-25 L-5,15 L5,15 L25,-25" fill="none" stroke="url(#vGrad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M25,-25 L5,15" fill="none" stroke="url(#vGrad)" stroke-width="6" stroke-linecap="round"/>
+                        <path d="M-12,22 L0,30 L12,22" fill="none" stroke="url(#vGrad)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+                        <circle cx="0" cy="-28" r="4" fill="#06b6d4"/>
+                        <circle cx="0" cy="-28" r="8" fill="none" stroke="rgba(6,182,212,0.3)" stroke-width="1.5"/>
+                      </g>
+                      <circle cx="30" cy="30" r="20" fill="rgba(255,255,255,0.03)"/>
+                    </svg>
+                  </div>
+                  
+                  <h1 style="color: #06b6d4; font-size: 28px; margin: 0 0 8px 0; font-weight: 700;">VexaAccount</h1>
+                  <p style="color: #94a3b8; font-size: 16px; margin: 0 0 30px 0;">Reset your password</p>
+                  
+                  <p style="color: #cbd5e1; font-size: 16px; margin: 0 0 24px 0;">Click the button below to reset your password. This link expires in 1 hour.</p>
+                  
+                  <a href="${resetLink}" style="display: inline-block; background: #06b6d4; color: #000000; padding: 14px 40px; text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 16px; margin-bottom: 24px;">
+                    Reset Password
+                  </a>
+                  
+                  <p style="color: #64748b; font-size: 14px; margin: 0 0 8px 0;">If you didn't request this, please ignore this email.</p>
+                  <p style="color: #64748b; font-size: 12px; margin: 0;">Link expires in 1 hour.</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
   `;
-  return sendEmail({ to, subject: 'VexaAccount Password Reset', html });
+  
+  return sendEmail({ to, subject: '🔑 VexaAccount Password Reset', html });
 }
 
 module.exports = { sendEmail, sendOtpEmail, sendResetEmail };
