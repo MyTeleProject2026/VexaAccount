@@ -36,6 +36,155 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// In vexaccount/src/index.js - add these routes
+
+// ✅ Check if user has active session (via cookie)
+app.get('/api/auth/session', async (req, res) => {
+  try {
+    // Get session token from cookie
+    const sessionToken = req.cookies?.vexaccount_session;
+    if (!sessionToken) {
+      return res.json({ success: false, message: 'No session' });
+    }
+
+    const decoded = jwt.verify(sessionToken, JWT_SECRET);
+    const [rows] = await pool.query(
+      'SELECT id, email, name, avatar_url FROM store_users WHERE id = ?',
+      [decoded.id]
+    );
+    
+    if (!rows.length) {
+      return res.json({ success: false, message: 'User not found' });
+    }
+
+    res.json({ success: true, user: rows[0] });
+  } catch (error) {
+    res.json({ success: false, message: 'Invalid session' });
+  }
+});
+
+// ✅ Session login (for account switcher)
+app.post('/api/auth/session-login', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email required' });
+    }
+
+    const [rows] = await pool.query(
+      'SELECT id, email, name, is_verified, is_active FROM store_users WHERE email = ?',
+      [email]
+    );
+    
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const user = rows[0];
+    if (!user.is_active) {
+      return res.status(403).json({ success: false, message: 'Account disabled' });
+    }
+
+    // Check if authenticator 2FA is enabled
+    if (user.twofa_enabled === 1) {
+      // Redirect to 2FA page
+      return res.json({
+        success: true,
+        requires2fa: true,
+        userId: user.id,
+        message: '2FA verification required'
+      });
+    }
+
+    // Generate token
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: 'user' },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    // Set session cookie (optional - for account switcher)
+    res.cookie('vexaccount_session', token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000
+    });
+
+    res.json({
+      success: true,
+      token,
+      user: { id: user.id, email: user.email, name: user.name }
+    });
+  } catch (error) {
+    console.error('Session login error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ✅ Logout (clear session)
+app.post('/api/auth/logout', (req, res) => {
+  res.clearCookie('vexaccount_session');
+  res.json({ success: true, message: 'Logged out successfully' });
+});
+
+// ✅ SSO Redirect - Check session first
+app.get('/api/auth/login', async (req, res) => {
+  const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
+  
+  // Check if user has active session
+  const sessionToken = req.cookies?.vexaccount_session;
+  if (sessionToken) {
+    try {
+      const decoded = jwt.verify(sessionToken, JWT_SECRET);
+      const [rows] = await pool.query(
+        'SELECT id, email, name, avatar_url FROM store_users WHERE id = ? AND is_active = 1',
+        [decoded.id]
+      );
+      if (rows.length) {
+        // User has active session - show account switcher
+        return res.redirect(`/auth/account-switcher?redirect_uri=${encodeURIComponent(redirectUri)}`);
+      }
+    } catch (error) {
+      // Invalid session - ignore
+    }
+  }
+  
+  // No active session - redirect to login page
+  res.redirect(`/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}`);
+});
+
+// ✅ SSO Register - Check session first
+app.get('/api/auth/register', async (req, res) => {
+  const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
+  
+  // Check if user has active session
+  const sessionToken = req.cookies?.vexaccount_session;
+  if (sessionToken) {
+    try {
+      const decoded = jwt.verify(sessionToken, JWT_SECRET);
+      const [rows] = await pool.query(
+        'SELECT id, email, name, avatar_url FROM store_users WHERE id = ? AND is_active = 1',
+        [decoded.id]
+      );
+      if (rows.length) {
+        // User has active session - show account switcher
+        return res.redirect(`/auth/account-switcher?redirect_uri=${encodeURIComponent(redirectUri)}`);
+      }
+    } catch (error) {
+      // Invalid session - ignore
+    }
+  }
+  
+  // No active session - redirect to register page
+  res.redirect(`/auth/register-page?redirect_uri=${encodeURIComponent(redirectUri)}`);
+});
+
+// ✅ Account Switcher Page
+app.get('/auth/account-switcher', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/account-switcher.html'));
+});
+
 // ✅ Serve static files (HTML, CSS, JS)
 app.use(express.static(path.join(__dirname, '../public')));
 
