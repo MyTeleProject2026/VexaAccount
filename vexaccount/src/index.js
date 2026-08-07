@@ -18,10 +18,10 @@ const JWT_SECRET = process.env.JWT_SECRET || 'vexastore_jwt_secret_key';
 
 app.set('trust proxy', 1);
 
-// Cookie Parser Middleware
+// ✅ Cookie Parser Middleware
 app.use(cookieParser());
 
-// CORS – allow all Vexa apps origins
+// ✅ CORS – Allow all Vexa apps origins
 const allowedOrigins = [
   process.env.FRONTEND_USER_URL || 'http://localhost:5173',
   process.env.FRONTEND_ADMIN_URL || 'http://localhost:5174',
@@ -32,6 +32,7 @@ const allowedOrigins = [
   'https://vexatrade.onrender.com',
   'https://vexatrade-v.2bd.net',
   'https://www.vexatrade-v.2bd.net',
+  'https://vexatrade-server.onrender.com',
 ];
 
 app.use(cors({
@@ -44,7 +45,7 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Serve static files (HTML, CSS, JS)
+// ✅ Serve static files
 app.use(express.static(path.join(__dirname, '../public')));
 
 // Rate limiting
@@ -69,17 +70,31 @@ app.get('/api/health', (req, res) => {
 });
 
 // ============================================================
-// SESSION ROUTES (for account switcher)
+// ✅ SESSION ROUTES
 // ============================================================
 
+// ✅ Check if user has active session
 app.get('/api/auth/session', async (req, res) => {
   try {
-    const sessionToken = req.cookies?.vexaccount_session;
+    // Try to get session token from cookie
+    let sessionToken = req.cookies?.vexaccount_session;
+    
+    // If no cookie, try from Authorization header
     if (!sessionToken) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        sessionToken = authHeader.slice(7).trim();
+      }
+    }
+    
+    if (!sessionToken) {
+      console.log('🔐 No session token found');
       return res.json({ success: false, message: 'No session' });
     }
 
     const decoded = jwt.verify(sessionToken, JWT_SECRET);
+    console.log('🔐 Session found for user:', decoded.id);
+    
     const [rows] = await pool.query(
       'SELECT id, email, name, avatar_url FROM store_users WHERE id = ?',
       [decoded.id]
@@ -91,16 +106,20 @@ app.get('/api/auth/session', async (req, res) => {
 
     res.json({ success: true, user: rows[0] });
   } catch (error) {
+    console.error('Session check error:', error.message);
     res.json({ success: false, message: 'Invalid session' });
   }
 });
 
+// ✅ Session login (for account switcher)
 app.post('/api/auth/session-login', async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) {
       return res.status(400).json({ success: false, message: 'Email required' });
     }
+
+    console.log('🔐 Session login for:', email);
 
     const [rows] = await pool.query(
       'SELECT id, email, name, is_active, twofa_enabled FROM store_users WHERE email = ?',
@@ -131,12 +150,17 @@ app.post('/api/auth/session-login', async (req, res) => {
       { expiresIn: '7d' }
     );
 
+    // ✅ Set session cookie with correct options
     res.cookie('vexaccount_session', token, {
       httpOnly: true,
-      secure: true,
+      secure: false, // ✅ Set to false for testing (true only in production)
       sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
+      domain: process.env.COOKIE_DOMAIN || undefined // ✅ Optional: set for cross-subdomain
     });
+
+    console.log('🔐 Session cookie set for:', email);
 
     res.json({
       success: true,
@@ -149,37 +173,51 @@ app.post('/api/auth/session-login', async (req, res) => {
   }
 });
 
+// ✅ Logout
 app.post('/api/auth/logout', (req, res) => {
   res.clearCookie('vexaccount_session');
   res.json({ success: true, message: 'Logged out successfully' });
 });
 
 // ============================================================
-// SSO PAGE ROUTES
+// ✅ SSO PAGE ROUTES – Check session FIRST
 // ============================================================
 
+// ✅ SSO Login Redirect
 app.get('/api/auth/login', async (req, res) => {
   const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
+  console.log('🔐 SSO Login request from:', redirectUri);
   
+  // ✅ Check session cookie
   const sessionToken = req.cookies?.vexaccount_session;
+  console.log('🔐 Session token present:', !!sessionToken);
+  
   if (sessionToken) {
     try {
       const decoded = jwt.verify(sessionToken, JWT_SECRET);
+      console.log('🔐 Session valid for user:', decoded.id);
+      
       const [rows] = await pool.query(
         'SELECT id, email, name, avatar_url FROM store_users WHERE id = ? AND is_active = 1',
         [decoded.id]
       );
+      
       if (rows.length) {
+        console.log('🔐 User found, showing account switcher');
         return res.redirect(`/auth/account-switcher?redirect_uri=${encodeURIComponent(redirectUri)}`);
       }
     } catch (error) {
-      // Invalid session - ignore
+      console.error('🔐 Session verification failed:', error.message);
+      // Invalid session - clear it and continue
+      res.clearCookie('vexaccount_session');
     }
   }
   
+  console.log('🔐 No valid session, showing login page');
   res.redirect(`/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}`);
 });
 
+// ✅ SSO Register Redirect
 app.get('/api/auth/register', async (req, res) => {
   const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
   
@@ -195,21 +233,36 @@ app.get('/api/auth/register', async (req, res) => {
         return res.redirect(`/auth/account-switcher?redirect_uri=${encodeURIComponent(redirectUri)}`);
       }
     } catch (error) {
-      // Invalid session - ignore
+      res.clearCookie('vexaccount_session');
     }
   }
   
   res.redirect(`/auth/register-page?redirect_uri=${encodeURIComponent(redirectUri)}`);
 });
 
+// ✅ Login Page
 app.get('/auth/login-page', (req, res) => {
+  // Check if user is already logged in and redirect to switcher
+  const sessionToken = req.cookies?.vexaccount_session;
+  if (sessionToken) {
+    try {
+      const decoded = jwt.verify(sessionToken, JWT_SECRET);
+      // If valid, redirect to switcher
+      const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
+      return res.redirect(`/auth/account-switcher?redirect_uri=${encodeURIComponent(redirectUri)}`);
+    } catch (error) {
+      // Invalid session - ignore
+    }
+  }
   res.sendFile(path.join(__dirname, '../public/login.html'));
 });
 
+// ✅ Register Page
 app.get('/auth/register-page', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/register.html'));
 });
 
+// ✅ Account Switcher Page
 app.get('/auth/account-switcher', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/account-switcher.html'));
 });
