@@ -5,7 +5,8 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path'); // ✅ ADD THIS
 const { testConnection } = require('./config/database');
-
+const cookieParser = require('cookie-parser');
+app.use(cookieParser());
 const authRoutes = require('./routes/auth');
 
 const app = express();
