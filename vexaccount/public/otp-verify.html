@@ -3,31 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VexaAccount - Verify Email</title>
+    <title>VexaAccount - Verify OTP</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body {
-            background: #050812;
-        }
-        .glass {
-            background: rgba(10, 14, 26, 0.95);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255,255,255,0.08);
-        }
-        .gradient-text {
-            background: linear-gradient(135deg, #06b6d4, #10b981);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        input:focus {
-            border-color: #06b6d4 !important;
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
-        }
+        body { background: #050812; }
+        .glass { background: rgba(10,14,26,0.95); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); }
+        .gradient-text { background: linear-gradient(135deg, #06b6d4, #10b981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        input:focus { border-color: #06b6d4 !important; outline: none; box-shadow: 0 0 0 3px rgba(6,182,212,0.15); }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4 text-white">
     <div class="w-full max-w-md">
+        <!-- Logo -->
         <div class="text-center mb-8">
             <div class="inline-flex items-center gap-2 bg-cyan-500/10 px-4 py-2 rounded-full border border-cyan-500/20">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" class="w-8 h-8">
@@ -50,7 +37,7 @@
                 </svg>
                 <span class="text-sm text-cyan-300 font-medium">VexaAccount</span>
             </div>
-            <h1 class="text-3xl font-bold gradient-text mt-4">Verify Your Email</h1>
+            <h1 class="text-3xl font-bold gradient-text mt-4">Verify OTP</h1>
             <p class="text-slate-400 text-sm mt-1">Enter the 6-digit code sent to your email</p>
         </div>
 
@@ -60,80 +47,125 @@
                 
                 <div>
                     <label class="block text-sm text-slate-400 mb-2">OTP Code</label>
-                    <input
-                        type="text"
-                        id="otpCode"
-                        placeholder="000000"
-                        maxlength="6"
-                        class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-center text-2xl tracking-widest text-white focus:border-cyan-500 transition"
-                        required
-                    />
+                    <input type="text" id="otpCode" maxlength="6" placeholder="000000" class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-center text-2xl tracking-widest text-white focus:border-cyan-500 transition" required autofocus />
                 </div>
 
-                <button
-                    type="submit"
-                    id="verifyBtn"
-                    class="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition disabled:opacity-60"
-                >
-                    Verify & Login
+                <button type="submit" id="verifyBtn" class="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition disabled:opacity-60">
+                    Verify
                 </button>
             </form>
 
             <div class="mt-4 text-center">
-                <a href="/auth/login-page" class="text-sm text-slate-400 hover:text-white">Back to Login</a>
+                <button id="resendBtn" class="text-sm text-cyan-400 hover:underline disabled:opacity-50">
+                    Resend OTP
+                </button>
+                <span class="text-xs text-slate-500 ml-2">(expires in 10 min)</span>
             </div>
+
+            <p class="mt-6 text-center text-xs text-slate-500">
+                Didn't receive the code? Check your spam folder.
+                <br />
+                <span class="text-slate-600">If you still don't see it, try resending.</span>
+            </p>
         </div>
     </div>
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
+        const email = urlParams.get('email') || '';
         const redirectUri = urlParams.get('redirect_uri') || 'https://vexatrade-v.2bd.net/auth/callback';
-        const userId = urlParams.get('userId');
 
-        document.getElementById('otpForm').addEventListener('submit', async (e) => {
+        console.log('📧 [otp-verify.html] Page loaded for:', email);
+
+        document.getElementById('otpForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const otp = document.getElementById('otpCode').value;
             const errorDiv = document.getElementById('errorMessage');
             const verifyBtn = document.getElementById('verifyBtn');
 
+            errorDiv.className = 'hidden';
+            
             if (!otp || otp.length !== 6) {
-                errorDiv.textContent = 'Please enter a valid 6-digit code';
+                errorDiv.textContent = 'Please enter a valid 6-digit OTP';
+                errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
                 errorDiv.classList.remove('hidden');
                 return;
             }
 
-            errorDiv.classList.add('hidden');
             verifyBtn.disabled = true;
             verifyBtn.textContent = 'Verifying...';
 
             try {
-                const response = await fetch('/api/auth/verify-email-2fa', {
+                const response = await fetch('/api/auth/verify-otp', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId, otp })
+                    body: JSON.stringify({ email, otp })
                 });
 
                 const data = await response.json();
+                console.log('📧 [otp-verify.html] OTP response:', data);
 
                 if (data.success) {
                     const redirectUrl = new URL(redirectUri);
                     redirectUrl.searchParams.set('token', data.token);
-                    if (data.user) {
-                        redirectUrl.searchParams.set('user', JSON.stringify(data.user));
-                    }
+                    if (data.user) redirectUrl.searchParams.set('user', JSON.stringify(data.user));
                     window.location.href = redirectUrl.toString();
                 } else {
-                    errorDiv.textContent = data.message || 'Invalid OTP';
+                    errorDiv.textContent = data.message || 'Invalid OTP. Please try again.';
+                    errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
                     errorDiv.classList.remove('hidden');
                     verifyBtn.disabled = false;
-                    verifyBtn.textContent = 'Verify & Login';
+                    verifyBtn.textContent = 'Verify';
                 }
             } catch (err) {
+                console.error('❌ [otp-verify.html] Error:', err);
                 errorDiv.textContent = 'Network error. Please try again.';
+                errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
                 errorDiv.classList.remove('hidden');
                 verifyBtn.disabled = false;
-                verifyBtn.textContent = 'Verify & Login';
+                verifyBtn.textContent = 'Verify';
+            }
+        });
+
+        document.getElementById('resendBtn').addEventListener('click', async function() {
+            const btn = this;
+            const errorDiv = document.getElementById('errorMessage');
+            
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+            errorDiv.className = 'hidden';
+
+            try {
+                const response = await fetch('/api/auth/resend-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await response.json();
+                console.log('📧 [otp-verify.html] Resend response:', data);
+
+                if (data.success) {
+                    btn.textContent = '✓ Resent!';
+                    setTimeout(() => {
+                        btn.textContent = 'Resend OTP';
+                        btn.disabled = false;
+                    }, 3000);
+                } else {
+                    errorDiv.textContent = data.message || 'Failed to resend OTP';
+                    errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
+                    errorDiv.classList.remove('hidden');
+                    btn.textContent = 'Resend OTP';
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                console.error('❌ [otp-verify.html] Resend error:', err);
+                errorDiv.textContent = 'Network error. Please try again.';
+                errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
+                errorDiv.classList.remove('hidden');
+                btn.textContent = 'Resend OTP';
+                btn.disabled = false;
             }
         });
     </script>
