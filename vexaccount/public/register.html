@@ -10,13 +10,14 @@
         .glass { background: rgba(10,14,26,0.95); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); }
         .gradient-text { background: linear-gradient(135deg, #06b6d4, #10b981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         input:focus { border-color: #06b6d4 !important; outline: none; box-shadow: 0 0 0 3px rgba(6,182,212,0.15); }
+        .btn-loading { opacity: 0.7; pointer-events: none; }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4 text-white">
     <div class="w-full max-w-md">
         <div class="text-center mb-8">
             <div class="inline-flex items-center gap-2 bg-cyan-500/10 px-4 py-2 rounded-full border border-cyan-500/20">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" class="w-8 h-8"><!-- SVG same as login --></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" class="w-8 h-8"><!-- SVG --></svg>
                 <span class="text-sm text-cyan-300 font-medium">VexaAccount</span>
             </div>
             <h1 class="text-3xl font-bold gradient-text mt-4">Create Account</h1>
@@ -26,6 +27,7 @@
         <div class="glass rounded-3xl p-8 shadow-2xl">
             <form id="registerForm" class="space-y-4">
                 <div id="errorMessage" class="hidden bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300"></div>
+                <div id="successMessage" class="hidden bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3 text-sm text-emerald-300"></div>
                 
                 <div>
                     <label class="block text-sm text-slate-400 mb-2">Full Name</label>
@@ -42,7 +44,9 @@
                     <input type="password" id="password" placeholder="Min 6 characters" class="w-full bg-[#050812] border border-white/10 rounded-2xl px-4 py-4 text-white placeholder:text-slate-600 focus:border-cyan-500 transition" required />
                 </div>
 
-                <button type="submit" id="registerBtn" class="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition disabled:opacity-60">Create Account</button>
+                <button type="submit" id="registerBtn" class="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition disabled:opacity-60">
+                    Create Account
+                </button>
             </form>
 
             <div class="mt-6 text-center text-sm text-slate-400">
@@ -63,17 +67,47 @@
         document.getElementById('registerForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const name = document.getElementById('name').value;
-            const email = document.getElementById('email').value;
+            const name = document.getElementById('name').value.trim();
+            const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
             const errorDiv = document.getElementById('errorMessage');
+            const successDiv = document.getElementById('successMessage');
             const registerBtn = document.getElementById('registerBtn');
 
+            // ✅ Reset messages
             errorDiv.className = 'hidden';
+            successDiv.className = 'hidden';
+            
+            // ✅ Validation
+            if (!name) {
+                errorDiv.textContent = 'Full name is required';
+                errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+            
+            if (!email) {
+                errorDiv.textContent = 'Email is required';
+                errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+            
+            if (!password || password.length < 6) {
+                errorDiv.textContent = 'Password must be at least 6 characters';
+                errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            // ✅ Show loading
             registerBtn.disabled = true;
             registerBtn.textContent = 'Creating...';
+            registerBtn.className = 'w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition disabled:opacity-60 btn-loading';
 
             try {
+                console.log('📤 Registering:', { name, email });
+
                 const response = await fetch('/api/auth/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -81,22 +115,39 @@
                 });
 
                 const data = await response.json();
+                console.log('📥 Register response:', data);
 
                 if (data.success) {
-                    window.location.href = `/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}&registered=true`;
+                    // ✅ Show success
+                    successDiv.textContent = '✅ Account created! Redirecting to login...';
+                    successDiv.className = 'bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3 text-sm text-emerald-300';
+                    successDiv.classList.remove('hidden');
+                    
+                    registerBtn.textContent = 'Redirecting...';
+
+                    // ✅ Redirect to login
+                    setTimeout(() => {
+                        window.location.href = `/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}&registered=true`;
+                    }, 1500);
                 } else {
-                    errorDiv.textContent = data.message || 'Registration failed';
+                    // ❌ Show error
+                    errorDiv.textContent = data.message || 'Registration failed. Please try again.';
                     errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
                     errorDiv.classList.remove('hidden');
+                    
                     registerBtn.disabled = false;
                     registerBtn.textContent = 'Create Account';
+                    registerBtn.className = 'w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition';
                 }
             } catch (err) {
-                errorDiv.textContent = 'Network error. Please try again.';
+                console.error('❌ Registration error:', err);
+                errorDiv.textContent = 'Network error. Please check your connection and try again.';
                 errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
                 errorDiv.classList.remove('hidden');
+                
                 registerBtn.disabled = false;
                 registerBtn.textContent = 'Create Account';
+                registerBtn.className = 'w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition';
             }
         });
     </script>
