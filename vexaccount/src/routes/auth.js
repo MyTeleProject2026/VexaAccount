@@ -647,4 +647,427 @@ router.get('/profile', authUser, async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
     res.json({ success: true, user: rows[0] });
+  } catch (error) {
+    console.error('❌ Profile fetch error:', error);
+    next(error);
   }
+});
+
+// ============================================================
+// PUT: Update Profile
+// ============================================================
+router.put('/profile/full', authUser, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { name, phone, bio } = req.body;
+
+    const updates = [];
+    const values = [];
+    if (name !== undefined) { updates.push('name = ?'); values.push(name.trim()); }
+    if (phone !== undefined) { updates.push('phone = ?'); values.push(phone); }
+    if (bio !== undefined) { updates.push('bio = ?'); values.push(bio); }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ success: false, message: 'No fields to update' });
+    }
+
+    values.push(userId);
+    await pool.query(
+      `UPDATE store_users SET ${updates.join(', ')} WHERE id = ?`,
+      values
+    );
+
+    const [rows] = await pool.query(
+      `SELECT id, email, name, avatar_url, phone, bio, is_verified, is_active, created_at, 
+              twofa_enabled, email_2fa_enabled 
+       FROM store_users WHERE id = ?`,
+      [userId]
+    );
+
+    res.json({ success: true, message: 'Profile updated', user: rows[0] });
+  } catch (error) {
+    console.error('❌ Profile update error:', error);
+    next(error);
+  }
+});
+
+// ============================================================
+// PUT: Update Profile Picture
+// ============================================================
+router.put('/profile/picture', authUser, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { avatar_url } = req.body;
+
+    if (!avatar_url) {
+      return res.status(400).json({ success: false, message: 'Avatar URL is required' });
+    }
+
+    await pool.query(
+      'UPDATE store_users SET avatar_url = ? WHERE id = ?',
+      [avatar_url, userId]
+    );
+
+    res.json({ success: true, message: 'Profile picture updated', avatar_url });
+  } catch (error) {
+    console.error('❌ Avatar update error:', error);
+    next(error);
+  }
+});
+
+// ============================================================
+// POST: Change Password
+// ============================================================
+router.post('/change-password', authUser, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'All fields required' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' });
+    }
+
+    const [rows] = await pool.query(
+      'SELECT password FROM store_users WHERE id = ?',
+      [userId]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const user = rows[0];
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) {
+      return res.status(401).json({ success: false, message: 'Current password is incorrect' });
+    }
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await pool.query(
+      'UPDATE store_users SET password = ? WHERE id = ?',
+      [hashed, userId]
+    );
+
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('❌ Change password error:', error);
+    next(error);
+  }
+});
+
+// ============================================================
+// POST: Resend Verification Email
+// ============================================================
+router.post('/resend-verification', authUser, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const [rows] = await pool.query(
+      'SELECT email, is_verified FROM store_users WHERE id = ?',
+      [userId]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    const user = rows[0];
+    if (user.is_verified === 1) {
+      return res.status(400).json({ success: false, message: 'Email already verified' });
+    }
+
+    const otp = generateOTP();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await pool.query(
+      'DELETE FROM otp_codes WHERE user_id = ? AND purpose = "email_verification"',
+      [userId]
+    );
+    await pool.query(
+      `INSERT INTO otp_codes (user_id, otp_code, purpose, expires_at) VALUES (?, ?, 'email_verification', ?)`,
+      [userId, otp, expiresAt]
+    );
+    await sendOtpEmail(user.email, otp);
+
+    res.json({ success: true, message: 'Verification email resent' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================================
+// 2FA: Generate Secret & QR Code
+// ============================================================
+router.post('/twofa/generate', authUser, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const email = req.user.email;
+
+    const secret = authenticator.generateSecret();
+    const otpauth = authenticator.keyuri(email, 'VexaStore', secret);
+    const qrCode = await QRCode.toDataURL(otpauth);
+
+    res.json({
+      success: true,
+      secret,
+      qrCode,
+    });
+  } catch (error) {
+    console.error('❌ 2FA generate error:', error);
+    next(error);
+  }
+});
+
+// ============================================================
+// 2FA: Verify & Enable
+// ============================================================
+router.post('/twofa/verify-enable', authUser, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { secret, token } = req.body;
+
+    if (!secret || !token) {
+      return res.status(400).json({ success: false, message: 'Secret and token required' });
+    }
+
+    const isValid = authenticator.verify({ token, secret });
+    if (!isValid) {
+      return res.status(400).json({ success: false, message: 'Invalid verification code' });
+    }
+
+    const backupCodes = Array.from({ length: 8 }, () =>
+      Math.random().toString(36).substring(2, 8).toUpperCase()
+    );
+
+    await pool.query(
+      `UPDATE store_users SET 
+       twofa_enabled = 1, 
+       twofa_secret = ?, 
+       twofa_backup_codes = ?,
+       twofa_type = 'authenticator'
+       WHERE id = ?`,
+      [secret, JSON.stringify(backupCodes), userId]
+    );
+
+    res.json({
+      success: true,
+      message: '2FA enabled successfully',
+      backupCodes,
+    });
+  } catch (error) {
+    console.error('❌ 2FA verify-enable error:', error);
+    next(error);
+  }
+});
+
+// ============================================================
+// POST: Disable 2FA
+// ============================================================
+router.post('/twofa/disable', authUser, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    await pool.query(
+      `UPDATE store_users SET 
+       twofa_enabled = 0, 
+       twofa_secret = NULL, 
+       twofa_backup_codes = NULL,
+       twofa_type = 'none'
+       WHERE id = ?`,
+      [userId]
+    );
+    res.json({ success: true, message: '2FA disabled successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================================
+// GET: Sessions
+// ============================================================
+router.get('/sessions', authUser, async (req, res, next) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT user_agent, ip_address, created_at FROM user_activity_logs WHERE user_id = ? ORDER BY created_at DESC LIMIT 1',
+      [req.user.id]
+    );
+    
+    res.json({
+      success: true,
+      data: [
+        {
+          device: 'Current Device',
+          browser: req.headers['user-agent'] || 'VexaStore App',
+          ip: req.ip || 'Unknown',
+          last_active: new Date().toISOString(),
+          is_current: true,
+          created_at: rows[0]?.created_at || new Date().toISOString(),
+        },
+      ],
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================================
+// GET: Activity Log
+// ============================================================
+router.get('/activity-log', authUser, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const [rows] = await pool.query(
+      `SELECT action, ip_address, user_agent, created_at 
+       FROM user_activity_logs 
+       WHERE user_id = ? 
+       ORDER BY created_at DESC 
+       LIMIT 50`,
+      [userId]
+    );
+    res.json({ success: true, data: rows || [] });
+  } catch (error) {
+    res.json({ success: true, data: [] });
+  }
+});
+
+// ============================================================
+// GET: Export Data
+// ============================================================
+router.get('/export-data', authUser, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    
+    const [userRows] = await pool.query(
+      `SELECT id, email, name, avatar_url, phone, bio, is_verified, is_active, created_at,
+              twofa_enabled, email_2fa_enabled
+       FROM store_users WHERE id = ?`,
+      [userId]
+    );
+    
+    const [activityRows] = await pool.query(
+      'SELECT action, ip_address, user_agent, created_at FROM user_activity_logs WHERE user_id = ? ORDER BY created_at DESC LIMIT 100',
+      [userId]
+    );
+    
+    const exportData = {
+      user: userRows[0] || null,
+      activity: activityRows || [],
+      exported_at: new Date().toISOString(),
+    };
+    
+    res.json({ success: true, data: exportData });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================================
+// POST: Delete Account
+// ============================================================
+router.post('/delete-account', authUser, async (req, res, next) => {
+  const connection = await pool.getConnection();
+  try {
+    const userId = req.user.id;
+    const { confirm } = req.body;
+
+    if (!confirm || confirm !== 'DELETE') {
+      return res.status(400).json({ success: false, message: 'Type "DELETE" to confirm' });
+    }
+
+    await connection.beginTransaction();
+
+    await connection.query('DELETE FROM otp_codes WHERE user_id = ?', [userId]);
+    await connection.query('DELETE FROM user_activity_logs WHERE user_id = ?', [userId]);
+    await connection.query('DELETE FROM user_connected_apps WHERE user_id = ?', [userId]);
+    await connection.query('DELETE FROM store_users WHERE id = ?', [userId]);
+
+    await connection.commit();
+
+    res.json({ success: true, message: 'Account deleted successfully' });
+  } catch (error) {
+    await connection.rollback();
+    next(error);
+  } finally {
+    connection.release();
+  }
+});
+
+// ============================================================
+// GET: Connected Apps
+// ============================================================
+router.get('/connected-apps', authUser, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    
+    const [rows] = await pool.query(
+      'SELECT app_name, app_slug, status, connected_at, last_used_at FROM user_connected_apps WHERE user_id = ? ORDER BY connected_at DESC',
+      [userId]
+    );
+    
+    if (!rows.length) {
+      await pool.query(
+        `INSERT INTO user_connected_apps (user_id, app_name, app_slug, status, connected_at, last_used_at)
+         VALUES (?, 'VexaStore', 'vexastore', 'connected', NOW(), NOW())`,
+        [userId]
+      );
+      
+      const [newRows] = await pool.query(
+        'SELECT app_name, app_slug, status, connected_at, last_used_at FROM user_connected_apps WHERE user_id = ? ORDER BY connected_at DESC',
+        [userId]
+      );
+      
+      return res.json({ success: true, data: newRows });
+    }
+    
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================================
+// POST: Connect App
+// ============================================================
+router.post('/connect-app', authUser, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { app_name, app_slug } = req.body;
+    
+    if (!app_name || !app_slug) {
+      return res.status(400).json({ success: false, message: 'App name and slug required' });
+    }
+    
+    await pool.query(
+      `INSERT INTO user_connected_apps (user_id, app_name, app_slug, status, connected_at, last_used_at)
+       VALUES (?, ?, ?, 'connected', NOW(), NOW())
+       ON DUPLICATE KEY UPDATE status = 'connected', last_used_at = NOW()`,
+      [userId, app_name, app_slug]
+    );
+    
+    res.json({ success: true, message: `App "${app_name}" connected successfully` });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ============================================================
+// POST: Disconnect App
+// ============================================================
+router.post('/disconnect-app', authUser, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { app_slug } = req.body;
+    
+    if (!app_slug) {
+      return res.status(400).json({ success: false, message: 'App slug required' });
+    }
+    
+    await pool.query(
+      'UPDATE user_connected_apps SET status = "disconnected", updated_at = NOW() WHERE user_id = ? AND app_slug = ?',
+      [userId, app_slug]
+    );
+    
+    res.json({ success: true, message: 'App disconnected successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+module.exports = router;
