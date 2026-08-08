@@ -173,6 +173,32 @@ app.post('/api/auth/logout', (req, res) => {
 // ============================================================
 // SSO PAGE ROUTES
 // ============================================================
+// ✅ Serves the HTML file
+app.get('/auth/account-switcher', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/account-switcher.html'));
+});
+
+// ✅ Redirects to account-switcher if user is already logged in
+app.get('/api/auth/login', async (req, res) => {
+  const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
+  const sessionToken = req.cookies?.vexaccount_session;
+  
+  if (sessionToken) {
+    try {
+      const decoded = jwt.verify(sessionToken, JWT_SECRET);
+      const [rows] = await pool.query(
+        'SELECT id, email, name, avatar_url FROM store_users WHERE id = ? AND is_active = 1',
+        [decoded.id]
+      );
+      if (rows.length) {
+        return res.redirect(`/auth/account-switcher?redirect_uri=${encodeURIComponent(redirectUri)}`);
+      }
+    } catch (error) {
+      res.clearCookie('vexaccount_session');
+    }
+  }
+  res.redirect(`/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}`);
+});
 
 app.get('/api/auth/login', async (req, res) => {
   const redirectUri = req.query.redirect_uri || process.env.FRONTEND_USER_URL;
