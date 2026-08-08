@@ -157,20 +157,10 @@
                 console.log('📥 Register response:', data);
 
                 if (data.success) {
-                    // ════════════════════════════════════════════════
-                    // 🆕 FIX: Check if OTP verification is required
-                    // ════════════════════════════════════════════════
-                    // Adjust these condition(s) to match your backend response.
-                    // Common fields: requiresOtp, requiresEmailVerification, userId, etc.
-                    if (data.requiresOtp || data.requiresEmailVerification || data.userId) {
-                        // Redirect to OTP verification page
-                        const otpUrl = `/auth/otp-verify.html?email=${encodeURIComponent(email)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
-                        console.log('🔐 [register.html] OTP required, redirecting to:', otpUrl);
-                        window.location.href = otpUrl;
-                    } else {
-                        // No OTP required – redirect to login with success flag
-                        window.location.href = `/auth/login-page?redirect_uri=${encodeURIComponent(redirectUri)}&registered=true`;
-                    }
+                    // ✅ FIX: Always redirect to OTP verification after successful registration
+                    const otpUrl = `/auth/otp-verify.html?email=${encodeURIComponent(email)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+                    console.log('🔐 [register.html] Redirecting to OTP:', otpUrl);
+                    window.location.href = otpUrl;
                 } else {
                     showError(data.message || 'Registration failed');
                 }
