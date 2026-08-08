@@ -757,6 +757,38 @@ router.put('/profile/picture', authUser, async (req, res, next) => {
     next(error);
   }
 });
+// vexaccount/src/routes/auth.js
+router.get('/profile-by-email', async (req, res, next) => {
+  try {
+    const { email } = req.query;
+    if (!email) return res.status(400).json({ success: false, message: 'Email required' });
+
+    const [rows] = await pool.query(
+      `SELECT id, email, name, first_name, last_name, gender, dob, country, avatar_url, is_verified, is_active
+       FROM store_users WHERE email = ?`,
+      [email.toLowerCase().trim()]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, message: 'User not found' });
+
+    const user = rows[0];
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        gender: user.gender,
+        dob: user.dob,
+        country: user.country,
+        avatar_url: user.avatar_url,
+        is_verified: user.is_verified,
+        is_active: user.is_active
+      }
+    });
+  } catch (error) { next(error); }
+});
 
 // ============================================================
 // POST: Change Password
