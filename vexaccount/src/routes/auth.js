@@ -10,6 +10,7 @@ const { authenticator } = require('otplib');
 const QRCode = require('qrcode');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'vexastore_jwt_secret_key';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 function generateOTP() {
   return String(Math.floor(100000 + Math.random() * 900000));
@@ -105,7 +106,8 @@ router.post('/register', async (req, res, next) => {
 });
 
 // ============================================================
-// POST: Verify OTP
+// POST: Verify OTP (email verification)
+// ═══ FIX: Generate token and set cookie on success
 // ============================================================
 router.post('/verify-otp', async (req, res, next) => {
   const connection = await pool.getConnection();
@@ -116,7 +118,7 @@ router.post('/verify-otp', async (req, res, next) => {
     }
 
     const [userRows] = await connection.query(
-      'SELECT id FROM store_users WHERE email = ?',
+      'SELECT id, email, name FROM store_users WHERE email = ?',
       [email.trim().toLowerCase()]
     );
     if (!userRows.length) {
@@ -139,7 +141,26 @@ router.post('/verify-otp', async (req, res, next) => {
     await connection.query('UPDATE otp_codes SET is_used = 1 WHERE id = ?', [otpRows[0].id]);
     await connection.query('UPDATE store_users SET is_verified = 1 WHERE id = ?', [userRows[0].id]);
 
-    res.json({ success: true, message: 'Email verified successfully' });
+    // ─── Generate JWT token and set cookie ───
+    const token = jwt.sign(
+      { id: userRows[0].id, email: userRows[0].email, role: 'user' },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.cookie('vexaccount_session', token, {
+      httpOnly: true,
+      secure: IS_PRODUCTION,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/'
+    });
+
+    res.json({
+      success: true,
+      token,
+      user: { id: userRows[0].id, email: userRows[0].email, name: userRows[0].name }
+    });
   } catch (error) {
     next(error);
   } finally {
@@ -194,6 +215,7 @@ router.post('/resend-otp', async (req, res, next) => {
 
 // ============================================================
 // POST: Login with 2FA Support
+// ═══ FIX: Set cookie when no 2FA
 // ============================================================
 router.post('/login', async (req, res, next) => {
   try {
@@ -267,6 +289,15 @@ router.post('/login', async (req, res, next) => {
       { expiresIn: '7d' }
     );
 
+    // ─── Set cookie ───
+    res.cookie('vexaccount_session', token, {
+      httpOnly: true,
+      secure: IS_PRODUCTION,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/'
+    });
+
     res.json({
       success: true,
       token,
@@ -279,6 +310,7 @@ router.post('/login', async (req, res, next) => {
 
 // ============================================================
 // POST: Verify Email 2FA
+// ═══ FIX: Set cookie
 // ============================================================
 router.post('/verify-email-2fa', async (req, res, next) => {
   const connection = await pool.getConnection();
@@ -322,6 +354,15 @@ router.post('/verify-email-2fa', async (req, res, next) => {
       JWT_SECRET,
       { expiresIn: '7d' }
     );
+
+    // ─── Set cookie ───
+    res.cookie('vexaccount_session', token, {
+      httpOnly: true,
+      secure: IS_PRODUCTION,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/'
+    });
     
     res.json({
       success: true,
@@ -376,6 +417,7 @@ router.post('/resend-email-2fa', async (req, res, next) => {
 
 // ============================================================
 // POST: Verify Authenticator 2FA
+// ═══ FIX: Set cookie
 // ============================================================
 router.post('/twofa/verify', async (req, res, next) => {
   try {
@@ -411,6 +453,15 @@ router.post('/twofa/verify', async (req, res, next) => {
       JWT_SECRET,
       { expiresIn: '7d' }
     );
+
+    // ─── Set cookie ───
+    res.cookie('vexaccount_session', jwtToken, {
+      httpOnly: true,
+      secure: IS_PRODUCTION,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/'
+    });
     
     res.json({
       success: true,
@@ -508,6 +559,15 @@ router.post('/google', async (req, res, next) => {
       JWT_SECRET,
       { expiresIn: '7d' }
     );
+
+    // ─── Set cookie for Google login as well ───
+    res.cookie('vexaccount_session', token, {
+      httpOnly: true,
+      secure: IS_PRODUCTION,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/'
+    });
 
     res.json({
       success: true,
