@@ -156,8 +156,19 @@
                 const data = await response.json();
                 console.log('📥 Register response:', data);
 
+                // ════════════════════════════════════════════════════════════════
+                // ✅ FIX: Handle "already registered but not verified" case
+                // ════════════════════════════════════════════════════════════════
+                if (data.message && data.message.includes('already registered but not verified')) {
+                    // Backend sent a new OTP – redirect to verification page
+                    const otpUrl = `/auth/otp-verify.html?email=${encodeURIComponent(email)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+                    console.log('🔐 [register.html] Account exists but unverified, redirecting to OTP:', otpUrl);
+                    window.location.href = otpUrl;
+                    return;
+                }
+
                 if (data.success) {
-                    // ✅ FIX: Always redirect to OTP verification after successful registration
+                    // Normal successful registration – redirect to OTP
                     const otpUrl = `/auth/otp-verify.html?email=${encodeURIComponent(email)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
                     console.log('🔐 [register.html] Redirecting to OTP:', otpUrl);
                     window.location.href = otpUrl;
