@@ -43,6 +43,7 @@
         </div>
 
         <div id="loginContainer" class="glass rounded-3xl p-8 shadow-2xl">
+            <!-- Normal Login Form -->
             <form id="loginForm" class="space-y-4">
                 <div id="errorMessage" class="hidden bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300"></div>
                 <div id="successMessage" class="hidden bg-emerald-500/10 border border-emerald-500/20 rounded-2xl px-4 py-3 text-sm text-emerald-300"></div>
@@ -73,13 +74,25 @@
 
     <script>
         (function() {
-            // ✅ CRITICAL: Get redirect_uri from URL
             const urlParams = new URLSearchParams(window.location.search);
             const redirectUri = urlParams.get('redirect_uri') || 'https://vexatrade-v.2bd.net/auth/callback';
-            
+            const twofaUserId = urlParams.get('2fa'); // <-- new: detect 2fa parameter
+
             console.log('🔐 [login.html] Page loaded');
             console.log('🔐 [login.html] Redirect URI:', redirectUri);
+            console.log('🔐 [login.html] 2FA user ID:', twofaUserId);
 
+            // ============================================================
+            // ✅ If 2FA parameter is present, show 2FA input immediately
+            // ============================================================
+            if (twofaUserId) {
+                // Hide the login form and show 2FA input
+                show2faInput(twofaUserId);
+            }
+
+            // ============================================================
+            // Normal login form handler
+            // ============================================================
             const form = document.getElementById('loginForm');
             const emailInput = document.getElementById('email');
             const passwordInput = document.getElementById('password');
@@ -91,15 +104,13 @@
                 return;
             }
 
-            // ✅ CRITICAL: Prevent default form submission
             form.addEventListener('submit', async function(e) {
-                e.preventDefault(); // ✅ Stops page refresh
+                e.preventDefault();
                 console.log('🔐 [login.html] Form submit intercepted');
 
                 const email = emailInput.value.trim();
                 const password = passwordInput.value.trim();
 
-                // Clear previous errors
                 errorDiv.className = 'hidden';
 
                 if (!email || !password) {
@@ -109,7 +120,6 @@
                     return;
                 }
 
-                // Disable button and show loading state
                 loginBtn.disabled = true;
                 loginBtn.textContent = 'Signing in...';
                 loginBtn.className = 'w-full bg-cyan-500 hover:bg-cyan-400 text-black font-semibold rounded-2xl py-4 transition disabled:opacity-60 btn-loading';
@@ -120,10 +130,7 @@
 
                     const response = await fetch('/api/auth/login', {
                         method: 'POST',
-                        headers: { 
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json'
-                        },
+                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                         body: JSON.stringify(payload)
                     });
 
@@ -131,7 +138,6 @@
                     const data = await response.json();
                     console.log('🔐 [login.html] Response data:', data);
 
-                    // ✅ Handle successful login with token
                     if (data.success === true && data.token) {
                         const redirectUrl = new URL(redirectUri);
                         redirectUrl.searchParams.set('token', data.token);
@@ -143,19 +149,16 @@
                         return;
                     }
 
-                    // ✅ Handle 2FA (Authenticator)
                     if (data.requiresAuthenticator2fa) {
                         show2faInput(data.userId);
                         return;
                     }
 
-                    // ✅ Handle Email OTP
                     if (data.requiresEmail2fa) {
                         showOtpInput(data.userId);
                         return;
                     }
 
-                    // ❌ Show error message
                     errorDiv.textContent = data.message || 'Login failed. Please try again.';
                     errorDiv.className = 'bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3 text-sm text-red-300';
                     errorDiv.classList.remove('hidden');
