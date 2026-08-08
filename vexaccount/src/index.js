@@ -22,9 +22,8 @@ app.use(cookieParser());
 
 // CORS – allow all Vexa apps origins
 const allowedOrigins = [
-  process.env.FRONTEND_USER_URL || 'https://vexastore.onrender.com',
+  process.env.FRONTEND_USER_URL || 'https://vexastore.onrender.com', 'https://vexatrade-6nhs.onrender.com',
   process.env.FRONTEND_ADMIN_URL || 'https://vexastore-admin.onrender.com', 'https://admin.vexatrade-v.2bd.net',
-  'https://vexatrade.onrender.com',
   'https://vexatrade-v.2bd.net',
   'https://www.vexatrade-v.2bd.net',
   'https://vexawallet.onrender.com',
