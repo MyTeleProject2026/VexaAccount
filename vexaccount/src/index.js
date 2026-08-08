@@ -22,8 +22,12 @@ app.use(cookieParser());
 
 // CORS – allow all Vexa apps origins
 const allowedOrigins = [
-  process.env.FRONTEND_USER_URL || 'https://vexastore.onrender.com', 'https://vexatrade-6nhs.onrender.com', 'https://vexatrade-v.2bd.net', 'https://www.vexatrade-v.2bd.net',
-  process.env.FRONTEND_ADMIN_URL || 'https://vexastore-admin.onrender.com', 'https://admin.vexatrade-v.2bd.net',
+  process.env.FRONTEND_USER_URL || 'https://vexastore.onrender.com', 
+  'https://vexatrade-6nhs.onrender.com', 
+  'https://vexatrade-v.2bd.net', 
+  'https://www.vexatrade-v.2bd.net',
+  process.env.FRONTEND_ADMIN_URL || 'https://vexastore-admin.onrender.com', 
+  'https://admin.vexatrade-v.2bd.net',
   'https://vexawallet.onrender.com',
   'https://vexabrowser.onrender.com',
   'http://localhost:5173',
@@ -66,9 +70,16 @@ app.get('/api/health', (req, res) => {
 });
 
 // ============================================================
-// ✅ OTP VERIFY PAGE (Optional – for standalone OTP verification)
+// ✅ OTP VERIFY PAGE – serve the HTML file
 // ============================================================
 app.get('/auth/otp-verify', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/otp-verify.html'));
+});
+
+// ════════════════════════════════════════════════════════════════
+// ✅ FIX: Also serve the .html version to match register.html redirect
+// ════════════════════════════════════════════════════════════════
+app.get('/auth/otp-verify.html', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/otp-verify.html'));
 });
 
@@ -291,6 +302,7 @@ async function startServer() {
     console.log(`🔐 SSO Register Page: /auth/register-page`);
     console.log(`🔄 Account Switcher: /auth/account-switcher`);
     console.log(`📧 OTP Verify Page: /auth/otp-verify`);
+    console.log(`📧 OTP Verify Page (.html): /auth/otp-verify.html`);
   });
 }
 
