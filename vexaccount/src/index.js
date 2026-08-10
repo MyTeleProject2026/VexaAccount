@@ -23,21 +23,45 @@ app.use(cookieParser());
 
 // CORS – allow all Vexa apps origins
 const allowedOrigins = [
-  process.env.FRONTEND_USER_URL || 'https://vexastore.onrender.com', 
-  'https://vexatrade-6nhs.onrender.com', 
-  'https://vexatrade-v.2bd.net', 
-  'https://www.vexatrade-v.2bd.net',
-  'https://www.vexastore.2bd.net',
+  // ─── Environment Variables ────────────────────────────────
+  process.env.FRONTEND_USER_URL,
+  process.env.FRONTEND_ADMIN_URL,
+  
+  // ─── VexaStore ─────────────────────────────────────────────
+  'https://vexastore.onrender.com',
+  'https://www.vexastore.onrender.com',
   'https://vexastore.2bd.net',
-  process.env.FRONTEND_ADMIN_URL || 'https://vexastore-admin.onrender.com', 
-  'https://admin.vexatrade-v.2bd.net',
+  'https://www.vexastore.2bd.net',
   'https://vexastore-admin.onrender.com',
+  
+  // ─── VexaTrade ─────────────────────────────────────────────
+  'https://vexatrade-6nhs.onrender.com',
+  'https://vexatrade-v.2bd.net',
+  'https://www.vexatrade-v.2bd.net',
+  'https://admin.vexatrade-v.2bd.net',
+  'https://vexatrade.onrender.com',
+  'https://vexatrade-admin.onrender.com',
+  'https://admin-vexatrade-manage.onrender.com',
+  'https://vexatrade-admin-n36m.onrender.com',
+  
+  // ─── Vexa Ecosystem ────────────────────────────────────────
   'https://vexawallet.onrender.com',
   'https://vexabrowser.onrender.com',
+  'https://learn-vexatrade.onrender.com',
+  
+  // ─── APIs ──────────────────────────────────────────────────
+  'https://api-vexaaccount.onrender.com',
+  'https://api-vexastore.onrender.com',
+  'https://vexatrade-server.onrender.com',
+  'https://vexatrade-5ycu.onrender.com',
+  'https://vexatrade-ecosystem-api.onrender.com',
+  
+  // ─── Development ────────────────────────────────────────────
   'http://localhost:5173',
   'http://localhost:5174',
   'http://localhost:3000',
-].filter(Boolean);
+  
+].filter((value, index, self) => value && self.indexOf(value) === index);
 
 app.use(cors({
   origin: allowedOrigins,
