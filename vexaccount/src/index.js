@@ -12,6 +12,7 @@ const { testConnection, pool } = require('./config/database');
 const authRoutes = require('./routes/auth');
 const accountRoutes = require('./routes/account');
 const ssoRoutes = require('./routes/sso');
+const ssoAccountRoutes = require('./routes/sso-account');
 const ssoAdminRoutes = require('./routes/sso-admin');
 
 const app = express();
@@ -91,6 +92,7 @@ app.use('/api/', limiter);
 app.use('/api/auth', authRoutes);
 app.use('/api/account', accountRoutes);
 app.use('/api/sso', ssoRoutes);
+app.use('/api/account/sso', ssoAccountRoutes);
 app.use('/api/admin/sso', ssoAdminRoutes);
 
 // Health check
