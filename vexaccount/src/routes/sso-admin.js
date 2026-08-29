@@ -65,6 +65,41 @@ router.post('/clients/:clientId/rotate-secret',async(req,res,next)=>{try{
   res.json({success:true,message:'Client secret rotated. Save the new secret now.',client_secret:secret});
 }catch(e){next(e);}});
 
+router.get('/dashboard',async(req,res,next)=>{try{
+  const [[users],[clients],[sessions],[events]] = await Promise.all([
+    pool.query('SELECT COUNT(*) AS total FROM store_users WHERE is_active=1'),
+    pool.query('SELECT COUNT(*) AS total, SUM(is_active=1) AS active FROM sso_clients'),
+    pool.query('SELECT COUNT(*) AS total FROM sso_sessions WHERE revoked_at IS NULL AND expires_at>NOW()'),
+    pool.query('SELECT COUNT(*) AS total FROM sso_security_events WHERE created_at>=DATE_SUB(NOW(),INTERVAL 24 HOUR)')
+  ]);
+  res.json({success:true,metrics:{active_users:Number(users[0].total),sso_clients:Number(clients[0].total),active_clients:Number(clients[0].active||0),active_sessions:Number(sessions[0].total),security_events_24h:Number(events[0].total)}});
+}catch(e){next(e);}});
+
+router.get('/sessions',async(req,res,next)=>{try{
+  const limit=Math.min(Math.max(Number(req.query.limit)||100,1),500);
+  const [rows]=await pool.query('SELECT s.id,s.user_id,s.client_id,c.name,s.scope,s.created_at,s.last_seen_at,s.expires_at FROM sso_sessions s LEFT JOIN sso_clients c ON c.client_id=s.client_id WHERE s.revoked_at IS NULL ORDER BY s.last_seen_at DESC LIMIT ?',[limit]);
+  res.json({success:true,sessions:rows});
+}catch(e){next(e);}});
+
+router.delete('/sessions/:id',async(req,res,next)=>{try{
+  const [r]=await pool.query('UPDATE sso_sessions SET revoked_at=NOW() WHERE id=? AND revoked_at IS NULL',[req.params.id]);
+  if(!r.affectedRows)return res.status(404).json({success:false,message:'Active session not found'});
+  await audit(req,'sso_session_revoked','sso_session',req.params.id);
+  res.json({success:true,message:'SSO session revoked'});
+}catch(e){next(e);}});
+
+router.get('/consents',async(req,res,next)=>{try{
+  const limit=Math.min(Math.max(Number(req.query.limit)||100,1),500);
+  const [rows]=await pool.query('SELECT sc.id,sc.user_id,sc.client_id,c.name,sc.scopes,sc.granted_at,sc.revoked_at FROM sso_consents sc LEFT JOIN sso_clients c ON c.client_id=sc.client_id ORDER BY sc.granted_at DESC LIMIT ?',[limit]);
+  res.json({success:true,consents:rows});
+}catch(e){next(e);}});
+
+router.get('/audit',async(req,res,next)=>{try{
+  const limit=Math.min(Math.max(Number(req.query.limit)||100,1),500);
+  const [rows]=await pool.query('SELECT admin_user_id,action,target_type,target_id,ip_address,user_agent,metadata,created_at FROM vexa_admin_audit_log ORDER BY created_at DESC LIMIT ?',[limit]);
+  res.json({success:true,audit:rows});
+}catch(e){next(e);}});
+
 router.get('/events',async(req,res,next)=>{try{
   const limit=Math.min(Math.max(Number(req.query.limit)||100,1),500);
   const [rows]=await pool.query('SELECT user_id,client_id,event_type,ip_address,user_agent,metadata,created_at FROM sso_security_events ORDER BY created_at DESC LIMIT ?',[limit]);
