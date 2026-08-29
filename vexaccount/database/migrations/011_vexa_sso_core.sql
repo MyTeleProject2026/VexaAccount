@@ -67,3 +67,26 @@ CREATE TABLE IF NOT EXISTS sso_security_events (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_sso_security_user (user_id,created_at)
 );
+
+-- Super Owner authorization and immutable administration audit trail
+CREATE TABLE IF NOT EXISTS vexa_super_admins (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  user_id BIGINT NOT NULL UNIQUE,
+  role VARCHAR(64) NOT NULL DEFAULT 'super_owner',
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS vexa_admin_audit_log (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  admin_user_id BIGINT NOT NULL,
+  action VARCHAR(128) NOT NULL,
+  target_type VARCHAR(64) NULL,
+  target_id VARCHAR(255) NULL,
+  ip_address VARCHAR(64) NULL,
+  user_agent VARCHAR(512) NULL,
+  metadata JSON NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_vexa_admin_audit (admin_user_id,created_at),
+  INDEX idx_vexa_admin_action (action,created_at)
+);
