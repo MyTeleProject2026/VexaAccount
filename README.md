@@ -261,3 +261,10 @@ GET    /api/admin/sso/events
 ```
 
 The separate `frontend-VexaAccount-Super-admin` PWA consumes dashboard metrics, client registry data, active SSO sessions, security events, and the administrative audit trail.
+
+
+## Frontend production configuration
+
+The static PWAs remain independently deployable. `frontend-VexaAccount-user/config.js` defines the API origin and can be replaced during deployment without rebuilding backend code. Do not place client secrets, database credentials, JWT signing secrets, or other server credentials in either static frontend.
+
+Current frontend management features include profile editing, consent/session revocation, Super Owner dashboard metrics, client enable/disable control, and one-time secret rotation display.
