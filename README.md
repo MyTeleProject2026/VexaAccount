@@ -245,3 +245,19 @@ Super Owner authorization is database-backed through `vexa_super_admins`. A vali
 ## Super Owner roles\n\nThe reusable RBAC foundation supports:\n\n- `super_owner` — unrestricted administrative permissions\n- `sso_admin` — SSO client and access administration\n- `security_admin` — session, consent and security operations\n- `auditor` — read-only security visibility\n\nRoles are stored in `vexa_super_admins`; public users cannot self-assign administrative roles.\n\n## Development principle
 
 Existing VexaAccount routes and working functionality are preserved while the centralized SSO platform is added incrementally. New APIs should reuse the existing account model wherever possible rather than creating competing user systems.
+
+
+## Super Owner ecosystem dashboard
+
+The Super Owner API now exposes centralized operational visibility:
+
+```text
+GET    /api/admin/sso/dashboard
+GET    /api/admin/sso/sessions
+DELETE /api/admin/sso/sessions/:id
+GET    /api/admin/sso/consents
+GET    /api/admin/sso/audit
+GET    /api/admin/sso/events
+```
+
+The separate `frontend-VexaAccount-Super-admin` PWA consumes dashboard metrics, client registry data, active SSO sessions, security events, and the administrative audit trail.
