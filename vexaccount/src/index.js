@@ -10,6 +10,7 @@ const jwt = require('jsonwebtoken');
 const { testConnection, pool } = require('./config/database');
 
 const authRoutes = require('./routes/auth');
+const accountRoutes = require('./routes/account');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -86,6 +87,7 @@ app.use('/api/', limiter);
 
 // Mount authentication routes
 app.use('/api/auth', authRoutes);
+app.use('/api/account', accountRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -93,7 +95,7 @@ app.get('/api/health', (req, res) => {
     success: true,
     message: 'VexaAccount Service is running',
     timestamp: new Date().toISOString(),
-    version: '2.0.0'
+    version: '2.1.0'
   });
 });
 
