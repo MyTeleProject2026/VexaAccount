@@ -12,6 +12,7 @@ const { testConnection, pool } = require('./config/database');
 const authRoutes = require('./routes/auth');
 const ssoRoutes = require('./routes/sso');
 const ssoRegistryRoutes = require('../../backend/src/routes/sso-registry');
+const accountCenterRoutes = require('../../backend/src/routes/account-center');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -40,6 +41,7 @@ app.use('/api/', rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders
 app.use('/api/auth', authRoutes);
 app.use('/api/sso', ssoRoutes);
 app.use('/api/sso-registry', ssoRegistryRoutes);
+app.use('/api/account', accountCenterRoutes);
 
 app.get('/api/health', (req, res) => res.json({ success: true, message: 'VexaAccount Service is running', timestamp: new Date().toISOString(), version: '2.1.0' }));
 app.get('/auth/otp-verify', (req,res) => res.sendFile(path.join(__dirname,'../public/otp-verify.html')));
