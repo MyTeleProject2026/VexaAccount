@@ -1,19 +1,20 @@
 const express = require('express');
 const { pool } = require('../../vexaccount/src/config/database');
 const { requireSuperAdmin } = require('../middleware/superAdminAuth');
+const { auditAdminAction } = require('../middleware/adminAudit');
 
 const router = express.Router();
 
 router.use(requireSuperAdmin);
 
-router.get('/applications', async (req, res, next) => {
+router.get('/applications', auditAdminAction('sso.registry.list', 'sso_application'), async (req, res, next) => {
   try {
     const [rows] = await pool.query(`SELECT r.client_id, r.display_name, r.application_key, r.environment, r.status, r.owner_label, r.description, r.created_at, r.updated_at, c.is_active, c.last_used_at, c.secret_rotated_at FROM sso_client_registry r LEFT JOIN sso_clients c ON c.client_id = r.client_id ORDER BY r.display_name ASC`);
     res.json({ success: true, applications: rows });
   } catch (error) { next(error); }
 });
 
-router.patch('/applications/:clientId/status', async (req, res, next) => {
+router.patch('/applications/:clientId/status', auditAdminAction('sso.application.status.update', 'sso_application'), async (req, res, next) => {
   const connection = await pool.getConnection();
   try {
     const status = String(req.body.status || '');
