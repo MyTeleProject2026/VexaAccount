@@ -13,11 +13,19 @@ function requireSuperAdmin(req,res,next){
     const h=req.get('authorization')||'';
     if(!h.startsWith('Bearer ')) return res.status(401).json({success:false,message:'Authentication required'});
     const claims=jwt.verify(h.slice(7),JWT_SECRET);
-    if(!claims.super_admin) return res.status(403).json({success:false,message:'Super administrator access required'});
-    req.admin=claims; next();
+    const adminUserId=claims.sub||claims.id;
+    if(!adminUserId) return res.status(401).json({success:false,message:'Invalid administrator identity'});
+    pool.query('SELECT role FROM vexa_super_admins WHERE user_id=? AND is_active=1 LIMIT 1',[adminUserId]).then(([rows])=>{
+      if(!rows.length) return res.status(403).json({success:false,message:'Super Owner access required'});
+      req.admin={...claims,userId:adminUserId,role:rows[0].role}; next();
+    }).catch(next);
   }catch{return res.status(401).json({success:false,message:'Invalid or expired session'});}
 }
 router.use(requireSuperAdmin);
+
+async function audit(req, action, targetType, targetId, metadata={}){
+  await pool.query('INSERT INTO vexa_admin_audit_log (admin_user_id,action,target_type,target_id,ip_address,user_agent,metadata) VALUES (?,?,?,?,?,?,?)',[req.admin.userId,action,targetType,targetId||null,req.ip||null,String(req.get('user-agent')||'').slice(0,512),JSON.stringify(metadata)]);
+}
 
 router.get('/clients',async(req,res,next)=>{try{
   const [rows]=await pool.query('SELECT id,client_id,name,redirect_uris,allowed_scopes,is_active,last_used_at,created_at,updated_at FROM sso_clients ORDER BY created_at DESC');
@@ -31,6 +39,7 @@ router.post('/clients',async(req,res,next)=>{try{
   for(const uri of redirect_uris){try{const u=new URL(uri);if(u.protocol!=='https:'&&u.hostname!=='localhost')throw new Error();}catch{return res.status(400).json({success:false,message:'Every redirect URI must be HTTPS or localhost'});}}
   const secret=crypto.randomBytes(48).toString('base64url');
   await pool.query('INSERT INTO sso_clients (client_id,client_secret_hash,name,redirect_uris,allowed_scopes,is_active) VALUES (?,?,?,?,?,1)',[client_id,hash(secret),name.trim(),JSON.stringify([...new Set(redirect_uris)]),JSON.stringify([...new Set(allowed_scopes)])]);
+  await audit(req,'sso_client_created','sso_client',client_id,{name:name.trim(),redirect_uris,allowed_scopes});
   res.status(201).json({success:true,message:'SSO client created. Save the secret now; it cannot be retrieved again.',client:{client_id,name:name.trim(),redirect_uris,allowed_scopes},client_secret:secret});
 }catch(e){if(e.code==='ER_DUP_ENTRY')return res.status(409).json({success:false,message:'client_id already exists'});next(e);}});
 
@@ -44,6 +53,7 @@ router.patch('/clients/:clientId',async(req,res,next)=>{try{
   values.push(req.params.clientId);
   const [r]=await pool.query(`UPDATE sso_clients SET ${fields.join(', ')} WHERE client_id=?`,values);
   if(!r.affectedRows)return res.status(404).json({success:false,message:'SSO client not found'});
+  await audit(req,'sso_client_updated','sso_client',req.params.clientId,{fields:fields.map(x=>x.split('=')[0])});
   res.json({success:true,message:'SSO client updated'});
 }catch(e){next(e);}});
 
@@ -51,6 +61,7 @@ router.post('/clients/:clientId/rotate-secret',async(req,res,next)=>{try{
   const secret=crypto.randomBytes(48).toString('base64url');
   const [r]=await pool.query('UPDATE sso_clients SET client_secret_hash=? WHERE client_id=?',[hash(secret),req.params.clientId]);
   if(!r.affectedRows)return res.status(404).json({success:false,message:'SSO client not found'});
+  await audit(req,'sso_client_secret_rotated','sso_client',req.params.clientId);
   res.json({success:true,message:'Client secret rotated. Save the new secret now.',client_secret:secret});
 }catch(e){next(e);}});
 
