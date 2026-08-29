@@ -13,48 +13,26 @@ const authRoutes = require('./routes/auth');
 const ssoRoutes = require('./routes/sso');
 const ssoRegistryRoutes = require('../../backend/src/routes/sso-registry');
 const accountCenterRoutes = require('../../backend/src/routes/account-center');
+const accountSecurityRoutes = require('../../backend/src/routes/account-security');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-
 if (!JWT_SECRET) throw new Error('JWT_SECRET must be configured');
-app.set('trust proxy', 1);
-app.use(helmet());
-app.use(cookieParser());
-
-const configuredOrigins = [process.env.FRONTEND_USER_URL, process.env.FRONTEND_ADMIN_URL, ...(process.env.VEXA_ALLOWED_ORIGINS || '').split(',')];
-const legacyOrigins = [
-  'https://vexastore.onrender.com','https://www.vexastore.onrender.com','https://vexastore.2bd.net','https://www.vexastore.2bd.net','https://vexastore-admin.onrender.com',
-  'https://vexatrade-6nhs.onrender.com','https://vexatrade-v.2bd.net','https://www.vexatrade-v.2bd.net','https://admin.vexatrade-v.2bd.net','https://vexatrade.onrender.com','https://vexatrade-admin.onrender.com','https://admin-vexatrade-manage.onrender.com','https://vexatrade-admin-n36m.onrender.com',
-  'https://vexawallet.onrender.com','https://vexabrowser.onrender.com','https://learn-vexatrade.onrender.com','https://api-vexaaccount.onrender.com','https://api-vexastore.onrender.com','https://vexatrade-server.onrender.com','https://vexatrade-5ycu.onrender.com','https://vexatrade-ecosystem-api.onrender.com',
-  'http://localhost:5173','http://localhost:5174','http://localhost:3000'
-];
-const allowedOrigins = [...configuredOrigins, ...legacyOrigins].map(v => String(v || '').trim()).filter((v,i,a) => v && a.indexOf(v) === i);
-app.use(cors({ origin(origin, callback) { if (!origin || allowedOrigins.includes(origin)) return callback(null, true); return callback(new Error('Origin not allowed')); }, credentials: true, methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'], allowedHeaders: ['Origin','X-Requested-With','Content-Type','Accept','Authorization','X-Vexa-Registry-Key'] }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-app.use(express.static(path.join(__dirname, '../public')));
-app.use('/api/', rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false, message: { success: false, message: 'Too many requests, please try again later.' } }));
-
-app.use('/api/auth', authRoutes);
-app.use('/api/sso', ssoRoutes);
-app.use('/api/sso-registry', ssoRegistryRoutes);
-app.use('/api/account', accountCenterRoutes);
-
-app.get('/api/health', (req, res) => res.json({ success: true, message: 'VexaAccount Service is running', timestamp: new Date().toISOString(), version: '2.1.0' }));
-app.get('/auth/otp-verify', (req,res) => res.sendFile(path.join(__dirname,'../public/otp-verify.html')));
-app.get('/auth/otp-verify.html', (req,res) => res.sendFile(path.join(__dirname,'../public/otp-verify.html')));
-
-app.get('/api/auth/session', async (req,res) => { try { const token=req.cookies?.vexaccount_session; if(!token) return res.json({success:false,message:'No session'}); const decoded=jwt.verify(token,JWT_SECRET); const [rows]=await pool.query('SELECT id,email,name,avatar_url FROM store_users WHERE id=? AND is_active=1',[decoded.id]); if(!rows.length)return res.json({success:false,message:'User not found'}); res.json({success:true,user:rows[0]}); } catch { res.json({success:false,message:'Invalid session'}); } });
+app.set('trust proxy', 1); app.use(helmet()); app.use(cookieParser());
+const configuredOrigins=[process.env.FRONTEND_USER_URL,process.env.FRONTEND_ADMIN_URL,...(process.env.VEXA_ALLOWED_ORIGINS||'').split(',')];
+const legacyOrigins=['https://vexastore.onrender.com','https://www.vexastore.onrender.com','https://vexastore.2bd.net','https://www.vexastore.2bd.net','https://vexastore-admin.onrender.com','https://vexatrade-6nhs.onrender.com','https://vexatrade-v.2bd.net','https://www.vexatrade-v.2bd.net','https://admin.vexatrade-v.2bd.net','https://vexatrade.onrender.com','https://vexatrade-admin.onrender.com','https://admin-vexatrade-manage.onrender.com','https://vexatrade-admin-n36m.onrender.com','https://vexawallet.onrender.com','https://vexabrowser.onrender.com','https://learn-vexatrade.onrender.com','https://api-vexaaccount.onrender.com','https://api-vexastore.onrender.com','https://vexatrade-server.onrender.com','https://vexatrade-5ycu.onrender.com','https://vexatrade-ecosystem-api.onrender.com','http://localhost:5173','http://localhost:5174','http://localhost:3000'];
+const allowedOrigins=[...configuredOrigins,...legacyOrigins].map(v=>String(v||'').trim()).filter((v,i,a)=>v&&a.indexOf(v)===i);
+app.use(cors({origin(origin,callback){if(!origin||allowedOrigins.includes(origin))return callback(null,true);return callback(new Error('Origin not allowed'));},credentials:true,methods:['GET','POST','PUT','PATCH','DELETE','OPTIONS'],allowedHeaders:['Origin','X-Requested-With','Content-Type','Accept','Authorization','X-Vexa-Registry-Key']}));
+app.use(express.json({limit:'10mb'})); app.use(express.urlencoded({extended:true,limit:'10mb'})); app.use(express.static(path.join(__dirname,'../public')));
+app.use('/api/',rateLimit({windowMs:15*60*1000,max:100,standardHeaders:true,legacyHeaders:false,message:{success:false,message:'Too many requests, please try again later.'}}));
+app.use('/api/auth',authRoutes); app.use('/api/sso',ssoRoutes); app.use('/api/sso-registry',ssoRegistryRoutes); app.use('/api/account',accountCenterRoutes); app.use('/api/account/security',accountSecurityRoutes);
+app.get('/api/health',(req,res)=>res.json({success:true,message:'VexaAccount Service is running',timestamp:new Date().toISOString(),version:'2.1.0'}));
+app.get('/auth/otp-verify',(req,res)=>res.sendFile(path.join(__dirname,'../public/otp-verify.html'))); app.get('/auth/otp-verify.html',(req,res)=>res.sendFile(path.join(__dirname,'../public/otp-verify.html')));
+app.get('/api/auth/session',async(req,res)=>{try{const token=req.cookies?.vexaccount_session;if(!token)return res.json({success:false,message:'No session'});const decoded=jwt.verify(token,JWT_SECRET);const [rows]=await pool.query('SELECT id,email,name,avatar_url FROM store_users WHERE id=? AND is_active=1',[decoded.id]);if(!rows.length)return res.json({success:false,message:'User not found'});res.json({success:true,user:rows[0]});}catch{res.json({success:false,message:'Invalid session'});}});
 app.post('/api/auth/logout',(req,res)=>{res.clearCookie('vexaccount_session',{httpOnly:true,secure:IS_PRODUCTION,sameSite:'lax',path:'/'});res.json({success:true,message:'Logged out successfully'});});
-
-app.use((req,res)=>res.status(404).json({success:false,message:'Route not found'}));
-app.use((err,req,res,next)=>{console.error('❌ Error:',err.message);res.status(err.status||500).json({success:false,message:err.message||'Internal server error'});});
-
+app.use((req,res)=>res.status(404).json({success:false,message:'Route not found'})); app.use((err,req,res,next)=>{console.error('❌ Error:',err.message);res.status(err.status||500).json({success:false,message:err.message||'Internal server error'});});
 async function cleanupUnverifiedUsers(){try{await pool.query('DELETE FROM store_users WHERE is_verified=0 AND created_at < DATE_SUB(NOW(), INTERVAL 1 HOUR)');await pool.query('DELETE FROM otp_codes WHERE expires_at < NOW() AND is_used=0');}catch(error){console.error('Cleanup error:',error.message);}}
-setInterval(cleanupUnverifiedUsers,60*60*1000); setTimeout(cleanupUnverifiedUsers,5000);
-
-async function startServer(){const dbConnected=await testConnection();if(!dbConnected){console.error('❌ Database connection failed. Exiting...');process.exit(1);}app.listen(PORT,()=>console.log(`🚀 VexaAccount Service running on port ${PORT}`));}
-startServer();
+setInterval(cleanupUnverifiedUsers,60*60*1000);setTimeout(cleanupUnverifiedUsers,5000);
+async function startServer(){const dbConnected=await testConnection();if(!dbConnected){console.error('❌ Database connection failed. Exiting...');process.exit(1);}app.listen(PORT,()=>console.log(`🚀 VexaAccount Service running on port ${PORT}`));} startServer();
