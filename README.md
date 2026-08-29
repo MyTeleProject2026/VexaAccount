@@ -268,3 +268,28 @@ The separate `frontend-VexaAccount-Super-admin` PWA consumes dashboard metrics, 
 The static PWAs remain independently deployable. `frontend-VexaAccount-user/config.js` defines the API origin and can be replaced during deployment without rebuilding backend code. Do not place client secrets, database credentials, JWT signing secrets, or other server credentials in either static frontend.
 
 Current frontend management features include profile editing, consent/session revocation, Super Owner dashboard metrics, client enable/disable control, and one-time secret rotation display.
+
+
+## Controlled Super Owner provisioning
+
+Administrative access is managed separately from ordinary users through:
+
+```text
+GET   /api/admin/super-owners
+POST  /api/admin/super-owners
+PATCH /api/admin/super-owners/:userId
+```
+
+These endpoints are protected by existing Super Owner authorization. Production bootstrap of the very first owner must remain an out-of-band deployment operation; the application must never expose public self-service elevation.
+
+## Production deployment
+
+Deploy independently:
+
+```text
+vexaccount/                         # Node.js backend
+frontend-VexaAccount-user/          # static user PWA
+frontend-VexaAccount-Super-admin/   # static admin PWA
+```
+
+Use environment variables for backend secrets and database connectivity. Configure the static API endpoints through each frontend `config.js`. Never commit production `.env` files or secrets.
