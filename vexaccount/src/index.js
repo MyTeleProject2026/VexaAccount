@@ -11,6 +11,7 @@ const { testConnection, pool } = require('./config/database');
 
 const authRoutes = require('./routes/auth');
 const accountRoutes = require('./routes/account');
+const ssoRoutes = require('./routes/sso');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -88,6 +89,7 @@ app.use('/api/', limiter);
 // Mount authentication routes
 app.use('/api/auth', authRoutes);
 app.use('/api/account', accountRoutes);
+app.use('/api/sso', ssoRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
