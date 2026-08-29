@@ -191,6 +191,17 @@ VexaAccount is designed for separate deployments:
 
 Applications such as VexaTrade and VexaStore integrate with the backend through registered SSO clients and do not need to share the VexaAccount user database.
 
+### Frontend PWA projects
+
+Both frontend projects are intentionally independent static deployments:
+
+```text
+frontend-VexaAccount-user/
+frontend-VexaAccount-Super-admin/
+```
+
+Each contains an HTML entry point, API client, responsive CSS, web app manifest, and service worker. Configure the API base URL for production instead of embedding production secrets in frontend code.
+
 ## Security notes
 
 Before production launch, verify and complete:
@@ -223,8 +234,8 @@ Super Owner authorization is database-backed through `vexa_super_admins`. A vali
 - [ ] Controlled Super Owner provisioning workflow
 - [x] Consent review and revocation API
 - [x] SSO session review and revocation API
-- [ ] User Account Center frontend PWA
-- [ ] Super Admin frontend PWA
+- [x] User Account Center static PWA foundation
+- [x] Super Owner static PWA foundation
 - [ ] VexaTrade SSO integration
 - [ ] VexaStore SSO integration
 - [ ] Certificate System SSO integration
