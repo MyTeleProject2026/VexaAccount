@@ -198,7 +198,7 @@ Before production launch, verify and complete:
 - End-to-end integration tests
 - Security review
 
-The SSO administration routes currently expect a verified JWT carrying `super_admin: true`. The provisioning mechanism for that claim must be controlled by the production administrator authorization system before exposing the admin API.
+Super Owner authorization is database-backed through `vexa_super_admins`. A valid VexaAccount JWT identifies the user, then the backend verifies that the user has an active Super Owner record before allowing SSO administration. Sensitive client registry actions are recorded in `vexa_admin_audit_log`. Initial Super Owner provisioning must be performed through a controlled database/bootstrap procedure and must not be exposed as a public self-service endpoint.
 
 ## Roadmap
 
@@ -208,7 +208,9 @@ The SSO administration routes currently expect a verified JWT carrying `super_ad
 - [x] SSO client registry API
 - [x] Refresh-token rotation
 - [x] SSO security-event recording
-- [ ] Production super-admin provisioning and RBAC
+- [x] Database-backed Super Owner authorization foundation
+- [x] Super Owner audit logging foundation
+- [ ] Controlled Super Owner provisioning and expanded RBAC
 - [ ] Consent review and revocation UI/API
 - [ ] SSO session review and revocation API
 - [ ] User Account Center frontend PWA
