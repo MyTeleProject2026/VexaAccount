@@ -68,6 +68,15 @@ GET    /api/account/security
 GET    /api/account/activity
 GET    /api/account/apps
 DELETE /api/account/apps/:slug
+
+SSO-specific account management:
+
+```text
+GET    /api/account/sso/consents
+DELETE /api/account/sso/consents/:clientId
+GET    /api/account/sso/sessions
+DELETE /api/account/sso/sessions/:id
+```
 ```
 
 ### Centralized SSO
@@ -210,9 +219,10 @@ Super Owner authorization is database-backed through `vexa_super_admins`. A vali
 - [x] SSO security-event recording
 - [x] Database-backed Super Owner authorization foundation
 - [x] Super Owner audit logging foundation
-- [ ] Controlled Super Owner provisioning and expanded RBAC
-- [ ] Consent review and revocation UI/API
-- [ ] SSO session review and revocation API
+- [x] Reusable Super Owner RBAC middleware foundation
+- [ ] Controlled Super Owner provisioning workflow
+- [x] Consent review and revocation API
+- [x] SSO session review and revocation API
 - [ ] User Account Center frontend PWA
 - [ ] Super Admin frontend PWA
 - [ ] VexaTrade SSO integration
@@ -221,6 +231,6 @@ Super Owner authorization is database-backed through `vexa_super_admins`. A vali
 - [ ] Ecosystem application SSO integration
 - [ ] Automated integration and security test suite
 
-## Development principle
+## Super Owner roles\n\nThe reusable RBAC foundation supports:\n\n- `super_owner` — unrestricted administrative permissions\n- `sso_admin` — SSO client and access administration\n- `security_admin` — session, consent and security operations\n- `auditor` — read-only security visibility\n\nRoles are stored in `vexa_super_admins`; public users cannot self-assign administrative roles.\n\n## Development principle
 
 Existing VexaAccount routes and working functionality are preserved while the centralized SSO platform is added incrementally. New APIs should reuse the existing account model wherever possible rather than creating competing user systems.
