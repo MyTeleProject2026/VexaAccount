@@ -40,7 +40,11 @@ app.use('/api/sso-registry', ssoRegistryRoutes);
 app.use('/api/account', accountCenterRoutes);
 app.use('/api/account', accountProfileRoutes);
 app.use('/api/account/security', accountSecurityRoutes);
-app.use('/api/owner/users', ownerUserManagementRoutes);
+// Canonical Owner User Management API: /api/owner/users/*
+// The management router owns the /users/* path; mounting at /api/owner
+// prevents the accidental /api/owner/users/users/* route.
+app.use('/api/owner', ownerUserManagementRoutes);
+// Keep the delete router mounted at /api/owner/users because it defines /:id.
 app.use('/api/owner/users', ownerUserDeleteRoutes);
 app.use('/api/owner/platform', ownerPlatformRoutes);
 app.get('/api/auth/session',async(req,res)=>{try{const token=req.cookies?.vexaccount_session;if(!token)return res.json({success:false,message:'No session'});const decoded=jwt.verify(token,JWT_SECRET);const id=decoded.sub||decoded.id;const [admins]=await pool.query('SELECT sa.id,sa.role,sa.is_active,u.id AS user_id,u.email,u.name FROM vexa_super_admins sa JOIN store_users u ON u.id=sa.user_id WHERE sa.user_id=? AND sa.is_active=1 AND u.is_active=1 LIMIT 1',[id]);if(admins.length&&['super_admin','owner'].includes(admins[0].role))return res.json({success:true,user:{id:admins[0].user_id,email:admins[0].email,name:admins[0].name,role:admins[0].role}});const [rows]=await pool.query('SELECT id,email,name,avatar_url FROM store_users WHERE id=? AND is_active=1',[id]);if(!rows.length)return res.json({success:false,message:'User not found'});res.json({success:true,user:rows[0]});}catch{res.json({success:false,message:'Invalid session'});}});
