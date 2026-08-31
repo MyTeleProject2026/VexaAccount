@@ -3,6 +3,52 @@ const fs = require('fs');
 const path = require('path');
 const { pool } = require('../src/config/database');
 
+// mysql2 connections intentionally keep multiStatements disabled. Execute the
+// migration as individual SQL statements so production TiDB does not need the
+// global tidb_multi_statement_mode switch enabled.
+function splitStatements(sql) {
+  const statements = [];
+  let start = 0;
+  let quote = null;
+  let lineComment = false;
+  let blockComment = false;
+  for (let i = 0; i < sql.length; i += 1) {
+    const ch = sql[i];
+    const next = sql[i + 1];
+    if (lineComment) {
+      if (ch === '\n') lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      if (ch === '*' && next === '/') { blockComment = false; i += 1; }
+      continue;
+    }
+    if (!quote && ch === '-' && next === '-' && /\s/.test(sql[i + 2] || '')) {
+      lineComment = true; i += 1; continue;
+    }
+    if (!quote && ch === '/' && next === '*') {
+      blockComment = true; i += 1; continue;
+    }
+    if (quote) {
+      if (ch === '\\') { i += 1; continue; }
+      if (ch === quote) {
+        if (sql[i + 1] === quote) { i += 1; continue; }
+        quote = null;
+      }
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') { quote = ch; continue; }
+    if (ch === ';') {
+      const statement = sql.slice(start, i).trim();
+      if (statement) statements.push(statement);
+      start = i + 1;
+    }
+  }
+  const tail = sql.slice(start).trim();
+  if (tail) statements.push(tail);
+  return statements;
+}
+
 (async () => {
   const connection = await pool.getConnection();
   try {
@@ -15,10 +61,11 @@ const { pool } = require('../src/config/database');
       if (done.has(filename)) continue;
       const sql = fs.readFileSync(path.join(dir, filename), 'utf8').trim();
       if (!sql) continue;
-      console.log(`Applying ${filename}`);
+      const statements = splitStatements(sql);
+      console.log(`Applying ${filename} (${statements.length} statements)`);
       await connection.beginTransaction();
       try {
-        await connection.query(sql);
+        for (const statement of statements) await connection.query(statement);
         await connection.query('INSERT INTO vexa_schema_migrations (filename) VALUES (?)', [filename]);
         await connection.commit();
       } catch (error) {
