@@ -1,5 +1,4 @@
 const express = require('express');
-const crypto = require('crypto');
 const { pool } = require('../config/database');
 const { requireSuperAdmin } = require('../middleware/superAdminAuth');
 const { auditAdminAction } = require('../middleware/adminAudit');
@@ -7,189 +6,19 @@ const { generateClientId, generateClientSecret, hashSecret, normalizeJsonArray, 
 
 const router = express.Router();
 const AVAILABLE_SCOPES = ['openid', 'profile', 'email', 'account', 'session', 'applications', 'notifications'];
-const VALID_STATUSES = ['pending', 'active', 'disabled', 'maintenance', 'revoked'];
-
+const VALID_STATUSES = ['pending', 'active', 'disabled', 'maintenance', 'rejected', 'revoked'];
 router.use(requireSuperAdmin);
-
-function cleanString(value, max) {
-  const text = String(value || '').trim();
-  return text ? text.slice(0, max) : null;
-}
-
-function normalizeRedirectUris(value) {
-  const values = Array.isArray(value) ? value : String(value || '').split(/\r?\n|,/);
-  return [...new Set(values.map(v => String(v).trim()).filter(Boolean))].slice(0, 50);
-}
-
-function normalizeScopes(value) {
-  const values = Array.isArray(value) ? value : String(value || '').split(/[\s,]+/);
-  return [...new Set(values.map(v => String(v).trim()).filter(Boolean))].filter(scope => AVAILABLE_SCOPES.includes(scope));
-}
-
-async function uniqueClientId(applicationKey) {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const clientId = generateClientId(applicationKey);
-    const [rows] = await pool.query('SELECT 1 FROM sso_clients WHERE client_id=? LIMIT 1', [clientId]);
-    if (!rows.length) return clientId;
-  }
-  throw new Error('Unable to allocate a unique client ID');
-}
-
-router.get('/scopes', auditAdminAction('sso.registry.scopes.list', 'sso_registry'), (req, res) => {
-  res.json({ success: true, scopes: AVAILABLE_SCOPES });
-});
-
-router.get('/applications', auditAdminAction('sso.registry.list', 'sso_application'), async (req, res, next) => {
-  try {
-    const [rows] = await pool.query(`
-      SELECT r.client_id, r.display_name, r.application_key, r.environment, r.status,
-             r.owner_label, r.description, r.created_at, r.updated_at,
-             c.is_active, c.redirect_uris, c.allowed_scopes, c.last_used_at, c.secret_rotated_at
-      FROM sso_client_registry r
-      LEFT JOIN sso_clients c ON c.client_id=r.client_id
-      ORDER BY r.display_name ASC
-    `);
-    res.json({
-      success: true,
-      applications: rows.map(row => ({
-        ...row,
-        redirectUris: normalizeJsonArray(row.redirect_uris),
-        allowedScopes: normalizeJsonArray(row.allowed_scopes, ['openid', 'profile', 'email'])
-      }))
-    });
-  } catch (error) { next(error); }
-});
-
-router.get('/applications/:clientId', async (req, res, next) => {
-  try {
-    const [rows] = await pool.query(`
-      SELECT r.client_id, r.display_name, r.application_key, r.environment, r.status,
-             r.owner_label, r.description, r.created_at, r.updated_at,
-             c.is_active, c.redirect_uris, c.allowed_scopes, c.last_used_at, c.secret_rotated_at
-      FROM sso_client_registry r
-      LEFT JOIN sso_clients c ON c.client_id=r.client_id
-      WHERE r.client_id=? LIMIT 1
-    `, [req.params.clientId]);
-    if (!rows.length) return res.status(404).json({ success: false, message: 'SSO application not found' });
-    const row = rows[0];
-    res.json({ success: true, application: { ...row, redirectUris: normalizeJsonArray(row.redirect_uris), allowedScopes: normalizeJsonArray(row.allowed_scopes) } });
-  } catch (error) { next(error); }
-});
-
-router.post('/applications', auditAdminAction('sso.application.create', 'sso_application'), async (req, res, next) => {
-  const connection = await pool.getConnection();
-  try {
-    const displayName = cleanString(req.body.displayName || req.body.name, 255);
-    const applicationKey = cleanString(req.body.applicationKey || req.body.key, 128);
-    const environment = cleanString(req.body.environment, 32) || 'production';
-    const ownerLabel = cleanString(req.body.ownerLabel, 255);
-    const description = cleanString(req.body.description, 1000);
-    const redirectUris = normalizeRedirectUris(req.body.redirectUris || req.body.redirectUri);
-    const allowedScopes = normalizeScopes(req.body.allowedScopes || req.body.scopes);
-    if (!displayName || !applicationKey || !/^[a-z0-9][a-z0-9_-]{1,127}$/.test(applicationKey)) return res.status(400).json({ success: false, message: 'A valid applicationKey is required' });
-    if (!redirectUris.length) return res.status(400).json({ success: false, message: 'At least one redirect URI is required' });
-    if (!allowedScopes.length) return res.status(400).json({ success: false, message: 'At least one valid scope is required' });
-    const clientId = await uniqueClientId(applicationKey);
-    const clientSecret = generateClientSecret();
-    await connection.beginTransaction();
-    await connection.query(
-      `INSERT INTO sso_clients (client_id, client_secret_hash, name, redirect_uris, allowed_scopes, is_active)
-       VALUES (?, ?, ?, ?, ?, 0)`,
-      [clientId, hashSecret(clientSecret), displayName, JSON.stringify(redirectUris), JSON.stringify(allowedScopes)]
-    );
-    await connection.query(
-      `INSERT INTO sso_client_registry (client_id, display_name, application_key, environment, status, owner_label, description)
-       VALUES (?, ?, ?, ?, 'pending', ?, ?)`,
-      [clientId, displayName, applicationKey, environment, ownerLabel, description]
-    );
-    await connection.commit();
-    res.status(201).json({ success: true, message: 'Application created and awaiting approval', application: { clientId, displayName, applicationKey, environment, status: 'pending', redirectUris, allowedScopes }, clientSecret });
-  } catch (error) {
-    try { await connection.rollback(); } catch {}
-    if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({ success: false, message: 'Application key already exists' });
-    next(error);
-  } finally { connection.release(); }
-});
-
-router.patch('/applications/:clientId', auditAdminAction('sso.application.update', 'sso_application'), async (req, res, next) => {
-  const connection = await pool.getConnection();
-  try {
-    const updates = [];
-    const values = [];
-    if (req.body.displayName !== undefined || req.body.name !== undefined) { updates.push('display_name=?'); values.push(cleanString(req.body.displayName || req.body.name, 255)); }
-    if (req.body.ownerLabel !== undefined) { updates.push('owner_label=?'); values.push(cleanString(req.body.ownerLabel, 255)); }
-    if (req.body.description !== undefined) { updates.push('description=?'); values.push(cleanString(req.body.description, 1000)); }
-    if (req.body.environment !== undefined) { updates.push('environment=?'); values.push(cleanString(req.body.environment, 32) || 'production'); }
-    const redirectUris = req.body.redirectUris !== undefined ? normalizeRedirectUris(req.body.redirectUris) : null;
-    const allowedScopes = req.body.allowedScopes !== undefined ? normalizeScopes(req.body.allowedScopes) : null;
-    if (req.body.redirectUris !== undefined && !redirectUris.length) return res.status(400).json({ success: false, message: 'At least one redirect URI is required' });
-    if (req.body.allowedScopes !== undefined && !allowedScopes.length) return res.status(400).json({ success: false, message: 'At least one valid scope is required' });
-    await connection.beginTransaction();
-    if (updates.length) {
-      values.push(req.params.clientId);
-      const [result] = await connection.query(`UPDATE sso_client_registry SET ${updates.join(', ')}, updated_at=CURRENT_TIMESTAMP WHERE client_id=?`, values);
-      if (!result.affectedRows) { await connection.rollback(); return res.status(404).json({ success: false, message: 'SSO application not found' }); }
-    }
-    if (redirectUris || allowedScopes) {
-      const fields = [];
-      const params = [];
-      if (redirectUris) { fields.push('redirect_uris=?'); params.push(JSON.stringify(redirectUris)); }
-      if (allowedScopes) { fields.push('allowed_scopes=?'); params.push(JSON.stringify(allowedScopes)); }
-      params.push(req.params.clientId);
-      const [result] = await connection.query(`UPDATE sso_clients SET ${fields.join(', ')}, updated_at=CURRENT_TIMESTAMP WHERE client_id=?`, params);
-      if (!result.affectedRows) { await connection.rollback(); return res.status(404).json({ success: false, message: 'SSO client not found' }); }
-    }
-    await connection.commit();
-    res.json({ success: true, message: 'Application updated' });
-  } catch (error) { try { await connection.rollback(); } catch {} next(error); } finally { connection.release(); }
-});
-
-router.patch('/applications/:clientId/status', auditAdminAction('sso.application.status.update', 'sso_application'), async (req, res, next) => {
-  const connection = await pool.getConnection();
-  try {
-    const status = String(req.body.status || '');
-    if (!VALID_STATUSES.includes(status)) return res.status(400).json({ success: false, message: 'Invalid application status' });
-    await connection.beginTransaction();
-    const [result] = await connection.query('UPDATE sso_client_registry SET status=?, updated_at=CURRENT_TIMESTAMP WHERE client_id=?', [status, req.params.clientId]);
-    if (!result.affectedRows) { await connection.rollback(); return res.status(404).json({ success: false, message: 'SSO application not found' }); }
-    await connection.query('UPDATE sso_clients SET is_active=? WHERE client_id=?', [status === 'active' ? 1 : 0, req.params.clientId]);
-    if (['disabled', 'maintenance', 'revoked'].includes(status)) await connection.query('UPDATE sso_sessions SET revoked_at=NOW() WHERE client_id=? AND revoked_at IS NULL', [req.params.clientId]);
-    await connection.commit();
-    res.json({ success: true, client_id: req.params.clientId, status });
-  } catch (error) { try { await connection.rollback(); } catch {} next(error); } finally { connection.release(); }
-});
-
-router.post('/applications/:clientId/rotate-secret', auditAdminAction('sso.application.secret.rotate', 'sso_application'), async (req, res, next) => {
-  try {
-    const secret = await rotateClientSecret(req.params.clientId);
-    if (!secret) return res.status(404).json({ success: false, message: 'SSO application not found' });
-    res.json({ success: true, message: 'Client secret rotated. Store this secret securely; it will not be shown again.', clientId: req.params.clientId, clientSecret: secret });
-  } catch (error) { next(error); }
-});
-
-router.delete('/applications/:clientId', auditAdminAction('sso.application.revoke', 'sso_application'), async (req, res, next) => {
-  const connection = await pool.getConnection();
-  try {
-    await connection.beginTransaction();
-    const [existing] = await connection.query('SELECT client_id FROM sso_client_registry WHERE client_id=? LIMIT 1', [req.params.clientId]);
-    if (!existing.length) { await connection.rollback(); return res.status(404).json({ success: false, message: 'SSO application not found' }); }
-    await connection.query('UPDATE sso_sessions SET revoked_at=NOW() WHERE client_id=? AND revoked_at IS NULL', [req.params.clientId]);
-    await connection.query('UPDATE sso_consents SET revoked_at=NOW() WHERE client_id=? AND revoked_at IS NULL', [req.params.clientId]);
-    await connection.query('DELETE FROM sso_refresh_tokens WHERE client_id=?', [req.params.clientId]);
-    await connection.query('DELETE FROM sso_authorization_codes WHERE client_id=?', [req.params.clientId]);
-    await connection.query('DELETE FROM sso_clients WHERE client_id=?', [req.params.clientId]);
-    await connection.query('DELETE FROM sso_client_registry WHERE client_id=?', [req.params.clientId]);
-    await connection.commit();
-    res.json({ success: true, message: 'Application revoked and removed from the SSO registry' });
-  } catch (error) { try { await connection.rollback(); } catch {} next(error); } finally { connection.release(); }
-});
-
-router.get('/audit', async (req, res, next) => {
-  try {
-    const limit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 250);
-    const [rows] = await pool.query('SELECT id, admin_id, action, resource_type, resource_id, ip_address, user_agent, metadata, created_at FROM vexa_admin_audit_log ORDER BY created_at DESC LIMIT ?', [limit]);
-    res.json({ success: true, events: rows });
-  } catch (error) { next(error); }
-});
-
-module.exports = router;
+function cleanString(value, max) { const text=String(value||'').trim(); return text ? text.slice(0,max) : null; }
+function normalizeRedirectUris(value) { const values=Array.isArray(value)?value:String(value||'').split(/\r?\n|,/); return [...new Set(values.map(v=>String(v).trim()).filter(Boolean))].slice(0,50); }
+function normalizeScopes(value) { const values=Array.isArray(value)?value:String(value||'').split(/[\s,]+/); return [...new Set(values.map(v=>String(v).trim()).filter(Boolean))].filter(scope=>AVAILABLE_SCOPES.includes(scope)); }
+async function uniqueClientId(applicationKey){for(let attempt=0;attempt<10;attempt+=1){const clientId=generateClientId(applicationKey);const [rows]=await pool.query('SELECT 1 FROM sso_clients WHERE client_id=? LIMIT 1',[clientId]);if(!rows.length)return clientId;}throw new Error('Unable to allocate a unique client ID');}
+router.get('/scopes',auditAdminAction('sso.registry.scopes.list','sso_registry'),(req,res)=>res.json({success:true,scopes:AVAILABLE_SCOPES}));
+router.get('/applications',auditAdminAction('sso.registry.list','sso_application'),async(req,res,next)=>{try{const [rows]=await pool.query(`SELECT r.client_id,r.display_name,r.application_key,r.environment,r.status,r.owner_label,r.description,r.created_at,r.updated_at,c.is_active,c.redirect_uris,c.allowed_scopes,c.last_used_at,c.secret_rotated_at FROM sso_client_registry r LEFT JOIN sso_clients c ON c.client_id=r.client_id ORDER BY r.display_name ASC`);res.json({success:true,applications:rows.map(row=>({...row,redirectUris:normalizeJsonArray(row.redirect_uris),allowedScopes:normalizeJsonArray(row.allowed_scopes,['openid','profile','email'])}))});}catch(error){next(error);}});
+router.get('/applications/:clientId',async(req,res,next)=>{try{const [rows]=await pool.query(`SELECT r.client_id,r.display_name,r.application_key,r.environment,r.status,r.owner_label,r.description,r.created_at,r.updated_at,c.is_active,c.redirect_uris,c.allowed_scopes,c.last_used_at,c.secret_rotated_at FROM sso_client_registry r LEFT JOIN sso_clients c ON c.client_id=r.client_id WHERE r.client_id=? LIMIT 1`,[req.params.clientId]);if(!rows.length)return res.status(404).json({success:false,message:'SSO application not found'});const row=rows[0];res.json({success:true,application:{...row,redirectUris:normalizeJsonArray(row.redirect_uris),allowedScopes:normalizeJsonArray(row.allowed_scopes)}});}catch(error){next(error);}});
+router.post('/applications',auditAdminAction('sso.application.create','sso_application'),async(req,res,next)=>{const connection=await pool.getConnection();try{const displayName=cleanString(req.body.displayName||req.body.name,255);const applicationKey=cleanString(req.body.applicationKey||req.body.key,128);const environment=cleanString(req.body.environment,32)||'production';const ownerLabel=cleanString(req.body.ownerLabel,255);const description=cleanString(req.body.description,1000);const redirectUris=normalizeRedirectUris(req.body.redirectUris||req.body.redirectUri);const allowedScopes=normalizeScopes(req.body.allowedScopes||req.body.scopes);if(!displayName||!applicationKey||!/^[a-z0-9][a-z0-9_-]{1,127}$/.test(applicationKey))return res.status(400).json({success:false,message:'A valid applicationKey is required'});if(!redirectUris.length)return res.status(400).json({success:false,message:'At least one redirect URI is required'});if(!allowedScopes.length)return res.status(400).json({success:false,message:'At least one valid scope is required'});const clientId=await uniqueClientId(applicationKey);const clientSecret=generateClientSecret();await connection.beginTransaction();await connection.query(`INSERT INTO sso_clients (client_id,client_secret_hash,name,redirect_uris,allowed_scopes,is_active) VALUES (?,?,?,?,?,0)`,[clientId,hashSecret(clientSecret),displayName,JSON.stringify(redirectUris),JSON.stringify(allowedScopes)]);await connection.query(`INSERT INTO sso_client_registry (client_id,display_name,application_key,environment,status,owner_label,description) VALUES (?,?,?,?,'pending',?,?)`,[clientId,displayName,applicationKey,environment,ownerLabel,description]);await connection.commit();res.status(201).json({success:true,message:'Application created and awaiting approval',application:{clientId,displayName,applicationKey,environment,status:'pending',redirectUris,allowedScopes},clientSecret});}catch(error){try{await connection.rollback();}catch{}if(error.code==='ER_DUP_ENTRY')return res.status(409).json({success:false,message:'Application key already exists'});next(error);}finally{connection.release();}});
+router.patch('/applications/:clientId',auditAdminAction('sso.application.update','sso_application'),async(req,res,next)=>{const connection=await pool.getConnection();try{const updates=[],values=[];if(req.body.displayName!==undefined||req.body.name!==undefined){updates.push('display_name=?');values.push(cleanString(req.body.displayName||req.body.name,255));}if(req.body.ownerLabel!==undefined){updates.push('owner_label=?');values.push(cleanString(req.body.ownerLabel,255));}if(req.body.description!==undefined){updates.push('description=?');values.push(cleanString(req.body.description,1000));}if(req.body.environment!==undefined){updates.push('environment=?');values.push(cleanString(req.body.environment,32)||'production');}const redirectUris=req.body.redirectUris!==undefined?normalizeRedirectUris(req.body.redirectUris):null;const allowedScopes=req.body.allowedScopes!==undefined?normalizeScopes(req.body.allowedScopes):null;if(req.body.redirectUris!==undefined&&!redirectUris.length)return res.status(400).json({success:false,message:'At least one redirect URI is required'});if(req.body.allowedScopes!==undefined&&!allowedScopes.length)return res.status(400).json({success:false,message:'At least one valid scope is required'});await connection.beginTransaction();if(updates.length){values.push(req.params.clientId);const [result]=await connection.query(`UPDATE sso_client_registry SET ${updates.join(', ')},updated_at=CURRENT_TIMESTAMP WHERE client_id=?`,values);if(!result.affectedRows){await connection.rollback();return res.status(404).json({success:false,message:'SSO application not found'});}}if(redirectUris||allowedScopes){const fields=[],params=[];if(redirectUris){fields.push('redirect_uris=?');params.push(JSON.stringify(redirectUris));}if(allowedScopes){fields.push('allowed_scopes=?');params.push(JSON.stringify(allowedScopes));}params.push(req.params.clientId);const [result]=await connection.query(`UPDATE sso_clients SET ${fields.join(', ')},updated_at=CURRENT_TIMESTAMP WHERE client_id=?`,params);if(!result.affectedRows){await connection.rollback();return res.status(404).json({success:false,message:'SSO client not found'});}}await connection.commit();res.json({success:true,message:'Application updated'});}catch(error){try{await connection.rollback();}catch{}next(error);}finally{connection.release();}});
+router.patch('/applications/:clientId/status',auditAdminAction('sso.application.status.update','sso_application'),async(req,res,next)=>{const connection=await pool.getConnection();try{const status=String(req.body.status||'');if(!VALID_STATUSES.includes(status))return res.status(400).json({success:false,message:'Invalid application status'});await connection.beginTransaction();const [result]=await connection.query('UPDATE sso_client_registry SET status=?,updated_at=CURRENT_TIMESTAMP WHERE client_id=?',[status,req.params.clientId]);if(!result.affectedRows){await connection.rollback();return res.status(404).json({success:false,message:'SSO application not found'});}await connection.query('UPDATE sso_clients SET is_active=? WHERE client_id=?',[status==='active'?1:0,req.params.clientId]);if(['disabled','maintenance','rejected','revoked'].includes(status))await connection.query('UPDATE sso_sessions SET revoked_at=NOW() WHERE client_id=? AND revoked_at IS NULL',[req.params.clientId]);await connection.commit();res.json({success:true,client_id:req.params.clientId,status});}catch(error){try{await connection.rollback();}catch{}next(error);}finally{connection.release();}});
+router.post('/applications/:clientId/rotate-secret',auditAdminAction('sso.application.secret.rotate','sso_application'),async(req,res,next)=>{try{const secret=await rotateClientSecret(req.params.clientId);if(!secret)return res.status(404).json({success:false,message:'SSO application not found'});res.json({success:true,message:'Client secret rotated. Store this secret securely; it will not be shown again.',clientId:req.params.clientId,clientSecret:secret});}catch(error){next(error);}});
+router.delete('/applications/:clientId',auditAdminAction('sso.application.revoke','sso_application'),async(req,res,next)=>{const connection=await pool.getConnection();try{await connection.beginTransaction();const [existing]=await connection.query('SELECT client_id FROM sso_client_registry WHERE client_id=? LIMIT 1',[req.params.clientId]);if(!existing.length){await connection.rollback();return res.status(404).json({success:false,message:'SSO application not found'});}await connection.query('UPDATE sso_sessions SET revoked_at=NOW() WHERE client_id=? AND revoked_at IS NULL',[req.params.clientId]);await connection.query('UPDATE sso_consents SET revoked_at=NOW() WHERE client_id=? AND revoked_at IS NULL',[req.params.clientId]);await connection.query('DELETE FROM sso_refresh_tokens WHERE client_id=?',[req.params.clientId]);await connection.query('DELETE FROM sso_authorization_codes WHERE client_id=?',[req.params.clientId]);await connection.query('DELETE FROM sso_clients WHERE client_id=?',[req.params.clientId]);await connection.query('DELETE FROM sso_client_registry WHERE client_id=?',[req.params.clientId]);await connection.commit();res.json({success:true,message:'Application revoked and removed from the SSO registry'});}catch(error){try{await connection.rollback();}catch{}next(error);}finally{connection.release();}});
+router.get('/audit',async(req,res,next)=>{try{const limit=Math.min(Math.max(Number(req.query.limit)||100,1),250);const [rows]=await pool.query('SELECT id,admin_id,action,resource_type,resource_id,ip_address,user_agent,metadata,created_at FROM vexa_admin_audit_log ORDER BY created_at DESC LIMIT ?',[limit]);res.json({success:true,events:rows});}catch(error){next(error);}});
+module.exports=router;
