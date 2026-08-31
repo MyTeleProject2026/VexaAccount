@@ -1,7 +1,8 @@
 {
-  "name": "vexaccount",
+  "name": "vexaaccount-backend",
   "version": "1.0.0",
-  "description": "Central Identity Service for Vexa Ecosystem",
+  "private": true,
+  "description": "Standalone VexaAccount Web Services API",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

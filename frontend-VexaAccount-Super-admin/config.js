@@ -1,1 +1,0 @@
-window.VEXA_ADMIN_API = window.VEXA_ADMIN_API || 'https://api-vexaaccount.onrender.com';

@@ -1,0 +1,12 @@
+{
+  "name": "VexaAccount",
+  "short_name": "VexaAccount",
+  "description": "Vexa central identity and account center",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#0b0d12",
+  "background_color": "#07080c",
+  "icons": []
+}
