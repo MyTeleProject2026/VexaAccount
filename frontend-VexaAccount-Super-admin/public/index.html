@@ -1,24 +1,16 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#0b0d12" />
-  <meta name="description" content="VexaAccount Super Admin — Vexa ecosystem control plane." />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Vexa Admin" />
-  <link rel="manifest" href="/manifest.webmanifest" />
-  <title>VexaAccount Super Admin</title>
-</head>
-<body>
-  <main id="app" aria-live="polite">
-    <h1>VexaAccount Super Admin</h1>
-    <p>Vexa ecosystem identity and service control plane.</p>
-    <p>Secure administrative console — authentication and authorization are enforced by the VexaAccount backend.</p>
-  </main>
-  <script>
-    if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {}));
-  </script>
-</body>
-</html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b0d12"><title>VexaAccount Super Admin</title><style>body{font-family:system-ui;margin:0;background:#0b0d12;color:#fff}main{max-width:1000px;margin:48px auto;padding:24px}input,button{padding:12px;margin:6px 0;border-radius:8px;border:1px solid #333;background:#151922;color:#fff}button{cursor:pointer}form{max-width:420px;display:grid}table{width:100%;border-collapse:collapse;margin-top:24px}td,th{padding:12px;border-bottom:1px solid #292d38;text-align:left}.hidden{display:none}.error{color:#ff8b8b}.ok{color:#8bffb0}</style></head>
+<body><main>
+<section id="login"><h1>VexaAccount Super Admin</h1><p>Secure Vexa ecosystem identity control plane.</p><form id="loginForm"><input id="email" type="email" autocomplete="username" placeholder="Administrator email" required><input id="password" type="password" autocomplete="current-password" placeholder="Password" required><button>Sign in</button></form><p id="loginMsg" class="error"></p></section>
+<section id="dashboard" class="hidden"><h1>Super Admin Control Center</h1><p id="welcome"></p><button id="refresh">Refresh applications</button> <button id="logout">Sign out</button><p id="msg"></p><table><thead><tr><th>Application</th><th>Client ID</th><th>Environment</th><th>Status</th><th>Action</th></tr></thead><tbody id="apps"></tbody></table></section>
+</main><script>
+const API=(localStorage.getItem('VEXA_ACCOUNT_API')||'https://api-vexaaccount.onrender.com').replace(/\/$/,'');let token=localStorage.getItem('vexa_admin_token');
+const $=id=>document.getElementById(id);function showDashboard(user){$('login').classList.add('hidden');$('dashboard').classList.remove('hidden');$('welcome').textContent=`Signed in as ${user?.email||'administrator'}`;loadApps();}
+async function api(path,options={}){const headers={'Content-Type':'application/json',...(options.headers||{})};if(token)headers.Authorization=`Bearer ${token}`;const r=await fetch(API+path,{...options,headers,credentials:'include'});const data=await r.json().catch(()=>({success:false,message:'Invalid server response'}));if(!r.ok)throw new Error(data.message||`Request failed (${r.status})`);return data;}
+async function loadApps(){try{const d=await api('/api/sso-registry/applications');$('msg').className='ok';$('msg').textContent=`Loaded ${d.applications?.length||0} applications.`;$('apps').innerHTML=(d.applications||[]).map(a=>`<tr><td>${escapeHtml(a.display_name||a.application_key)}</td><td>${escapeHtml(a.client_id)}</td><td>${escapeHtml(a.environment||'')}</td><td>${escapeHtml(a.status||'')}</td><td><button onclick="setStatus('${encodeURIComponent(a.client_id)}','${a.status==='active'?'disabled':'active'}')">${a.status==='active'?'Disable':'Enable'}</button></td></tr>`).join('');}catch(e){$('msg').className='error';$('msg').textContent=e.message;}}
+async function setStatus(id,status){try{await api(`/api/sso-registry/applications/${decodeURIComponent(id)}/status`,{method:'PATCH',body:JSON.stringify({status})});loadApps();}catch(e){$('msg').className='error';$('msg').textContent=e.message;}}
+function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+$('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('loginMsg').textContent='Signing in…';try{const d=await api('/api/auth/login',{method:'POST',body:JSON.stringify({email:$('email').value,password:$('password').value})});if(!d.success||!d.token)throw new Error(d.message||'Authentication failed');token=d.token;localStorage.setItem('vexa_admin_token',token);showDashboard(d.user);}catch(e){$('loginMsg').textContent=e.message;}});
+$('refresh').onclick=loadApps;$('logout').onclick=async()=>{try{await api('/api/auth/logout',{method:'POST'});}catch{}localStorage.removeItem('vexa_admin_token');token=null;location.reload();};if(token)showDashboard({email:'administrator'});
+</script></body></html>
