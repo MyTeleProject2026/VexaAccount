@@ -15,6 +15,7 @@ const accountCenterRoutes = require('./routes/account-center');
 const accountSecurityRoutes = require('./routes/account-security');
 const superAdminAuthRoutes = require('./routes/super-admin-auth');
 const ownerUserManagementRoutes = require('./routes/owner-user-management');
+const ownerUserDeleteRoutes = require('./routes/owner-user-delete');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -39,7 +40,8 @@ app.use('/api/sso-registry', ssoRegistryRoutes);
 app.use('/api/account', accountCenterRoutes);
 app.use('/api/account/security', accountSecurityRoutes);
 app.use('/api/owner/users', ownerUserManagementRoutes);
-app.get('/api/health',(req,res)=>res.json({success:true,message:'VexaAccount Service is running',timestamp:new Date().toISOString(),version:'2.3.0'}));
+app.use('/api/owner/users', ownerUserDeleteRoutes);
+app.get('/api/health',(req,res)=>res.json({success:true,message:'VexaAccount Service is running',timestamp:new Date().toISOString(),version:'2.4.0'}));
 app.get('/auth/login-page',(req,res)=>res.sendFile(path.join(__dirname,'../public/login.html')));
 app.get('/auth/super-admin-login',(req,res)=>res.sendFile(path.join(__dirname,'../public/super-admin-login.html')));
 app.get('/auth/account-center',(req,res)=>res.sendFile(path.join(__dirname,'../public/account-center.html')));
