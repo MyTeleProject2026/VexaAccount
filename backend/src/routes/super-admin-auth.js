@@ -8,6 +8,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const COOKIE_SECURE = String(process.env.COOKIE_SECURE || '').toLowerCase() === 'true' || IS_PRODUCTION;
 const COOKIE_SAME_SITE = process.env.COOKIE_SAME_SITE || 'lax';
+const COOKIE_DOMAIN = String(process.env.COOKIE_DOMAIN || '').trim() || undefined;
 
 function envFirst(...names) {
   for (const name of names) {
@@ -25,14 +26,19 @@ function configuredCredentials() {
   };
 }
 
-function setSessionCookie(res, token) {
-  res.cookie('vexaccount_session', token, {
+function sessionCookieOptions() {
+  return {
     httpOnly: true,
     secure: COOKIE_SECURE,
     sameSite: COOKIE_SAME_SITE,
     maxAge: 8 * 60 * 60 * 1000,
-    path: '/'
-  });
+    path: '/',
+    ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {})
+  };
+}
+
+function setSessionCookie(res, token) {
+  res.cookie('vexaccount_session', token, sessionCookieOptions());
 }
 
 async function provisionAdmin(email, displayName) {
