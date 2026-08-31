@@ -1,31 +1,9 @@
 const express = require('express');
-const { pool } = require('../../vexaccount/src/config/database');
+const { pool } = require('../config/database');
 const { requireSuperAdmin } = require('../middleware/superAdminAuth');
 const { auditAdminAction } = require('../middleware/adminAudit');
-
 const router = express.Router();
-
 router.use(requireSuperAdmin);
-
-router.get('/applications', auditAdminAction('sso.registry.list', 'sso_application'), async (req, res, next) => {
-  try {
-    const [rows] = await pool.query(`SELECT r.client_id, r.display_name, r.application_key, r.environment, r.status, r.owner_label, r.description, r.created_at, r.updated_at, c.is_active, c.last_used_at, c.secret_rotated_at FROM sso_client_registry r LEFT JOIN sso_clients c ON c.client_id = r.client_id ORDER BY r.display_name ASC`);
-    res.json({ success: true, applications: rows });
-  } catch (error) { next(error); }
-});
-
-router.patch('/applications/:clientId/status', auditAdminAction('sso.application.status.update', 'sso_application'), async (req, res, next) => {
-  const connection = await pool.getConnection();
-  try {
-    const status = String(req.body.status || '');
-    if (!['active', 'disabled', 'maintenance'].includes(status)) return res.status(400).json({ success: false, message: 'Invalid application status' });
-    await connection.beginTransaction();
-    const [result] = await connection.query('UPDATE sso_client_registry SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE client_id = ?', [status, req.params.clientId]);
-    if (!result.affectedRows) { await connection.rollback(); return res.status(404).json({ success: false, message: 'SSO application not found' }); }
-    await connection.query('UPDATE sso_clients SET is_active = ? WHERE client_id = ?', [status === 'active' ? 1 : 0, req.params.clientId]);
-    await connection.commit();
-    res.json({ success: true, client_id: req.params.clientId, status });
-  } catch (error) { try { await connection.rollback(); } catch {} next(error); } finally { connection.release(); }
-});
-
-module.exports = router;
+router.get('/applications',auditAdminAction('sso.registry.list','sso_application'),async(req,res,next)=>{try{const [rows]=await pool.query(`SELECT r.client_id, r.display_name, r.application_key, r.environment, r.status, r.owner_label, r.description, r.created_at, r.updated_at, c.is_active, c.last_used_at, c.secret_rotated_at FROM sso_client_registry r LEFT JOIN sso_clients c ON c.client_id=r.client_id ORDER BY r.display_name ASC`);res.json({success:true,applications:rows});}catch(error){next(error);}});
+router.patch('/applications/:clientId/status',auditAdminAction('sso.application.status.update','sso_application'),async(req,res,next)=>{const connection=await pool.getConnection();try{const status=String(req.body.status||'');if(!['active','disabled','maintenance'].includes(status))return res.status(400).json({success:false,message:'Invalid application status'});await connection.beginTransaction();const [result]=await connection.query('UPDATE sso_client_registry SET status=?, updated_at=CURRENT_TIMESTAMP WHERE client_id=?',[status,req.params.clientId]);if(!result.affectedRows){await connection.rollback();return res.status(404).json({success:false,message:'SSO application not found'});}await connection.query('UPDATE sso_clients SET is_active=? WHERE client_id=?',[status==='active'?1:0,req.params.clientId]);await connection.commit();res.json({success:true,client_id:req.params.clientId,status});}catch(error){try{await connection.rollback();}catch{}next(error);}finally{connection.release();}});
+module.exports=router;
