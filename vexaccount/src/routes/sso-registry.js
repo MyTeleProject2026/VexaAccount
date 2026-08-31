@@ -1,4 +1,4 @@
-const express=require('express');const crypto=require('crypto');const {pool}=require('../../vexaccount/src/config/database');const {requireSuperAdmin}=require('../middleware/superAdminAuth');const {auditAdminAction}=require('../middleware/adminAudit');
+const express=require('express');const crypto=require('crypto');const {pool}=require('../config/database');const {requireSuperAdmin}=require('../middleware/superAdminAuth');const {auditAdminAction}=require('../middleware/adminAudit');
 const router=express.Router();router.use(requireSuperAdmin);
 const secretHash=s=>crypto.createHash('sha256').update(String(s)).digest('base64url');
 const random=b=>crypto.randomBytes(b).toString('base64url');

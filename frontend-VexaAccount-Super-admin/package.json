@@ -1,9 +1,0 @@
-{
-  "name": "vexaaccount-super-admin-frontend",
-  "private": true,
-  "version": "1.0.0",
-  "description": "Standalone VexaAccount Super Admin static frontend",
-  "scripts": {
-    "build": "echo Static frontend: configure your existing build pipeline here"
-  }
-}

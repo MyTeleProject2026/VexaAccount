@@ -1,4 +1,4 @@
-const { pool } = require('../../vexaccount/src/config/database');
+const { pool } = require('../config/database');
 
 function auditAdminAction(action, resourceType = null) {
   return async (req, res, next) => {

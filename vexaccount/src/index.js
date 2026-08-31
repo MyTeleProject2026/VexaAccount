@@ -11,9 +11,9 @@ const { testConnection, pool } = require('./config/database');
 
 const authRoutes = require('./routes/auth');
 const ssoRoutes = require('./routes/sso');
-const ssoRegistryRoutes = require('../../backend/src/routes/sso-registry');
-const accountCenterRoutes = require('../../backend/src/routes/account-center');
-const accountSecurityRoutes = require('../../backend/src/routes/account-security');
+const ssoRegistryRoutes = require('./routes/sso-registry');
+const accountCenterRoutes = require('./routes/account-center');
+const accountSecurityRoutes = require('./routes/account-security');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
