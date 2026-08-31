@@ -1,1 +1,16 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b0d12"><title>VexaAccount Super Admin</title></head><body><main><h1>VexaAccount Super Admin</h1><p>Opening the secure Super Admin sign-in…</p></main><script>const api=new URLSearchParams(location.search).get('api')||'https://api-vexaaccount.onrender.com';const base=api.replace(/\/$/,'');location.replace(base+'/auth/super-admin-login?next='+encodeURIComponent('/auth/super-admin'));</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111827">
+<meta name="description" content="VexaAccount Super Admin control plane">
+<title>VexaAccount — Super Admin</title>
+<link rel="stylesheet" href="../src/styles.css">
+</head>
+<body>
+<div id="app"><main class="login"><section class="panel"><p class="eyebrow">VEXA ECOSYSTEM CONTROL</p><h1>Loading Super Admin…</h1><p class="muted">Connecting to the VexaAccount control plane.</p></section></main></div>
+<script>window.VEXA_ACCOUNT_API_BASE=new URLSearchParams(location.search).get('api')||'https://api-vexaaccount.onrender.com';</script>
+<script type="module" src="../src/app.js"></script>
+</body>
+</html>
