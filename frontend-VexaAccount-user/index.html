@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#070a12">
   <meta name="description" content="VexaAccount central identity and account center">
   <title>VexaAccount — Account Center</title>
-  <link rel="stylesheet" href="./src/styles.css?v=20260831">
+  <link rel="stylesheet" href="./src/styles.css?v=20260831-2">
 </head>
 <body>
   <div id="app">
@@ -20,15 +20,6 @@
       </section>
     </main>
   </div>
-  <script>
-    // Remove stale service-worker/cache state that can keep an older Account Center shell alive.
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(registrations => registrations.forEach(registration => registration.unregister())).catch(() => {});
-    }
-    if ('caches' in window) {
-      caches.keys().then(keys => Promise.all(keys.map(key => caches.delete(key)))).catch(() => {});
-    }
-  </script>
-  <script src="./src/app.js?v=20260831" defer></script>
+  <script src="./src/app.js?v=20260831-2" defer></script>
 </body>
 </html>
