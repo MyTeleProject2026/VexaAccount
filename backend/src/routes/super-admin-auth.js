@@ -7,7 +7,7 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const COOKIE_SECURE = String(process.env.COOKIE_SECURE || '').toLowerCase() === 'true' || IS_PRODUCTION;
-const COOKIE_SAME_SITE = process.env.COOKIE_SAME_SITE || 'lax';
+const COOKIE_SAME_SITE = String(process.env.COOKIE_SAME_SITE || (IS_PRODUCTION ? 'none' : 'lax')).toLowerCase();
 const COOKIE_DOMAIN = String(process.env.COOKIE_DOMAIN || '').trim() || undefined;
 
 function envFirst(...names) {
@@ -30,7 +30,7 @@ function sessionCookieOptions() {
   return {
     httpOnly: true,
     secure: COOKIE_SECURE,
-    sameSite: COOKIE_SAME_SITE,
+    sameSite: COOKIE_SAME_SITE === 'none' ? 'none' : COOKIE_SAME_SITE === 'strict' ? 'strict' : 'lax',
     maxAge: 8 * 60 * 60 * 1000,
     path: '/',
     ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {})
