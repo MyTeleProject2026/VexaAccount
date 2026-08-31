@@ -17,71 +17,61 @@ VexaAccount is intended to provide one secure account for users across Vexa appl
        +---------------------+----------------------+
                              |
                     Future Vexa Applications
+                             |
+                    MTP2026 App Launcher
 ```
 
 Each Vexa application can keep its own TiDB/MySQL database for application-specific data. VexaAccount is the central authority for identity, authentication, SSO authorization, consent, and account security.
 
-## Repository structure
+## MTP2026 App Launcher SSO integration
+
+The MTP2026 App Launcher is registered as a VexaAccount OAuth/OIDC-style client. Its production frontend and backend are separate Render services:
 
 ```text
-VexaAccount/
-├── vexaccount/                         # Main backend web service
-│   ├── src/
-│   │   ├── config/
-│   │   ├── middleware/
-│   │   ├── routes/
-│   │   │   ├── auth.js
-│   │   │   ├── account.js
-│   │   │   ├── sso.js
-│   │   │   └── sso-admin.js
-│   │   └── index.js
-│   └── database/
-│       └── migrations/
-│           └── 011_vexa_sso_core.sql
-├── frontend-VexaAccount-user/          # Planned separate static/PWA deployment
-└── frontend-VexaAccount-Super-admin/   # Planned separate static/PWA deployment
+MTP2026 frontend
+https://mtp2026-app-launcher.onrender.com
+        |
+        | OAuth authorization + PKCE
+        v
+VexaAccount
+https://api-vexaaccount.onrender.com
+        |
+        | authorization code
+        v
+MTP2026 frontend /auth/callback
+        |
+        | code + PKCE verifier + client secret
+        v
+MTP2026 backend
+https://mtp2026-app-launcher-backend.onrender.com
 ```
 
-Existing legacy directories are intentionally preserved during the migration and consolidation process.
+Use these exact integration values:
 
-## Current capabilities
-
-### Account and authentication
-
-- User registration and login
-- OTP verification flows
-- Password management
-- Profile management
-- Authenticator and email 2FA support where enabled
-- Account activity logging
-- Connected application management
-- Account data and lifecycle features already present in the backend
-
-### Account Center API
-
-Authenticated account routes are available under:
-
-```text
-GET    /api/account/profile
-PATCH  /api/account/profile
-GET    /api/account/security
-GET    /api/account/activity
-GET    /api/account/apps
-DELETE /api/account/apps/:slug
-
-SSO-specific account management:
-
-```text
-GET    /api/account/sso/consents
-DELETE /api/account/sso/consents/:clientId
-GET    /api/account/sso/sessions
-DELETE /api/account/sso/sessions/:id
-```
+```env
+MTP2026_APP_LAUNCHER_CLIENT_ID=mtp2026-app-launcher
+MTP2026_APP_LAUNCHER_REDIRECT_URI=https://mtp2026-app-launcher.onrender.com/auth/callback
 ```
 
-### Centralized SSO
+The client ID is an application identifier, not a secret. The redirect URI must exactly match the URI used by the MTP2026 frontend.
 
-The SSO service currently implements an OAuth-style authorization-code flow with PKCE S256:
+### Automatic client bootstrap
+
+VexaAccount now supports deployment-time bootstrap of the MTP2026 client. On startup, when all three variables below are configured, VexaAccount creates or updates the client in `sso_clients`:
+
+```env
+MTP2026_APP_LAUNCHER_CLIENT_ID=mtp2026-app-launcher
+MTP2026_APP_LAUNCHER_CLIENT_SECRET=<same-long-random-secret-used-by-the-MTP2026-backend>
+MTP2026_APP_LAUNCHER_REDIRECT_URI=https://mtp2026-app-launcher.onrender.com/auth/callback
+```
+
+The raw client secret is never written to the database. VexaAccount stores only its SHA-256 hash. The same secret must be configured on the MTP2026 backend; it must never be placed in the MTP2026 static frontend.
+
+Generate a strong random secret (at least 32 characters; 48–64 random characters is recommended) and add it as a secret environment variable in both Render backends. Do not commit it to GitHub.
+
+## Centralized SSO
+
+The SSO service implements an OAuth-style authorization-code flow with PKCE S256:
 
 ```text
 GET  /api/sso/.well-known/openid-configuration
@@ -103,7 +93,53 @@ Supported concepts include:
 - Security-event recording
 - OpenID-style discovery metadata
 
-### SSO client registry
+## MTP2026 Render configuration
+
+### VexaAccount Backend — `api-vexaaccount.onrender.com`
+
+Add:
+
+```env
+NODE_ENV=production
+VEXA_ACCOUNT_ISSUER=https://api-vexaaccount.onrender.com
+API_BASE_URL=https://api-vexaaccount.onrender.com
+MTP2026_APP_LAUNCHER_CLIENT_ID=mtp2026-app-launcher
+MTP2026_APP_LAUNCHER_CLIENT_SECRET=<strong-random-secret>
+MTP2026_APP_LAUNCHER_REDIRECT_URI=https://mtp2026-app-launcher.onrender.com/auth/callback
+```
+
+Keep the existing production `JWT_SECRET` and TiDB/MySQL variables unchanged.
+
+### MTP2026 App Launcher Backend — `mtp2026-app-launcher-backend.onrender.com`
+
+Configure the corresponding MTP2026 backend variables using the same client ID, redirect URI, and client secret:
+
+```env
+VEXA_ACCOUNT_BASE_URL=https://api-vexaaccount.onrender.com
+VEXA_ACCOUNT_ISSUER=https://api-vexaaccount.onrender.com
+VEXA_ACCOUNT_CLIENT_ID=mtp2026-app-launcher
+VEXA_ACCOUNT_CLIENT_SECRET=<same-strong-random-secret>
+VEXA_ACCOUNT_REDIRECT_URI=https://mtp2026-app-launcher.onrender.com/auth/callback
+FRONTEND_URL=https://mtp2026-app-launcher.onrender.com
+```
+
+Use the exact variable names implemented by the MTP2026 backend if they differ; the values above are the intended integration values.
+
+### MTP2026 App Launcher Frontend — `mtp2026-app-launcher.onrender.com`
+
+The static frontend may safely contain only the public client ID and redirect URI:
+
+```env
+VITE_VEXA_ACCOUNT_BASE_URL=https://api-vexaaccount.onrender.com
+VITE_VEXA_ACCOUNT_ISSUER=https://api-vexaaccount.onrender.com
+VITE_VEXA_ACCOUNT_CLIENT_ID=mtp2026-app-launcher
+VITE_VEXA_ACCOUNT_REDIRECT_URI=https://mtp2026-app-launcher.onrender.com/auth/callback
+VITE_API_BASE_URL=https://mtp2026-app-launcher-backend.onrender.com
+```
+
+Never expose `MTP2026_APP_LAUNCHER_CLIENT_SECRET` or any server/database secret in a Vite frontend.
+
+## SSO client registry
 
 Super-administrator routes:
 
@@ -115,33 +151,24 @@ POST  /api/admin/sso/clients/:clientId/rotate-secret
 GET   /api/admin/sso/events
 ```
 
-Client secrets are generated once and only returned at creation or rotation time. Store them securely.
+Client secrets are generated once and only returned at creation or rotation time when using the registry API. Store them securely.
 
-## SSO flow
+## Account Center API
+
+Authenticated account routes are available under:
 
 ```text
-Vexa Application
-      |
-      |  Authorization request + PKCE challenge
-      v
-VexaAccount /api/sso/authorize
-      |
-      |  Existing VexaAccount authentication
-      v
-Validate client + redirect URI + scopes
-      |
-      v
-Record consent + issue one-time authorization code
-      |
-      v
-Application /api/sso/token
-      |
-      |  PKCE verifier + client authentication
-      v
-Access token + refresh token + SSO session
-      |
-      v
-/api/sso/userinfo
+GET    /api/account/profile
+PATCH  /api/account/profile
+GET    /api/account/security
+GET    /api/account/activity
+GET    /api/account/apps
+DELETE /api/account/apps/:slug
+
+GET    /api/account/sso/consents
+DELETE /api/account/sso/consents/:clientId
+GET    /api/account/sso/sessions
+DELETE /api/account/sso/sessions/:id
 ```
 
 ## Database
@@ -162,45 +189,10 @@ It defines:
 - `sso_refresh_tokens`
 - `sso_sessions`
 - `sso_security_events`
+- `vexa_super_admins`
+- `vexa_admin_audit_log`
 
 Run migrations using your deployment/database migration process before enabling SSO clients in production.
-
-## Environment configuration
-
-The exact project environment variables may evolve with deployment, but the SSO service expects secure production configuration for at least:
-
-```env
-NODE_ENV=production
-PORT=5000
-JWT_SECRET=replace-with-a-long-random-secret
-VEXA_ACCOUNT_ISSUER=https://your-vexaaccount-api-domain
-API_BASE_URL=https://your-vexaaccount-api-domain
-```
-
-Database connection variables must match the existing TiDB/MySQL configuration used by `src/config/database.js`.
-
-Do not commit real production secrets.
-
-## Deployment model
-
-VexaAccount is designed for separate deployments:
-
-1. **VexaAccount Backend** — API and SSO web service
-2. **VexaAccount User Frontend** — static/PWA Account Center
-3. **VexaAccount Super Admin Frontend** — static/PWA ecosystem administration
-
-Applications such as VexaTrade and VexaStore integrate with the backend through registered SSO clients and do not need to share the VexaAccount user database.
-
-### Frontend PWA projects
-
-Both frontend projects are intentionally independent static deployments:
-
-```text
-frontend-VexaAccount-user/
-frontend-VexaAccount-Super-admin/
-```
-
-Each contains an HTML entry point, API client, responsive CSS, web app manifest, and service worker. Configure the API base URL for production instead of embedding production secrets in frontend code.
 
 ## Security notes
 
@@ -218,7 +210,19 @@ Before production launch, verify and complete:
 - End-to-end integration tests
 - Security review
 
-Super Owner authorization is database-backed through `vexa_super_admins`. A valid VexaAccount JWT identifies the user, then the backend verifies that the user has an active Super Owner record before allowing SSO administration. Sensitive client registry actions are recorded in `vexa_admin_audit_log`. Initial Super Owner provisioning must be performed through a controlled database/bootstrap procedure and must not be exposed as a public self-service endpoint.
+The MTP2026 client bootstrap intentionally requires an explicitly configured secret and never creates a secret from a public frontend. If any of the three MTP bootstrap variables is missing, no bootstrap action is attempted.
+
+## Deployment model
+
+Deploy independently:
+
+```text
+vexaccount/                         # Node.js backend
+frontend-VexaAccount-user/          # static user PWA
+frontend-VexaAccount-Super-admin/   # static Super Owner PWA
+```
+
+Applications such as MTP2026 App Launcher integrate with VexaAccount through registered SSO clients and keep their own application database.
 
 ## Roadmap
 
@@ -231,65 +235,13 @@ Super Owner authorization is database-backed through `vexa_super_admins`. A vali
 - [x] Database-backed Super Owner authorization foundation
 - [x] Super Owner audit logging foundation
 - [x] Reusable Super Owner RBAC middleware foundation
-- [ ] Controlled Super Owner provisioning workflow
 - [x] Consent review and revocation API
 - [x] SSO session review and revocation API
 - [x] User Account Center static PWA foundation
 - [x] Super Owner static PWA foundation
+- [x] MTP2026 App Launcher SSO bootstrap integration
+- [ ] Controlled Super Owner provisioning workflow
 - [ ] VexaTrade SSO integration
 - [ ] VexaStore SSO integration
 - [ ] Certificate System SSO integration
-- [ ] Ecosystem application SSO integration
 - [ ] Automated integration and security test suite
-
-## Super Owner roles\n\nThe reusable RBAC foundation supports:\n\n- `super_owner` — unrestricted administrative permissions\n- `sso_admin` — SSO client and access administration\n- `security_admin` — session, consent and security operations\n- `auditor` — read-only security visibility\n\nRoles are stored in `vexa_super_admins`; public users cannot self-assign administrative roles.\n\n## Development principle
-
-Existing VexaAccount routes and working functionality are preserved while the centralized SSO platform is added incrementally. New APIs should reuse the existing account model wherever possible rather than creating competing user systems.
-
-
-## Super Owner ecosystem dashboard
-
-The Super Owner API now exposes centralized operational visibility:
-
-```text
-GET    /api/admin/sso/dashboard
-GET    /api/admin/sso/sessions
-DELETE /api/admin/sso/sessions/:id
-GET    /api/admin/sso/consents
-GET    /api/admin/sso/audit
-GET    /api/admin/sso/events
-```
-
-The separate `frontend-VexaAccount-Super-admin` PWA consumes dashboard metrics, client registry data, active SSO sessions, security events, and the administrative audit trail.
-
-
-## Frontend production configuration
-
-The static PWAs remain independently deployable. `frontend-VexaAccount-user/config.js` defines the API origin and can be replaced during deployment without rebuilding backend code. Do not place client secrets, database credentials, JWT signing secrets, or other server credentials in either static frontend.
-
-Current frontend management features include profile editing, consent/session revocation, Super Owner dashboard metrics, client enable/disable control, and one-time secret rotation display.
-
-
-## Controlled Super Owner provisioning
-
-Administrative access is managed separately from ordinary users through:
-
-```text
-GET   /api/admin/super-owners
-POST  /api/admin/super-owners
-PATCH /api/admin/super-owners/:userId
-```
-
-These endpoints are protected by existing Super Owner authorization. Production bootstrap of the very first owner must remain an out-of-band deployment operation; the application must never expose public self-service elevation.
-
-## Production deployment
-
-Deploy independently:
-
-```text
-vexaccount/                         # Node.js backend
-frontend-VexaAccount-user/          # static user PWA
-frontend-VexaAccount-Super-admin/   # static admin PWA
-```
-
-Use environment variables for backend secrets and database connectivity. Configure the static API endpoints through each frontend `config.js`. Never commit production `.env` files or secrets.
