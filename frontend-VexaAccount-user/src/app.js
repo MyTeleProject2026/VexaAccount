@@ -1,2 +1,2 @@
 /* VexaAccount User frontend canonical runtime loader. */
-(()=>{if(window.__VEXA_ACCOUNT_RUNTIME_LOADING__)return;window.__VEXA_ACCOUNT_RUNTIME_LOADING__=true;const s=document.createElement('script');s.src='./src/app-fixed.js?v=20260901-9';s.defer=true;document.head.appendChild(s)})();
+(()=>{if(window.__VEXA_ACCOUNT_RUNTIME_LOADING__)return;window.__VEXA_ACCOUNT_RUNTIME_LOADING__=true;const s=document.createElement('script');s.src='./src/app-fixed.js?v=20260901-10';s.defer=true;document.head.appendChild(s)})();
