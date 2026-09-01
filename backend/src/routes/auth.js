@@ -611,7 +611,8 @@ router.post('/forgot-password', async (req, res, next) => {
       [user.id, resetToken]
     );
 
-    const resetLink = `${process.env.FRONTEND_USER_URL || 'https://vexastore.onrender.com'}/reset-password?token=${resetToken}`;
+    const resetBase = (process.env.AUTH_PUBLIC_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+    const resetLink = `${resetBase}/auth/reset-password?token=${encodeURIComponent(resetToken)}`;
 
     try {
       await sendResetEmail(email, resetLink);
