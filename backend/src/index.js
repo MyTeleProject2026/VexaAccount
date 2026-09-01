@@ -23,7 +23,17 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 if (!JWT_SECRET) throw new Error('JWT_SECRET must be configured');
 app.set('trust proxy', 1);
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      "script-src": ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"],
+      "script-src-elem": ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"],
+      "style-src": ["'self'", "'unsafe-inline'"],
+      "style-src-elem": ["'self'", "'unsafe-inline'"]
+    }
+  }
+}));
 app.use(cookieParser());
 const configuredOrigins = [process.env.FRONTEND_USER_URL, process.env.FRONTEND_ADMIN_URL, ...(process.env.VEXA_ALLOWED_ORIGINS || '').split(',')];
 const legacyOrigins = ['https://vexastore.onrender.com','https://www.vexastore.onrender.com','https://vexastore.2bd.net','https://www.vexastore.2bd.net','https://vexastore-admin.onrender.com','https://vexatrade-6nhs.onrender.com','https://vexatrade-v.2bd.net','https://www.vexatrade-v.2bd.net','https://admin.vexatrade-v.2bd.net','https://vexatrade.onrender.com','https://vexatrade-admin.onrender.com','https://admin-vexatrade-manage.onrender.com','https://vexatrade-admin-n36m.onrender.com','https://vexawallet.onrender.com','https://vexabrowser.onrender.com','https://learn-vexatrade.onrender.com','https://api-vexaaccount.onrender.com','https://api-vexastore.onrender.com','https://vexatrade-server.onrender.com','https://vexatrade-5ycu.onrender.com','https://vexatrade-ecosystem-api.onrender.com','http://localhost:5173','http://localhost:5174','http://localhost:3000'];
@@ -51,6 +61,8 @@ app.get('/api/auth/session',async(req,res)=>{try{const token=req.cookies?.vexacc
 app.post('/api/auth/logout',(req,res)=>{res.clearCookie('vexaccount_session',{httpOnly:true,secure:IS_PRODUCTION,sameSite:process.env.COOKIE_SAME_SITE||'lax',path:'/'});res.json({success:true,message:'Logged out successfully'});});
 app.get('/api/health',(req,res)=>res.json({success:true,message:'VexaAccount Service is running',timestamp:new Date().toISOString(),version:'2.5.0'}));
 app.get('/auth/login-page',(req,res)=>res.sendFile(path.join(__dirname,'../public/login.html')));
+app.get('/auth/register-page',(req,res)=>res.sendFile(path.join(__dirname,'../public/register.html')));
+app.get('/auth/register-page.html',(req,res)=>res.sendFile(path.join(__dirname,'../public/register.html')));
 app.get('/auth/super-admin-login',(req,res)=>res.sendFile(path.join(__dirname,'../public/super-admin-login.html')));
 app.get('/auth/account-center',(req,res)=>res.sendFile(path.join(__dirname,'../public/account-center.html')));
 app.get('/auth/super-admin',(req,res)=>res.sendFile(path.join(__dirname,'../public/super-admin.html')));
