@@ -1,1 +1,20 @@
-(function(){'use strict';const AUTH=/^#\/(login|signin|register|forgot-password|verify-email|reset-password|login-2fa)/;let booted=false,attempts=0;async function boot(){if(booted||AUTH.test(location.hash))return;const root=document.getElementById('vexa-react-root')||document.body.appendChild(Object.assign(document.createElement('div'),{id:'vexa-react-root'}));try{const d=window.vexaSessionFetch?await window.vexaSessionFetch():await fetch((window.VEXA_ACCOUNT_API_BASE||'https://api-vexaaccount.onrender.com')+'/api/auth/session',{credentials:'include',headers:window.vexaAccountAuth?.getToken?.()?{Authorization:'Bearer '+window.vexaAccountAuth.getToken()}:{}}).then(r=>r.json());if(!d||d.success!==true||!d.user){if(!window.vexaAccountAuth?.getToken?.()){location.hash='#/login';return}if(attempts++<2){setTimeout(boot,700);return}const app=document.getElementById('app');if(app)app.style.display='block';root.style.display='none';return}booted=true;const old=document.getElementById('app');if(old)old.style.display='none';root.style.display='block';['./src/react-account-center.css','./src/hooks/useNotification.js','./src/components/ToastNotification.js','./src/react-account-center.js'].forEach(src=>{if(src.endsWith('.css')){const l=document.createElement('link');l.rel='stylesheet';l.href=src+'?v=20260902-11';document.head.appendChild(l)}else{const s=document.createElement('script');s.src=src+'?v=20260902-11';s.defer=false;document.body.appendChild(s)}})}catch(e){if(attempts++<2){setTimeout(boot,700);return}console.warn('VexaAccount React Account Center boot skipped:',e.message)}}window.addEventListener('hashchange',boot);setTimeout(boot,250);})();
+(function(){
+  'use strict';
+  var root=document.getElementById('vexa-react-root');
+  var app=document.getElementById('app');
+  if(root){root.style.display='none';}
+  if(app){app.style.display='block';}
+  function loadBridge(){
+    if(window.__VEXA_REACT_NOTIFICATION_BRIDGE__) return;
+    window.__VEXA_REACT_NOTIFICATION_BRIDGE__=true;
+    var s=document.createElement('script');
+    s.src='./src/react-account-center.js?v=20260902-18';
+    s.defer=false;
+    document.body.appendChild(s);
+  }
+  function boot(){
+    if(window.React && window.ReactDOM && window.VexaNotificationCore) loadBridge();
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true});
+  else boot();
+})();
