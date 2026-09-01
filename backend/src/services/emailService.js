@@ -1,59 +1,98 @@
 const nodemailer = require('nodemailer');
 
-// VexaAccount production email delivery uses Brevo SMTP only.
-// Canonical Render environment variables:
-//   BREVO_EMAIL       - verified sender email
-//   BREVO_SMTP_HOST   - smtp-relay.brevo.com
-//   BREVO_SMTP_PORT   - 587 (or 465 for TLS)
-//   BREVO_SMTP_USER   - Brevo SMTP login
-//   BREVO_SMTP_KEY    - Brevo SMTP key (used as the SMTP password)
+// VexaAccount production email delivery uses Brevo SMTP.
+// IMPORTANT: these names intentionally match the existing Render variables.
+// Do not require users to rename/recreate their Render environment variables.
 //
-// BREVO_PASSWORD is intentionally NOT used here. A Brevo API key (for example
-// xkeysib-...) is not an SMTP password. Do not put API keys into SMTP_PASS.
-// The old SMPT spelling is intentionally not used anymore.
-const configuredHost = String(process.env.BREVO_SMTP_HOST || process.env.SMTP_HOST || 'smtp-relay.brevo.com').trim();
-const SMTP_HOST = configuredHost.includes('@smtp-brevo.com')
-  ? 'smtp-relay.brevo.com'
-  : configuredHost;
-const SMTP_PORT = Number(process.env.BREVO_SMTP_PORT || process.env.SMTP_PORT || 587);
+// BREVO_EMAIL       = verified sender email
+// BREVO_PASSWORD    = legacy/unused API credential; NEVER use as SMTP password
+// BREVO_SMTP_HOST   = normally smtp-relay.brevo.com (bad legacy values are normalized)
+// BREVO_SMTP_PORT   = normally 587; 2525 is used automatically if 587 times out
+// BREVO_SMTP_USER   = Brevo SMTP login
+// BREVO_SMTP_KEY    = Brevo SMTP key, used as the SMTP password
+//
+// Generic SMTP_* variables remain supported as a fallback for compatibility.
+
+function normalizeHost(value) {
+  const host = String(value || '').trim();
+  if (!host || host.includes('@smtp-brevo.com') || host.includes('@smtp.brevo.com')) {
+    return 'smtp-relay.brevo.com';
+  }
+  return host.replace(/^smtps?:\/\//i, '').replace(/\/$/, '');
+}
+
+const SMTP_HOST = normalizeHost(process.env.BREVO_SMTP_HOST || process.env.SMTP_HOST);
+const configuredPort = Number(process.env.BREVO_SMTP_PORT || process.env.SMTP_PORT || 587);
 const SMTP_USER = String(process.env.BREVO_SMTP_USER || process.env.SMTP_USER || '').trim();
-const SMTP_PASS = String(process.env.BREVO_SMTP_KEY || process.env.SMTP_PASS || process.env.SMTP_KEY || '').trim();
-const FROM_EMAIL = String(process.env.BREVO_EMAIL || process.env.FROM_EMAIL || process.env.GMAIL_USER || '').trim();
+const SMTP_PASS = String(
+  process.env.BREVO_SMTP_KEY ||
+  process.env.SMTP_PASS ||
+  process.env.SMTP_KEY ||
+  ''
+).trim();
+const FROM_EMAIL = String(
+  process.env.BREVO_EMAIL ||
+  process.env.FROM_EMAIL ||
+  process.env.GMAIL_USER ||
+  ''
+).trim();
 const FROM_NAME = String(process.env.MAIL_FROM_NAME || 'VexaAccount').trim();
 
-let smtpTransporter = null;
-let transporterConfigKey = '';
+// Brevo supports 587 and 2525 for normal SMTP submission. If Render/network
+// connectivity times out on the configured port, retry on 2525 without
+// requiring any Render environment-variable change.
+const smtpPorts = configuredPort === 2525
+  ? [2525, 587]
+  : configuredPort === 465
+    ? [465, 587, 2525]
+    : [configuredPort, 2525];
 
-function getSmtpTransporter() {
+const transporters = new Map();
+
+function getSmtpTransporter(port) {
   if (!SMTP_USER || !SMTP_PASS || !FROM_EMAIL) return null;
 
-  const configKey = `${SMTP_HOST}:${SMTP_PORT}:${SMTP_USER}:${FROM_EMAIL}`;
-  if (!smtpTransporter || transporterConfigKey !== configKey) {
-    smtpTransporter = nodemailer.createTransport({
+  if (!transporters.has(port)) {
+    const transporter = nodemailer.createTransport({
       host: SMTP_HOST,
-      port: SMTP_PORT,
-      secure: SMTP_PORT === 465,
+      port,
+      secure: port === 465,
       auth: {
         user: SMTP_USER,
         pass: SMTP_PASS
       },
-      connectionTimeout: 30000,
-      greetingTimeout: 30000,
-      socketTimeout: 30000,
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
       tls: {
-        minVersion: 'TLSv1.2'
+        minVersion: 'TLSv1.2',
+        servername: SMTP_HOST
       }
     });
-    transporterConfigKey = configKey;
+    transporters.set(port, transporter);
   }
 
-  return smtpTransporter;
+  return transporters.get(port);
+}
+
+function isRetryableNetworkError(error) {
+  const code = String(error?.code || '').toUpperCase();
+  return [
+    'ETIMEDOUT',
+    'ECONNRESET',
+    'ECONNREFUSED',
+    'EHOSTUNREACH',
+    'ENETUNREACH',
+    'ESOCKET'
+  ].includes(code);
+}
+
+function formatSmtpError(error) {
+  return String(error?.response || error?.code || error?.message || 'Unknown SMTP error');
 }
 
 async function sendEmail({ to, subject, html }) {
-  const transporter = getSmtpTransporter();
-
-  if (!transporter) {
+  if (!SMTP_USER || !SMTP_PASS || !FROM_EMAIL) {
     const missing = [];
     if (!SMTP_USER) missing.push('BREVO_SMTP_USER');
     if (!SMTP_PASS) missing.push('BREVO_SMTP_KEY');
@@ -64,23 +103,36 @@ async function sendEmail({ to, subject, html }) {
     throw error;
   }
 
-  try {
-    const info = await transporter.sendMail({
-      from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
-      to,
-      subject,
-      html
-    });
+  let lastError = null;
 
-    console.log('Email accepted by Brevo SMTP:', info.messageId || to);
-    return true;
-  } catch (error) {
-    const details = error.response || error.code || error.message;
-    console.error('Brevo SMTP email delivery failed:', details);
-    const sendError = new Error(`Email delivery failed: ${details}`);
-    sendError.code = 'EMAIL_SEND_FAILED';
-    throw sendError;
+  for (const port of smtpPorts) {
+    const transporter = getSmtpTransporter(port);
+    try {
+      const info = await transporter.sendMail({
+        from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
+        to,
+        subject,
+        html
+      });
+
+      console.log(`Brevo SMTP email accepted on port ${port}:`, info.messageId || to);
+      return true;
+    } catch (error) {
+      lastError = error;
+      const details = formatSmtpError(error);
+      console.error(`Brevo SMTP email delivery failed on port ${port}:`, details);
+
+      // Authentication, sender, recipient, and other SMTP 4xx/5xx responses
+      // should not be retried against another port. Network timeouts/resets
+      // can safely try Brevo's alternate SMTP submission port.
+      if (!isRetryableNetworkError(error)) break;
+    }
   }
+
+  const details = formatSmtpError(lastError);
+  const sendError = new Error(`Email delivery failed: ${details}`);
+  sendError.code = 'EMAIL_SEND_FAILED';
+  throw sendError;
 }
 
 async function sendOtpEmail(to, otp) {
