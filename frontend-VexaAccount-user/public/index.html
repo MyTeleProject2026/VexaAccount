@@ -14,14 +14,15 @@
 <link rel="apple-touch-icon" href="/brand.svg">
 <link rel="manifest" href="/manifest.json">
 <link rel="preload" as="image" href="/brand.svg">
-<link rel="stylesheet" href="/src/theme.css?v=20260831-4">
-<link rel="stylesheet" href="/src/styles.css?v=20260831-4">
+<link rel="stylesheet" href="/src/theme.css?v=20260901-5">
+<link rel="stylesheet" href="/src/styles.css?v=20260901-5">
+<link rel="stylesheet" href="/src/premium.css?v=20260901-1">
 <title>VexaAccount — Account Center</title>
 </head>
 <body>
 <div id="splash" aria-hidden="true"><img src="/brand.svg" alt="VexaAccount"><div class="splash-title">VexaAccount</div><div class="splash-subtitle">SECURE IDENTITY PLATFORM</div><div class="splash-loader"></div></div>
-<div id="app"><main class="shell loading-shell"><section class="card loading-card"><img class="loading-logo" src="/brand.svg" alt="VexaAccount"><p class="eyebrow">VEXA ACCOUNT</p><h1>Loading Account Center…</h1><p>Connecting securely to VexaAccount.</p><div class="loading-bar"><span></span></div></section></main></div>
-<script>window.VEXA_ACCOUNT_API_BASE=window.VEXA_ACCOUNT_API_BASE||'https://api-vexaaccount.onrender.com';document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href*="/auth/login-page"]');if(a){e.preventDefault();location.href='/login.html'}});window.setTimeout(function(){var s=document.getElementById('splash');if(s)s.classList.add('hidden')},900);</script>
-<script src="/src/app.js?v=20260901-4" defer></script>
-<script src="/pwa-register.js?v=20260831-4" defer></script>
+<div id="app"><main class="shell loading-shell"><section class="card loading-card" aria-live="polite"><img class="loading-logo" src="/brand.svg" alt="VexaAccount"><p class="eyebrow">VEXA ACCOUNT</p><h1>Loading Account Center…</h1><p class="muted">Connecting securely to your VexaAccount session.</p><div class="loading-bar" aria-hidden="true"><span></span></div></section></main></div>
+<script>window.VEXA_ACCOUNT_API_BASE=window.VEXA_ACCOUNT_API_BASE||'https://api-vexaaccount.onrender.com';window.setTimeout(function(){var s=document.getElementById('splash');if(s)s.classList.add('hidden')},900);</script>
+<script src="/src/app.js?v=20260901-5" defer></script>
+<script src="/pwa-register.js?v=20260901-5" defer></script>
 </body></html>
