@@ -3,28 +3,35 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#070a12">
-  <meta name="description" content="VexaAccount central identity and account center">
+  <meta name="theme-color" content="#050811">
+  <meta name="description" content="VexaAccount — secure identity, account and connected-app control center">
   <meta name="application-name" content="VexaAccount">
-  <link rel="manifest" href="./manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="VexaAccount">
+  <link rel="manifest" href="./public/manifest.json">
   <link rel="icon" href="./public/brand.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./public/brand.svg">
+  <link rel="preload" as="image" href="./public/brand.svg">
+  <link rel="stylesheet" href="./src/theme.css?v=20260901-5">
+  <link rel="stylesheet" href="./src/styles.css?v=20260901-5">
+  <link rel="stylesheet" href="./src/premium.css?v=20260901-1">
   <title>VexaAccount — Account Center</title>
-  <link rel="stylesheet" href="./src/styles.css?v=20260901-3">
 </head>
 <body>
   <div id="app">
     <main class="shell loading-shell">
-      <section class="card glass loading-card">
+      <section class="card glass loading-card" aria-live="polite">
         <img class="loading-logo" src="./public/brand.svg" alt="VexaAccount">
         <p class="eyebrow">VEXA ACCOUNT</p>
         <h1>Loading Account Center…</h1>
-        <p class="muted">Connecting to your VexaAccount session.</p>
+        <p class="muted">Connecting securely to your VexaAccount session.</p>
         <div class="loading-bar" aria-hidden="true"><span></span></div>
       </section>
     </main>
   </div>
-  <script>window.VEXA_ACCOUNT_API_BASE=window.VEXA_ACCOUNT_API_BASE||"https://api-vexaaccount.onrender.com";</script>
-  <script src="./src/app.js?v=20260901-4" defer></script>
+  <script>window.VEXA_ACCOUNT_API_BASE=window.VEXA_ACCOUNT_API_BASE||'https://api-vexaaccount.onrender.com';</script>
+  <script src="./src/app.js?v=20260901-5" defer></script>
 </body>
 </html>
