@@ -186,64 +186,13 @@ function profile() {
       <label>Gender<input name="gender" value="${esc(user.gender)}"></label>
       <label>Date of birth<input name="dob" type="date" value="${esc(user.dob ? String(user.dob).slice(0, 10) : '')}"></label>
       <button class="primary" type="submit">Save profile</button>
-    </form>
-    <hr>
-    <h3>Change email</h3>
-    <form id="emailForm" class="form-grid">
-      <input name="email" type="email" value="${esc(user.email)}" required>
-      <input name="password" type="password" placeholder="Current password" required>
-      <button class="primary" type="submit">Change email</button>
-    </form>
-    <hr>
-    <h3>Change password</h3>
-    <form id="passwordForm" class="form-grid">
-      <input name="currentPassword" type="password" placeholder="Current password" required>
-      <input name="newPassword" type="password" placeholder="New password (8+ characters)" required>
-      <button class="primary" type="submit">Change password</button>
-    </form>`);
-
-  document.getElementById('profileForm').onsubmit = async (event) => {
-    event.preventDefault();
-    await json('/api/account/profile', { method: 'PATCH', body: JSON.stringify(Object.fromEntries(new FormData(event.target))) });
-    await load();
-  };
-  document.getElementById('emailForm').onsubmit = async (event) => {
-    event.preventDefault();
-    const data = await json('/api/account/email', { method: 'PATCH', body: JSON.stringify(Object.fromEntries(new FormData(event.target))) });
-    alert(data.message || 'Email updated');
-    await load();
-  };
-  document.getElementById('passwordForm').onsubmit = async (event) => {
-    event.preventDefault();
-    const data = await json('/api/account/password', { method: 'PATCH', body: JSON.stringify(Object.fromEntries(new FormData(event.target))) });
-    alert(data.message || 'Password updated');
-    await load();
-  };
+    </form><hr>
+    <h3>Change email</h3><form id="emailForm" class="form-grid"><input name="email" type="email" value="${esc(user.email)}" required><input name="password" type="password" placeholder="Current password" required><button class="primary" type="submit">Change email</button></form>
+    <hr><h3>Change password</h3><form id="passwordForm" class="form-grid"><input name="currentPassword" type="password" placeholder="Current password" required><input name="newPassword" type="password" placeholder="New password (8+ characters)" minlength="8" required><button class="primary" type="submit">Change password</button></form>`);
 }
 
 function security() {
-  return card('Security', `
-    <p>Authenticator 2FA: <strong>${state.security.twofa_enabled ? 'Enabled' : 'Disabled'}</strong></p>
-    <p>Email 2FA: <strong>${state.security.email_2fa_enabled ? 'Enabled' : 'Disabled'}</strong></p>
-    <p>Security notifications: <strong>${state.security.security_notifications_enabled ? 'Enabled' : 'Disabled'}</strong></p>
-    <button id="disable2fa" class="secondary">Disable 2FA</button>
-    <button id="disablePasscode" class="secondary">Disable passcode</button>
-    <hr><h3>Security events</h3>
-    ${state.events.map((event) => `<article class="row"><div><b>${esc(event.event_type || 'Event')}</b><small>${esc(event.created_at || '')} · ${esc(event.ip_address || '')}</small></div></article>`).join('') || '<p class="muted">No events.</p>'}`);
-
-  document.getElementById('disable2fa').onclick = async () => {
-    const password = prompt('Enter your password to disable 2FA');
-    if (!password) return;
-    const data = await json('/api/account/security/disable-2fa', { method: 'POST', body: JSON.stringify({ password }) });
-    alert(data.message || '2FA disabled');
-    await load();
-  };
-  document.getElementById('disablePasscode').onclick = async () => {
-    if (!confirm('Disable your account passcode?')) return;
-    const data = await json('/api/account/security/disable-passcode', { method: 'POST' });
-    alert(data.message || 'Passcode disabled');
-    await load();
-  };
+  return card('Security', `<p>Authenticator 2FA: <strong>${state.security.twofa_enabled ? 'Enabled' : 'Disabled'}</strong></p><p>Email 2FA: <strong>${state.security.email_2fa_enabled ? 'Enabled' : 'Disabled'}</strong></p><p>Security notifications: <strong>${state.security.security_notifications_enabled ? 'Enabled' : 'Disabled'}</strong></p><button id="disable2fa" class="secondary">Disable 2FA</button> <button id="disablePasscode" class="secondary">Disable passcode</button><hr><h3>Security events</h3>${state.events.map((event) => `<article class="row"><div><b>${esc(event.event_type || 'Event')}</b><small>${esc(event.created_at || '')} · ${esc(event.ip_address || '')}</small></div></article>`).join('') || '<p class="muted">No events.</p>'}`);
 }
 
 function apps() {
@@ -270,41 +219,41 @@ function credits() {
 
 function preferences() {
   const prefs = state.prefs || {};
-  return card('Preferences', `
-    <form id="prefsForm" class="form-grid">
-      <label>Language<input name="locale" value="${esc(prefs.locale || 'en')}"></label>
-      <label>Timezone<input name="timezone" value="${esc(prefs.timezone || 'UTC')}"></label>
-      <label><input name="marketing_email_enabled" type="checkbox" ${prefs.marketing_email_enabled ? 'checked' : ''}> Marketing emails</label>
-      <label><input name="security_email_enabled" type="checkbox" ${prefs.security_email_enabled !== 0 ? 'checked' : ''}> Security emails</label>
-      <button class="primary" type="submit">Save preferences</button>
-    </form>
-    <hr><h3>Delete account</h3><p class="muted">This permanently removes your VexaAccount data and revokes active sessions.</p>
-    <button id="deleteAccount" class="danger">Delete my account</button>`);
+  return card('Preferences', `<form id="prefsForm" class="form-grid"><label>Language<input name="locale" value="${esc(prefs.locale || 'en')}"></label><label>Timezone<input name="timezone" value="${esc(prefs.timezone || 'UTC')}"></label><label><input name="marketing_email_enabled" type="checkbox" ${prefs.marketing_email_enabled ? 'checked' : ''}> Marketing emails</label><label><input name="security_email_enabled" type="checkbox" ${prefs.security_email_enabled !== 0 ? 'checked' : ''}> Security emails</label><button class="primary" type="submit">Save preferences</button></form><hr><h3>Delete account</h3><p class="muted">This permanently removes your VexaAccount data and revokes active sessions.</p><button id="deleteAccount" class="danger">Delete my account</button>`);
+}
 
-  document.getElementById('prefsForm').onsubmit = async (event) => {
-    event.preventDefault();
-    const form = new FormData(event.target);
-    await json('/api/account/preferences', { method: 'PATCH', body: JSON.stringify({
-      locale: form.get('locale'),
-      timezone: form.get('timezone'),
-      marketing_email_enabled: form.has('marketing_email_enabled'),
-      security_email_enabled: form.has('security_email_enabled')
-    }) });
-    alert('Preferences saved');
+async function submitForm(event, path, method) {
+  event.preventDefault();
+  const button = event.currentTarget.querySelector('button[type="submit"]');
+  if (button) button.disabled = true;
+  try {
+    const data = await json(path, { method, body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget))) });
+    alert(data.message || 'Saved successfully');
     await load();
-  };
+  } catch (error) { alert(error.message || 'Unable to save changes'); if (button) button.disabled = false; }
+}
 
-  document.getElementById('deleteAccount').onclick = async () => {
-    const password = prompt('Enter your password to permanently delete your account');
-    if (!password || !confirm('This cannot be undone. Continue?')) return;
-    await json('/api/account/account', { method: 'DELETE', body: JSON.stringify({ password }) });
-    location.reload();
-  };
+function bindViewActions() {
+  const profileForm = document.getElementById('profileForm');
+  if (profileForm) profileForm.onsubmit = (e) => submitForm(e, '/api/account/profile', 'PATCH');
+  const emailForm = document.getElementById('emailForm');
+  if (emailForm) emailForm.onsubmit = (e) => submitForm(e, '/api/account/email', 'PATCH');
+  const passwordForm = document.getElementById('passwordForm');
+  if (passwordForm) passwordForm.onsubmit = (e) => submitForm(e, '/api/account/password', 'PATCH');
+  const disable2fa = document.getElementById('disable2fa');
+  if (disable2fa) disable2fa.onclick = async () => { const password = prompt('Enter your password to disable 2FA'); if (!password) return; try { const d = await json('/api/account/security/disable-2fa',{method:'POST',body:JSON.stringify({password})}); alert(d.message || '2FA disabled'); await load(); } catch(e) { alert(e.message); } };
+  const disablePasscode = document.getElementById('disablePasscode');
+  if (disablePasscode) disablePasscode.onclick = async () => { if (!confirm('Disable your account passcode?')) return; try { const d = await json('/api/account/security/disable-passcode',{method:'POST'}); alert(d.message || 'Passcode disabled'); await load(); } catch(e) { alert(e.message); } };
+  const prefsForm = document.getElementById('prefsForm');
+  if (prefsForm) prefsForm.onsubmit = async (event) => { event.preventDefault(); const form = new FormData(event.currentTarget); try { await json('/api/account/preferences',{method:'PATCH',body:JSON.stringify({locale:form.get('locale'),timezone:form.get('timezone'),marketing_email_enabled:form.has('marketing_email_enabled'),security_email_enabled:form.has('security_email_enabled')})}); alert('Preferences saved'); await load(); } catch(e) { alert(e.message); } };
+  const deleteAccount = document.getElementById('deleteAccount');
+  if (deleteAccount) deleteAccount.onclick = async () => { const password = prompt('Enter your password to permanently delete your account'); if (!password || !confirm('This cannot be undone. Continue?')) return; try { await json('/api/account/account',{method:'DELETE',body:JSON.stringify({password})}); location.reload(); } catch(e) { alert(e.message); } };
 }
 
 function render() {
   const views = { overview, profile, security, apps, sessions, storage, credits, preferences };
   shell(views[state.view]());
+  bindViewActions();
 
   document.querySelectorAll('[data-revoke]').forEach((button) => {
     button.onclick = async () => {
