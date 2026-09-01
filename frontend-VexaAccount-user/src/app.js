@@ -3,9 +3,6 @@
   if(window.__VEXA_ACCOUNT_RUNTIME_LOADING__)return;
   window.__VEXA_ACCOUNT_RUNTIME_LOADING__=true;
 
-  // Keep the bearer token as the durable client-side session credential. The
-  // backend also sets an HttpOnly cookie, but the bearer token makes the
-  // cross-origin account-center requests deterministic after refresh/reload.
   const TOKEN_KEYS=['vexaaccount_access_token','vexa_access_token','access_token'];
   const getToken=()=>{
     for(const key of TOKEN_KEYS){
@@ -15,9 +12,17 @@
   };
   const saveToken=token=>{
     if(!token)return;
-    try{localStorage.setItem(TOKEN_KEYS[0],String(token));sessionStorage.setItem(TOKEN_KEYS[0],String(token))}catch{}
+    try{
+      localStorage.setItem(TOKEN_KEYS[0],String(token));
+      sessionStorage.setItem(TOKEN_KEYS[0],String(token));
+    }catch{}
   };
-  const clearToken=()=>{try{TOKEN_KEYS.forEach(k=>localStorage.removeItem(k));sessionStorage.removeItem(TOKEN_KEYS[0])}catch{}};
+  const clearToken=()=>{
+    try{
+      TOKEN_KEYS.forEach(k=>localStorage.removeItem(k));
+      sessionStorage.removeItem(TOKEN_KEYS[0]);
+    }catch{}
+  };
   const originalFetch=window.fetch.bind(window);
 
   window.fetch=async(input,init={})=>{
@@ -29,13 +34,9 @@
 
     const response=await originalFetch(input,{...init,headers});
 
-    // Capture credentials from every supported authentication response. This
-    // is intentionally broader than one exact route so OTP/SSO/recovery flows
-    // cannot leave the account center without a persistent session.
     if(response.ok&&isApi){
       try{
-        const copy=response.clone();
-        const data=await copy.json();
+        const data=await response.clone().json();
         const authToken=data?.token||data?.accessToken||data?.data?.token||data?.data?.accessToken;
         if(authToken)saveToken(authToken);
       }catch{}
@@ -46,8 +47,20 @@
     return response;
   };
 
-  const style=document.createElement('link');style.rel='stylesheet';style.href='./src/vexatrade-notifications.css?v=20260901-7';document.head.appendChild(style);
-  const runtime=document.createElement('script');runtime.src='./src/vexatrade-toast-runtime.js?v=20260901-7';runtime.defer=true;document.head.appendChild(runtime);
-  const compat=document.createElement('script');compat.src='./src/vexatrade-toast-compat.js?v=20260901-4';compat.defer=true;document.head.appendChild(compat);
-  const app=document.createElement('script');app.src='./src/app-v3.js?v=20260901-5';app.defer=true;document.head.appendChild(app);
+  // An unauthenticated visit to the account-center root is a login state, not
+  // an account error. This prevents the UI from presenting the API's
+  // harmless {success:false,message:"No session"} response as a broken page.
+  try{
+    const hash=window.location.hash||'';
+    if(!getToken()&&!hash.startsWith('#/login')&&!hash.startsWith('#/register')&&!hash.startsWith('#/forgot-password')&&!hash.startsWith('#/verify-email')&&!hash.startsWith('#/reset-password')){
+      window.location.hash='#/login';
+    }
+  }catch{}
+
+  const version='20260901-16';
+  const add=(tag,src)=>{const node=document.createElement(tag);node.src=src+'?v='+version;node.defer=true;document.head.appendChild(node)};
+  const css=document.createElement('link');css.rel='stylesheet';css.href='./src/vexatrade-notifications.css?v='+version;document.head.appendChild(css);
+  add('script','./src/vexatrade-toast-runtime.js');
+  add('script','./src/vexatrade-toast-compat.js');
+  add('script','./src/app-v3.js');
 })();
