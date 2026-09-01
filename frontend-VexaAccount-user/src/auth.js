@@ -1,6 +1,6 @@
-const API_BASE = window.VEXA_ACCOUNT_API_BASE || 'https://api-vexaaccount.onrender.com';
+const AUTH_API_BASE = window.VEXA_ACCOUNT_API_BASE || 'https://api-vexaaccount.onrender.com';
 const root = () => document.getElementById('app');
-const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const authEsc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 function authPage(mode) {
   const register = mode === 'register';
@@ -42,7 +42,7 @@ function authPage(mode) {
       const payload = register
         ? {name: String(form.get('name') || '').trim(), email, password}
         : {email, password};
-      const response = await fetch(`${API_BASE}/api/auth/${register ? 'register' : 'login'}`, {
+      const response = await fetch(`${AUTH_API_BASE}/api/auth/${register ? 'register' : 'login'}`, {
         method: 'POST', credentials: 'include',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(payload)
