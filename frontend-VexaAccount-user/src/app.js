@@ -11,4 +11,4 @@ if(/\/api\//.test(url)){try{const d=await response.clone().json();const fresh=pi
 if(/\/api\/auth\/logout$/.test(url)&&response.ok)clearToken();return response};
 window.vexaAccountAuth={getToken,saveToken,clearToken};
 try{const h=location.hash||'';if(!getToken()&&!/^#\/(login|signin|register|forgot-password|verify-email|reset-password|login-2fa)/.test(h))location.hash='#/login'}catch{}
-const version='20260902-8';const add=src=>{const s=document.createElement('script');s.src=src+'?v='+version;s.defer=true;document.head.appendChild(s)};const css=document.createElement('link');css.rel='stylesheet';css.href='./src/vexatrade-notifications.css?v='+version;document.head.appendChild(css);add('./src/vexatrade-toast-runtime.js');add('./src/vexatrade-toast-compat.js');add('./src/app-v3.js');})();
+})();
