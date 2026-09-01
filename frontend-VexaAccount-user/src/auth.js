@@ -10,7 +10,7 @@ function authPage(mode) {
         <div class="auth-brand"><img src="./public/brand.svg" alt="VexaAccount"></div>
         <p class="eyebrow">VEXA ACCOUNT</p>
         <h1>${register ? 'Create your VexaAccount' : 'Welcome back'}</h1>
-        <p class="muted">${register ? 'Create one central identity for your Vexa ecosystem.' : 'Sign in to your central VexaAccount.'}</p>
+        <p class="muted">${register ? 'Create your secure identity for every connected Vexa app.' : 'Sign in once to access all Vexa apps.'}</p>
         <form id="authForm" class="auth-form">
           ${register ? '<label>Name<input name="name" autocomplete="name" required></label>' : ''}
           <label>Email<input name="email" type="email" autocomplete="email" inputmode="email" required></label>
