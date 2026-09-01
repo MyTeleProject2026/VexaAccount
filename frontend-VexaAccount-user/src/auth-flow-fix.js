@@ -10,6 +10,9 @@
   const cache=()=>{if(!window[DATA_KEY])window[DATA_KEY]={};return window[DATA_KEY]};
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const isVexa=url=>{try{return /\/api\/(?:auth|account)(?:\/|$)/.test(new URL(url,location.href).pathname)}catch(_){return /\/api\/(?:auth|account)(?:\/|$)/.test(String(url||''))}};
+  window.__VEXA_ACCOUNT_SELECTED_VIEW__='overview';
+  document.addEventListener('click',e=>{const b=e.target.closest?.('[data-v]');if(b&&b.dataset.v)window.__VEXA_ACCOUNT_SELECTED_VIEW__=b.dataset.v});
+
   window.view=window.view||function(){
     const d=cache(),s=window.__VEXA_ACCOUNT_SELECTED_VIEW__||'overview';
     const user=d['/api/auth/session']?.user||d['/api/account/profile']?.user||{},sec=d['/api/account/security']?.security||{},prefs=d['/api/account/preferences']?.preferences||{},credits=d['/api/account/credits']?.credits||{},apps=d['/api/account/apps']?.apps||[],sessions=d['/api/account/sessions']?.sessions||[],events=d['/api/account/security/events']?.events||[],storage=d['/api/account/storage']?.storage||[],activity=d['/api/auth/activity-log']?.activity||[];
@@ -25,6 +28,7 @@
     if(s==='preferences')return panel('Preferences',`<form id="preferences" class="form-grid"><label>Language<input name="language" value="${esc(prefs.language||'')}"></label><label>Timezone<input name="timezone" value="${esc(prefs.timezone||'')}"></label><button class="primary">Save preferences</button></form>`);
     return `<section class="hero glass"><p class="eyebrow">YOUR VEXA IDENTITY</p><h2>Manage your account from one secure place.</h2><p>Personal information, security, connected apps, devices, storage, credits and preferences—all tied to your VexaAccount.</p><div class="hero-actions"><button class="primary" data-go="profile">Review profile</button><button class="secondary" data-go="security">Review security</button></div></section><section class="metrics"><article class="metric glass"><small>Connected apps</small><strong>${apps.length}</strong></article><article class="metric glass"><small>Active devices</small><strong>${sessions.length}</strong></article><article class="metric glass"><small>Coins</small><strong>${esc(credits.coins??0)}</strong></article><article class="metric glass"><small>Credit score</small><strong>${esc(credits.credit_score??0)}</strong></article></section>${panel('Account status',`<div class="status-grid"><div><b>${esc(user.email||'')}</b><small>Email</small></div><div><b>${user.is_verified?'Verified':'Needs verification'}</b><small>Email status</small></div><div><b>${user.is_active?'Active':'Disabled'}</b><small>Account</small></div></div>`)}${panel('Recent security activity',events.slice(0,5).map(x=>row(x.event_type||'Security event',x.created_at||'',x.ip_address||'')).join('')||'<p class="muted">No recent security events.</p>')}`;
   };
+
   window.fetch=async(...args)=>{
     let input=args[0],init={...(args[1]||{})},url=String(typeof input==='string'?input:(input&&input.url)||''),token=readToken();
     if(token&&isVexa(url)){const headers=new Headers(init.headers||((input instanceof Request)?input.headers:undefined));if(!headers.has('Authorization'))headers.set('Authorization',`Bearer ${token}`);init={...init,headers,credentials:'include'};args=typeof input==='string'?[input,init]:[new Request(input,init)];}
