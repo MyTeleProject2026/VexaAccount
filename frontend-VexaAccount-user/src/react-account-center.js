@@ -10,12 +10,14 @@
     return React.createElement('div', {
       className: 'vexa-react-notification-host',
       'aria-live': 'polite',
-      'aria-atomic': 'false'
+      'aria-atomic': 'false',
+      style: { position:'fixed', top:'16px', right:'16px', display:'flex', flexDirection:'column', gap:'12px', pointerEvents:'none', zIndex:2000 }
     }, n.toasts.map(function (t) {
       return React.createElement('div', {
         key: t.id,
         className: 'vx-toast ' + (t.type || 'info') + ' is-visible',
-        role: t.type === 'error' ? 'alert' : 'status'
+        role: t.type === 'error' ? 'alert' : 'status',
+        style: { pointerEvents:'auto' }
       },
         React.createElement('div', { className: 'vx-toast-inner' },
           React.createElement('span', { className: 'vx-toast-icon', 'aria-hidden': 'true' },
