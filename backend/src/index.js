@@ -23,48 +23,32 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 if (!JWT_SECRET) throw new Error('JWT_SECRET must be configured');
 app.set('trust proxy', 1);
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-      "script-src": ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"],
-      "script-src-elem": ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"],
-      "style-src": ["'self'", "'unsafe-inline'"],
-      "style-src-elem": ["'self'", "'unsafe-inline'"]
-    }
-  }
-}));
+app.use(helmet({contentSecurityPolicy:{directives:{...helmet.contentSecurityPolicy.getDefaultDirectives(),"script-src":["'self'","'unsafe-inline'","https://cdn.tailwindcss.com"],"script-src-elem":["'self'","'unsafe-inline'","https://cdn.tailwindcss.com"],"style-src":["'self'","'unsafe-inline'"],"style-src-elem":["'self'","'unsafe-inline'"]}}}));
 app.use(cookieParser());
-const configuredOrigins = [process.env.FRONTEND_USER_URL, process.env.FRONTEND_ADMIN_URL, ...(process.env.VEXA_ALLOWED_ORIGINS || '').split(',')];
-const legacyOrigins = ['https://vexastore.onrender.com','https://www.vexastore.onrender.com','https://vexastore.2bd.net','https://www.vexastore.2bd.net','https://vexastore-admin.onrender.com','https://vexatrade-6nhs.onrender.com','https://vexatrade-v.2bd.net','https://www.vexatrade-v.2bd.net','https://admin.vexatrade-v.2bd.net','https://vexatrade.onrender.com','https://vexatrade-admin.onrender.com','https://admin-vexatrade-manage.onrender.com','https://vexatrade-admin-n36m.onrender.com','https://vexawallet.onrender.com','https://vexabrowser.onrender.com','https://learn-vexatrade.onrender.com','https://api-vexaaccount.onrender.com','https://api-vexastore.onrender.com','https://vexatrade-server.onrender.com','https://vexatrade-5ycu.onrender.com','https://vexatrade-ecosystem-api.onrender.com','http://localhost:5173','http://localhost:5174','http://localhost:3000'];
-const allowedOrigins = [...configuredOrigins, ...legacyOrigins].map(v => String(v || '').trim()).filter((v,i,a) => v && a.indexOf(v) === i);
-app.use(cors({ origin(origin, callback) { if (!origin || allowedOrigins.includes(origin)) return callback(null, true); return callback(new Error('Origin not allowed')); }, credentials:true, methods:['GET','POST','PUT','PATCH','DELETE','OPTIONS'], allowedHeaders:['Origin','X-Requested-With','Content-Type','Accept','Authorization','X-Vexa-Registry-Key'] }));
+const configuredOrigins=[process.env.FRONTEND_USER_URL,process.env.FRONTEND_ADMIN_URL,...(process.env.VEXA_ALLOWED_ORIGINS||'').split(',')];
+const legacyOrigins=['https://vexastore.onrender.com','https://www.vexastore.onrender.com','https://vexastore.2bd.net','https://www.vexastore.2bd.net','https://vexastore-admin.onrender.com','https://vexatrade-6nhs.onrender.com','https://vexatrade-v.2bd.net','https://www.vexatrade-v.2bd.net','https://admin.vexatrade-v.2bd.net','https://vexatrade.onrender.com','https://vexatrade-admin.onrender.com','https://admin-vexatrade-manage.onrender.com','https://vexatrade-admin-n36m.onrender.com','https://vexawallet.onrender.com','https://vexabrowser.onrender.com','https://learn-vexatrade.onrender.com','https://api-vexaaccount.onrender.com','https://api-vexastore.onrender.com','https://vexatrade-server.onrender.com','https://vexatrade-5ycu.onrender.com','https://vexatrade-ecosystem-api.onrender.com','http://localhost:5173','http://localhost:5174','http://localhost:3000'];
+const allowedOrigins=[...configuredOrigins,...legacyOrigins].map(v=>String(v||'').trim()).filter((v,i,a)=>v&&a.indexOf(v)===i);
+app.use(cors({origin(origin,callback){if(!origin||allowedOrigins.includes(origin))return callback(null,true);return callback(new Error('Origin not allowed'));},credentials:true,methods:['GET','POST','PUT','PATCH','DELETE','OPTIONS'],allowedHeaders:['Origin','X-Requested-With','Content-Type','Accept','Authorization','X-Vexa-Registry-Key']}));
 app.use(express.json({limit:'10mb'}));
 app.use(express.urlencoded({extended:true,limit:'10mb'}));
-app.use(express.static(path.join(__dirname, '../public')));
-app.use('/api/', rateLimit({windowMs:15*60*1000,max:100,standardHeaders:true,legacyHeaders:false,message:{success:false,message:'Too many requests, please try again later.'}}));
-app.use('/api/auth', authRoutes);
-app.use('/api/auth/super-admin', superAdminAuthRoutes);
-app.use('/api/sso', ssoRoutes);
-app.use('/api/sso-registry', ssoRegistryRoutes);
-app.use('/api/account', accountCenterRoutes);
-app.use('/api/account', accountProfileRoutes);
-app.use('/api/account/security', accountSecurityRoutes);
-// Canonical Owner User Management API: /api/owner/users/*
-// The management router owns the /users/* path; mounting at /api/owner
-// prevents the accidental /api/owner/users/users/* route.
-app.use('/api/owner', ownerUserManagementRoutes);
-// Keep the delete router mounted at /api/owner/users because it defines /:id.
-app.use('/api/owner/users', ownerUserDeleteRoutes);
-app.use('/api/owner/platform', ownerPlatformRoutes);
+app.use(express.static(path.join(__dirname,'../public')));
+app.use('/api/',rateLimit({windowMs:15*60*1000,max:100,standardHeaders:true,legacyHeaders:false,message:{success:false,message:'Too many requests, please try again later.'}}));
+app.use('/api/auth',authRoutes);
+app.use('/api/auth/super-admin',superAdminAuthRoutes);
+app.use('/api/sso',ssoRoutes);
+app.use('/api/sso-registry',ssoRegistryRoutes);
+app.use('/api/account',accountCenterRoutes);
+app.use('/api/account',accountProfileRoutes);
+app.use('/api/account/security',accountSecurityRoutes);
+app.use('/api/owner',ownerUserManagementRoutes);
+app.use('/api/owner/users',ownerUserDeleteRoutes);
+app.use('/api/owner/platform',ownerPlatformRoutes);
 app.get('/api/auth/session',async(req,res)=>{try{const token=req.cookies?.vexaccount_session;if(!token)return res.json({success:false,message:'No session'});const decoded=jwt.verify(token,JWT_SECRET);const id=decoded.sub||decoded.id;const [admins]=await pool.query('SELECT sa.id,sa.role,sa.is_active,u.id AS user_id,u.email,u.name FROM vexa_super_admins sa JOIN store_users u ON u.id=sa.user_id WHERE sa.user_id=? AND sa.is_active=1 AND u.is_active=1 LIMIT 1',[id]);if(admins.length&&['super_admin','owner'].includes(admins[0].role))return res.json({success:true,user:{id:admins[0].user_id,email:admins[0].email,name:admins[0].name,role:admins[0].role}});const [rows]=await pool.query('SELECT id,email,name,avatar_url FROM store_users WHERE id=? AND is_active=1',[id]);if(!rows.length)return res.json({success:false,message:'User not found'});res.json({success:true,user:rows[0]});}catch{res.json({success:false,message:'Invalid session'});}});
 app.post('/api/auth/logout',(req,res)=>{res.clearCookie('vexaccount_session',{httpOnly:true,secure:IS_PRODUCTION,sameSite:process.env.COOKIE_SAME_SITE||'lax',path:'/'});res.json({success:true,message:'Logged out successfully'});});
 app.get('/api/health',(req,res)=>res.json({success:true,message:'VexaAccount Service is running',timestamp:new Date().toISOString(),version:'2.5.0'}));
 app.get('/auth/login-page',(req,res)=>res.sendFile(path.join(__dirname,'../public/login.html')));
 app.get('/auth/register-page',(req,res)=>res.sendFile(path.join(__dirname,'../public/register.html')));
 app.get('/auth/register-page.html',(req,res)=>res.sendFile(path.join(__dirname,'../public/register.html')));
-app.get('/auth/forgot-password',(req,res)=>res.sendFile(path.join(__dirname,'../public/forgot-password.html')));
-app.get('/auth/reset-password',(req,res)=>res.sendFile(path.join(__dirname,'../public/reset-password.html')));
 app.get('/auth/forgot-password',(req,res)=>res.sendFile(path.join(__dirname,'../public/forgot-password.html')));
 app.get('/auth/reset-password',(req,res)=>res.sendFile(path.join(__dirname,'../public/reset-password.html')));
 app.get('/auth/super-admin-login',(req,res)=>res.sendFile(path.join(__dirname,'../public/super-admin-login.html')));
