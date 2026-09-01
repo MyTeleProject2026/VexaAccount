@@ -7,19 +7,23 @@ const FROM_NAME = process.env.MAIL_FROM_NAME || 'VexaAccount';
 
 async function sendEmail({ to, subject, html }) {
   if (!BREVO_API_KEY) {
-    console.warn('⚠️ Brevo API key not configured. Falling back to console log.');
-    console.log('📧 [FAKE EMAIL] To:', to);
-    console.log('📧 [FAKE EMAIL] Subject:', subject);
-    console.log('📧 [FAKE EMAIL] Body:', html);
-    return true;
+    const error = new Error('Email provider is not configured: BREVO_API_KEY is required');
+    error.code = 'EMAIL_PROVIDER_NOT_CONFIGURED';
+    throw error;
   }
   try {
-    await axios.post(BREVO_API_URL,{sender:{name:FROM_NAME,email:FROM_EMAIL},to:[{email:to}],subject,htmlContent:html},{headers:{'Content-Type':'application/json','api-key':BREVO_API_KEY},timeout:30000});
-    console.log('✅ Email sent via Brevo API to:', to);
+    const response = await axios.post(BREVO_API_URL,{sender:{name:FROM_NAME,email:FROM_EMAIL},to:[{email:to}],subject,htmlContent:html},{headers:{'Content-Type':'application/json','api-key':BREVO_API_KEY},timeout:30000});
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`Email provider returned HTTP ${response.status}`);
+    }
+    console.log('Email accepted by provider for:', to);
     return true;
   } catch (error) {
-    console.error('❌ Brevo API error:', error.response?.data || error.message);
-    return false;
+    const details = error.response?.data?.message || error.response?.data?.code || error.message;
+    console.error('Brevo email delivery request failed:', details);
+    const sendError = new Error(`Email delivery failed: ${details}`);
+    sendError.code = 'EMAIL_SEND_FAILED';
+    throw sendError;
   }
 }
 
