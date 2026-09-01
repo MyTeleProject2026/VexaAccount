@@ -1,30 +1,34 @@
 const nodemailer = require('nodemailer');
 
-// VexaAccount production email delivery uses Brevo SMTP.
-// Canonical environment-variable names are SMTP_*.
-// The legacy SMPT_* names are accepted temporarily for backwards compatibility
-// so an existing deployment does not break during the rename.
-const SMTP_HOST = process.env.SMTP_HOST || 'smtp-relay.brevo.com';
-const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
-const SMTP_USER = process.env.SMTP_USER || process.env.GMAIL_USER;
-const SMTP_PASS =
-  process.env.SMTP_PASS ||
-  process.env.SMTP_KEY ||
-  process.env.SMPT_PASS ||
-  process.env.SMPT_KEY;
-const FROM_EMAIL =
-  process.env.FROM_EMAIL ||
-  process.env.GMAIL_USER ||
-  SMTP_USER ||
-  'vexatradeblockchainecosystem@gmail.com';
-const FROM_NAME = process.env.MAIL_FROM_NAME || 'VexaAccount';
+// VexaAccount production email delivery uses Brevo SMTP only.
+// Canonical Render environment variables:
+//   BREVO_EMAIL       - verified sender email
+//   BREVO_SMTP_HOST   - smtp-relay.brevo.com
+//   BREVO_SMTP_PORT   - 587 (or 465 for TLS)
+//   BREVO_SMTP_USER   - Brevo SMTP login
+//   BREVO_SMTP_KEY    - Brevo SMTP key (used as the SMTP password)
+//
+// BREVO_PASSWORD is intentionally NOT used here. A Brevo API key (for example
+// xkeysib-...) is not an SMTP password. Do not put API keys into SMTP_PASS.
+// The old SMPT spelling is intentionally not used anymore.
+const configuredHost = String(process.env.BREVO_SMTP_HOST || process.env.SMTP_HOST || 'smtp-relay.brevo.com').trim();
+const SMTP_HOST = configuredHost.includes('@smtp-brevo.com')
+  ? 'smtp-relay.brevo.com'
+  : configuredHost;
+const SMTP_PORT = Number(process.env.BREVO_SMTP_PORT || process.env.SMTP_PORT || 587);
+const SMTP_USER = String(process.env.BREVO_SMTP_USER || process.env.SMTP_USER || '').trim();
+const SMTP_PASS = String(process.env.BREVO_SMTP_KEY || process.env.SMTP_PASS || process.env.SMTP_KEY || '').trim();
+const FROM_EMAIL = String(process.env.BREVO_EMAIL || process.env.FROM_EMAIL || process.env.GMAIL_USER || '').trim();
+const FROM_NAME = String(process.env.MAIL_FROM_NAME || 'VexaAccount').trim();
 
 let smtpTransporter = null;
+let transporterConfigKey = '';
 
 function getSmtpTransporter() {
-  if (!SMTP_USER || !SMTP_PASS) return null;
+  if (!SMTP_USER || !SMTP_PASS || !FROM_EMAIL) return null;
 
-  if (!smtpTransporter) {
+  const configKey = `${SMTP_HOST}:${SMTP_PORT}:${SMTP_USER}:${FROM_EMAIL}`;
+  if (!smtpTransporter || transporterConfigKey !== configKey) {
     smtpTransporter = nodemailer.createTransport({
       host: SMTP_HOST,
       port: SMTP_PORT,
@@ -35,8 +39,12 @@ function getSmtpTransporter() {
       },
       connectionTimeout: 30000,
       greetingTimeout: 30000,
-      socketTimeout: 30000
+      socketTimeout: 30000,
+      tls: {
+        minVersion: 'TLSv1.2'
+      }
     });
+    transporterConfigKey = configKey;
   }
 
   return smtpTransporter;
@@ -46,9 +54,12 @@ async function sendEmail({ to, subject, html }) {
   const transporter = getSmtpTransporter();
 
   if (!transporter) {
-    const error = new Error(
-      'SMTP email is not configured: SMTP_USER and SMTP_PASS (or SMTP_KEY) are required'
-    );
+    const missing = [];
+    if (!SMTP_USER) missing.push('BREVO_SMTP_USER');
+    if (!SMTP_PASS) missing.push('BREVO_SMTP_KEY');
+    if (!FROM_EMAIL) missing.push('BREVO_EMAIL');
+
+    const error = new Error(`Brevo SMTP is not configured: missing ${missing.join(', ')}`);
     error.code = 'EMAIL_PROVIDER_NOT_CONFIGURED';
     throw error;
   }
