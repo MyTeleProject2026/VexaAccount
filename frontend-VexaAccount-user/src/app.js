@@ -1,2 +1,2 @@
 /* VexaAccount User frontend canonical runtime loader. */
-(()=>{if(window.__VEXA_ACCOUNT_RUNTIME_LOADING__)return;window.__VEXA_ACCOUNT_RUNTIME_LOADING__=true;const s=document.createElement('script');s.src='./src/app-fixed.js?v=20260901-10';s.defer=true;document.head.appendChild(s)})();
+(()=>{if(window.__VEXA_ACCOUNT_RUNTIME_LOADING__)return;window.__VEXA_ACCOUNT_RUNTIME_LOADING__=true;const s=document.createElement('script');s.src='./src/app-fixed.js?v=20260901-11';s.defer=true;s.onload=()=>{const f=document.createElement('script');f.src='./src/auth-flow-fix.js?v=20260901-1';f.defer=true;document.head.appendChild(f)};document.head.appendChild(s)})();
