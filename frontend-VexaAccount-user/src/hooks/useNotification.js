@@ -12,7 +12,7 @@
     const showError=useCallback((m,d=5000)=>showToast(m,'error',d),[showToast]);
     const showWarning=useCallback((m,d=4000)=>showToast(m,'warning',d),[showToast]);
     const showInfo=useCallback((m,d=3000)=>showToast(m,'info',d),[showToast]);
-    useEffect(()=>()=>timers.current.forEach(clearTimeout),[]);
+    useEffect(()=>{global.vexaReactNotify={showToast,showSuccess,showError,showWarning,showInfo};return()=>{if(global.vexaReactNotify&&global.vexaReactNotify.showToast===showToast)delete global.vexaReactNotify;timers.current.forEach(clearTimeout);timers.current.clear();}},[showToast,showSuccess,showError,showWarning,showInfo]);
     return React.createElement(NotificationContext.Provider,{value:{toasts,showToast,showSuccess,showError,showWarning,showInfo,removeToast}},props.children);
   }
   function useNotification(){const c=useContext(NotificationContext);if(!c)throw new Error('useNotification must be used within NotificationProvider');return c}
