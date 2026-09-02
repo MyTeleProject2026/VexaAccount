@@ -1,4 +1,4 @@
-name: VexaAccount production E2E smoke
+name: VexaAccount production E2E
 on:
   workflow_dispatch:
   schedule:
@@ -15,3 +15,20 @@ jobs:
         env:
           VEXA_ACCOUNT_BASE_URL: https://api-vexaaccount.onrender.com
         run: node scripts/e2e-production-smoke.js
+      - name: Run authenticated support-to-notification E2E
+        if: ${{ secrets.VEXA_E2E_USER_EMAIL != '' && secrets.VEXA_E2E_USER_PASSWORD != '' && secrets.VEXA_E2E_OWNER_EMAIL != '' && secrets.VEXA_E2E_OWNER_PASSWORD != '' }}
+        env:
+          VEXA_ACCOUNT_BASE_URL: https://api-vexaaccount.onrender.com
+          VEXA_E2E_USER_EMAIL: ${{ secrets.VEXA_E2E_USER_EMAIL }}
+          VEXA_E2E_USER_PASSWORD: ${{ secrets.VEXA_E2E_USER_PASSWORD }}
+          VEXA_E2E_OWNER_EMAIL: ${{ secrets.VEXA_E2E_OWNER_EMAIL }}
+          VEXA_E2E_OWNER_PASSWORD: ${{ secrets.VEXA_E2E_OWNER_PASSWORD }}
+        run: node scripts/e2e-support-notification.js
+      - name: Report authenticated E2E configuration status
+        if: ${{ always() }}
+        run: |
+          if [ -n "${{ secrets.VEXA_E2E_USER_EMAIL }}" ] && [ -n "${{ secrets.VEXA_E2E_USER_PASSWORD }}" ] && [ -n "${{ secrets.VEXA_E2E_OWNER_EMAIL }}" ] && [ -n "${{ secrets.VEXA_E2E_OWNER_PASSWORD }}" ]; then
+            echo "Authenticated production support/notification E2E was configured for this run."
+          else
+            echo "Authenticated production support/notification E2E was skipped because its four test credentials are not configured."
+          fi
