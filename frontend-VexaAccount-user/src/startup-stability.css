@@ -1,0 +1,5 @@
+/* VexaAccount startup stability: prevent visible flash/repaint effects during route hydration. */
+html,body,#app,#vexa-react-root{box-sizing:border-box;max-width:100%;}
+.vx-page{animation:none!important;}
+.vx-side,.vx-icon,.vx-nav button,.vx-action,.vx-btn{transition:none!important;}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:0.001ms!important;}}
