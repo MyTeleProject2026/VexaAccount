@@ -1,0 +1,31 @@
+name: VexaAccount verification
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  static-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check backend JavaScript syntax
+        run: find backend/src -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Check user frontend JavaScript syntax
+        run: find frontend-VexaAccount-user/src -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Check super admin JavaScript syntax
+        run: find frontend-VexaAccount-Super-admin/src -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Enforce non-secret SSO config contract
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const app=fs.readFileSync('frontend-VexaAccount-Super-admin/src/app.js','utf8');
+          const forbidden=/VEXA_ACCOUNT_SSO_CONFIG[^\n]{0,150}clientSecret|JSON\.stringify\(\{[^}]{0,250}clientSecret/;
+          if(forbidden.test(app)){ console.error('Client secret must not be embedded in VEXA_ACCOUNT_SSO_CONFIG'); process.exit(1); }
+          if(!app.includes('VEXA_ACCOUNT_CLIENT_SECRET')){ console.error('Separate client secret guidance is required'); process.exit(1); }
+          NODE
