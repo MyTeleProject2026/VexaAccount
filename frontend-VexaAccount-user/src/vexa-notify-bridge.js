@@ -1,5 +1,14 @@
 (()=>{'use strict';
-const MAX=4,DEDUP_MS=1800,recent=new Map();
-const ensure=()=>{let s=document.querySelector('.toast-stack');if(!s){s=document.createElement('div');s.className='toast-stack';s.setAttribute('aria-live','polite');s.setAttribute('aria-atomic','true');document.body.appendChild(s)}return s};
-window.vexaNotify=(message,type='info',duration)=>{const text=String(message??'').trim();if(!text)return null;const key=`${type}:${text}`,now=Date.now();if(now-(recent.get(key)||0)<DEDUP_MS)return null;recent.set(key,now);for(const[k,t]of recent){if(now-t>DEDUP_MS)recent.delete(k)}const stack=ensure();while(stack.children.length>=MAX)stack.firstElementChild?.remove();const n=document.createElement('div');n.className='vx-toast '+type;n.setAttribute('role',type==='error'?'alert':'status');n.innerHTML=`<div class="vx-toast-inner"><span class="vx-toast-icon">${type==='success'?'✓':type==='error'?'×':type==='warning'?'!':'i'}</span><div class="vx-toast-message"></div><button class="vx-toast-close" type="button" aria-label="Close notification">×</button></div><div class="vx-toast-progress"></div>`;n.querySelector('.vx-toast-message').textContent=text;n.querySelector('.vx-toast-close').onclick=()=>n.remove();stack.appendChild(n);const ms=duration??(type==='error'?5000:type==='info'?3000:4000);n.querySelector('.vx-toast-progress').style.setProperty('--vx-toast-duration',`${ms}ms`);const timer=setTimeout(()=>n.remove(),ms);n.querySelector('.vx-toast-close').addEventListener('click',()=>clearTimeout(timer),{once:true});return n};
+if(window.__VEXA_NOTIFY_BRIDGE_V3__)return;
+window.__VEXA_NOTIFY_BRIDGE_V3__=true;
+const call=(method,message,type,duration)=>{
+  const api=window.vexaReactNotify;
+  if(api&&typeof api[method]==='function')return api[method](message,duration);
+  if(api&&typeof api.showToast==='function')return api.showToast(message,type,duration);
+  return null;
+};
+window.vexaNotify=(message,type='info',duration)=>{
+  const map={success:'showSuccess',error:'showError',warning:'showWarning',info:'showInfo'};
+  return call(map[type]||'showInfo',message,type,duration);
+};
 })();
