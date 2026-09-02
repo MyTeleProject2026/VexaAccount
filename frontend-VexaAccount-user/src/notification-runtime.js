@@ -1,9 +1,9 @@
 (()=>{
 'use strict';
-if(!window.React||!window.ReactDOM||!window.VexaNotificationCore||!window.VexaToastNotification)return;
-const root=document.getElementById('vexa-react-root');
-if(!root)return;
-root.style.display='block';
+if(!window.React||!window.ReactDOM||!window.VexaNotificationCore||!window.VexaToastNotification||window.__VEXA_NOTIFICATION_RUNTIME_V2__)return;
+window.__VEXA_NOTIFICATION_RUNTIME_V2__=true;
+let root=document.getElementById('vexa-notification-root');
+if(!root){root=document.createElement('div');root.id='vexa-notification-root';document.body.appendChild(root)}
 root.style.position='fixed';
 root.style.inset='0';
 root.style.pointerEvents='none';
