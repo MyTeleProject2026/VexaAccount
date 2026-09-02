@@ -19,34 +19,36 @@ Super Admin
         └── Platform & Security
 ```
 
-The Super Admin HTML entrypoints load only the canonical Owner runtime and required Owner Control Center styles/runtime. The superseded app/patch/React notification/SSO patch files have been removed from the active source tree.
+The Super Admin entrypoint loads the canonical Owner runtime and then uses `owner-control-center-loader.js` to load the integrated control surface after the Owner shell is mounted. This ordering prevents the previous initialization race.
 
-## User account controls
+## User management workflow
 
-- Search and inspect user accounts
-- Edit supported profile fields
-- Enable/disable account status
-- Reset supported 2FA enrollment
-- Reset supported passcode enrollment
-- Revoke all active SSO sessions
-- Adjust credit score and coins with an explicit reason
-- Inspect storage metadata
-- Add Owner notes
-- Permanently delete an account through an explicit confirmation flow
-- Inspect SSO sessions and security events
+```text
+Owner login
+  → authenticated Owner session
+  → Users
+  → search/select account
+  → inspect safe account details
+  → apply supported control
+  → confirm backend response
+  → review audit/security event
+```
 
-User details intentionally use an explicit safe field list and do not expose password hashes or accidental secret fields.
+Supported controls include safe profile edits, account enable/disable, supported 2FA/passcode reset, SSO-session revocation, supported credit/coin adjustments with an explicit reason, Owner notes, storage metadata inspection and explicit permanent account deletion. Password hashes and other sensitive credential material are excluded from the safe detail response.
 
-## SSO application controls
+## SSO application workflow
 
-- Create application
-- Review registry records
-- Activate/disable clients
-- Manage exact redirect URI allowlists
-- Review granted scopes
-- Rotate Client Secret
-- Permanently revoke a client
-- Review SSO/audit activity
+```text
+Create client
+  → configure exact redirect URI
+  → grant supported scopes
+  → activate
+  → external backend uses state + S256 PKCE
+  → authorize
+  → token exchange
+  → userinfo
+  → external local session
+```
 
 Redirect URI API:
 
@@ -56,33 +58,83 @@ POST   /api/sso-registry/applications/:clientId/redirect-uris
 DELETE /api/sso-registry/applications/:clientId/redirect-uris
 ```
 
-Redirect URI validation remains a backend security boundary. Production callbacks should use exact HTTPS values.
+Production callbacks must be exact HTTPS values. No wildcard production callbacks.
 
-## Support and notification flow
+## Client Secret handling
+
+During application creation or secret rotation, the backend deliberately returns the new Client Secret once. The Owner UI displays it transiently so the Owner can transfer it to the external application's backend secret store.
+
+The browser must never persist the secret in localStorage/sessionStorage, URLs, logs, PDFs or `VEXA_ACCOUNT_SSO_CONFIG`. The external application keeps it only in its server-side secret configuration:
+
+```env
+VEXA_ACCOUNT_CLIENT_SECRET=server_only_secret
+VEXA_ACCOUNT_SSO_CONFIG={"url":"https://api-vexaaccount.onrender.com","clientId":"YOUR_CLIENT_ID","redirectUri":"https://your-app.example.com/auth/vexaaccount/callback","scopes":["openid","profile","email"],"timeoutMs":10000}
+```
+
+`VEXA_ACCOUNT_SSO_CONFIG` must never contain `clientSecret`. The Owner runtime contains no legacy `clientJWT`/`clientJwt` credential aliases.
+
+## Support and notification two-way workflow
 
 ```text
 User creates ticket
       ↓
-Owner sees ticket
+Owner lists/opens ticket
       ↓
 Owner replies
       ↓
-Reply + notification are committed server-side
+Backend persists reply + notification + audit
       ↓
-User Account Center polls notification API
+User notification API exposes the persisted notification
       ↓
-Unread notification appears in the Account Center
+User acknowledges notifications as read
       ↓
-User can mark notifications as read
+Owner closes ticket
 ```
 
-Owner replies are persisted and generate a VexaAccount notification for the affected user in the same database transaction. The user frontend now runs a lightweight authenticated notification poller every 15 seconds while visible, with immediate polling when the tab/app becomes visible or authentication changes.
+Owner replies are backend-backed and auditable. The User frontend's live notification runtime polls the authenticated notification API while visible, and also refreshes when the application becomes visible or authentication changes.
 
-An authenticated production E2E script is included to verify the complete user → Owner → notification → read-acknowledgement → audit path.
+## Production E2E certification
+
+The repository includes a real authenticated production E2E:
+
+```text
+scripts/e2e-support-notification.js
+```
+
+and workflow:
+
+```text
+.github/workflows/vexaaccount-e2e.yml
+```
+
+It verifies the deployed User → Owner → notification → read acknowledgement → close → audit path using separate authenticated sessions.
+
+The workflow requires these four dedicated GitHub Actions secrets:
+
+```text
+VEXA_E2E_USER_EMAIL
+VEXA_E2E_USER_PASSWORD
+VEXA_E2E_OWNER_EMAIL
+VEXA_E2E_OWNER_PASSWORD
+```
+
+Use dedicated non-personal test accounts. A manual workflow run without all four credentials fails explicitly. Scheduled runs perform smoke checks and skip authenticated certification when credentials are absent.
+
+### Certification procedure
+
+1. Deploy the intended `master` backend.
+2. Ensure the dedicated E2E User and Owner accounts exist in the production database.
+3. Configure all four GitHub Actions secrets.
+4. Run **VexaAccount production E2E** manually against `master`.
+5. Require the authenticated job to execute successfully.
+6. Confirm the output contains `Support two-way notification E2E passed`.
+7. Record that workflow run as certification evidence for the deployed revision.
+
+A repository commit is not itself proof of live certification. The credentials cannot be safely manufactured by source code, and they must not be committed to the repository.
+
+See `docs/PRODUCTION_E2E.md` for the complete operational runbook.
 
 ## Platform and security controls
-
-The canonical Owner Center exposes backend-backed platform operations:
 
 ```text
 GET /api/owner/platform/settings
@@ -92,40 +144,9 @@ GET /api/owner/platform/integration/:clientId
 GET /api/owner/platform/scopes
 ```
 
-This provides controlled settings and health visibility without giving the browser arbitrary SQL, shell, JavaScript or source-code execution.
+These are explicit validated controls. The Owner browser is never granted arbitrary SQL, shell, JavaScript or source-code execution.
 
-## SSO secret boundary
-
-```text
-VEXA_ACCOUNT_SSO_CONFIG
-  = non-secret URL/client/redirect/scope configuration
-
-VEXA_ACCOUNT_CLIENT_SECRET
-  = secret stored only by the integrating application's backend
-```
-
-The canonical Owner runtime has one secret-handling path: the server returns `clientSecret` only during creation/rotation, the UI displays it transiently for secure manual transfer, and it is never placed into `VEXA_ACCOUNT_SSO_CONFIG`, URL parameters, browser storage or generated PDFs. The runtime contains no legacy `clientJWT`/`clientJwt` credential aliases.
-
-Never place `clientSecret` inside `VEXA_ACCOUNT_SSO_CONFIG`.
-
-## External app backend template
-
-A complete reference is included at:
-
-```text
-integrations/vexaaccount-node-backend/
-├── .env.example
-├── README.md
-└── src/
-    ├── vexaaccount-sso.js
-    └── routes/vexaaccount-auth.js
-```
-
-The template implements server-side state, S256 PKCE, authorization-code exchange, userinfo, refresh and logout. Each external application must map `userinfo.sub` to its own local user record and create its own session.
-
-## User Account Center runtime consolidation
-
-The user frontend now has one canonical Account Center runtime path:
+## User Account Center runtime
 
 ```text
 index.html
@@ -139,52 +160,19 @@ account-center-v2-compat.js
 account-center-premium-theme.js
 ```
 
-The supported authentication/session, notification, SSO and PWA bridges remain separate and are loaded exactly once by the canonical user entrypoint. Superseded duplicate Account Center/auth/React/toast runtimes were removed from the source tree after verifying they were not part of the active entrypoint.
-
-## Production verification
-
-The repository contains two verification layers:
-
-```text
-scripts/e2e-production-smoke.js
-scripts/e2e-support-notification.js
-.github/workflows/vexaaccount-e2e.yml
-```
-
-The smoke test verifies deployed health, SSO discovery and unauthenticated protection. The authenticated E2E verifies the real deployed user/Owner support-to-notification path when four dedicated GitHub Actions secrets are configured:
-
-```text
-VEXA_E2E_USER_EMAIL
-VEXA_E2E_USER_PASSWORD
-VEXA_E2E_OWNER_EMAIL
-VEXA_E2E_OWNER_PASSWORD
-```
-
-The workflow intentionally skips the authenticated test when those secrets are absent rather than pretending that production certification occurred.
-
-## Owner operational sequence
-
-```text
-1. Sign in as Super Admin
-2. Review platform/database health
-3. Search the user or application
-4. Inspect security/audit state
-5. Apply the smallest supported control required
-6. Confirm the result in the backend response/UI
-7. Review the generated audit/security event
-8. For SSO, verify the external application's callback and token exchange
-9. For support, verify the user notification and read acknowledgement
-```
+Authentication/session, notification, SSO and PWA bridges are loaded by the canonical User entrypoint. Superseded duplicate Account Center/auth/React/toast runtimes have been removed.
 
 ## Security rules
 
-1. Keep all Client Secrets server-side except the deliberate one-time creation/rotation display.
+1. Keep Client Secrets server-side except the deliberate one-time creation/rotation display.
 2. Use exact redirect URIs.
-3. Use S256 PKCE and backend state validation.
-4. Use `sub` as the stable SSO identity key.
-5. Rotate compromised secrets immediately.
-6. Revoke compromised sessions/applications.
-7. Never expose arbitrary code execution from the Owner UI.
-8. Never put a Client Secret in browser storage, URLs, logs, PDFs or non-secret integration configuration.
+3. Use S256 PKCE.
+4. Validate state server-side.
+5. Use `userinfo.sub` as the stable external identity key.
+6. Rotate compromised secrets immediately.
+7. Revoke compromised sessions/applications.
+8. Keep Owner actions explicit, validated and auditable.
+9. Never expose arbitrary code execution from the Owner UI.
+10. Never put Client Secrets in browser storage, URLs, logs, PDFs or non-secret integration configuration.
 
-For the complete repository-wide integration and user guidance, see the root `README.md` and `docs/SSO_INTEGRATION.md`.
+For repository-wide production verification, see `README.md` and `docs/PRODUCTION_E2E.md`.
