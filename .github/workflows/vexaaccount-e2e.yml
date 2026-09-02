@@ -6,6 +6,8 @@ on:
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    env:
+      HAS_AUTH_E2E: ${{ secrets.VEXA_E2E_USER_EMAIL != '' && secrets.VEXA_E2E_USER_PASSWORD != '' && secrets.VEXA_E2E_OWNER_EMAIL != '' && secrets.VEXA_E2E_OWNER_PASSWORD != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,7 +18,7 @@ jobs:
           VEXA_ACCOUNT_BASE_URL: https://api-vexaaccount.onrender.com
         run: node scripts/e2e-production-smoke.js
       - name: Run authenticated support-to-notification E2E
-        if: ${{ secrets.VEXA_E2E_USER_EMAIL != '' && secrets.VEXA_E2E_USER_PASSWORD != '' && secrets.VEXA_E2E_OWNER_EMAIL != '' && secrets.VEXA_E2E_OWNER_PASSWORD != '' }}
+        if: ${{ env.HAS_AUTH_E2E == 'true' }}
         env:
           VEXA_ACCOUNT_BASE_URL: https://api-vexaaccount.onrender.com
           VEXA_E2E_USER_EMAIL: ${{ secrets.VEXA_E2E_USER_EMAIL }}
@@ -27,7 +29,7 @@ jobs:
       - name: Report authenticated E2E configuration status
         if: ${{ always() }}
         run: |
-          if [ -n "${{ secrets.VEXA_E2E_USER_EMAIL }}" ] && [ -n "${{ secrets.VEXA_E2E_USER_PASSWORD }}" ] && [ -n "${{ secrets.VEXA_E2E_OWNER_EMAIL }}" ] && [ -n "${{ secrets.VEXA_E2E_OWNER_PASSWORD }}" ]; then
+          if [ "$HAS_AUTH_E2E" = "true" ]; then
             echo "Authenticated production support/notification E2E was configured for this run."
           else
             echo "Authenticated production support/notification E2E was skipped because its four test credentials are not configured."
