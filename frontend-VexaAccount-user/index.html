@@ -10,14 +10,14 @@
   <link rel="manifest" href="./public/manifest.json">
   <link rel="icon" href="./public/brand.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./public/brand.svg">
-  <link rel="stylesheet" href="./src/theme.css?v=20260902-30">
-  <link rel="stylesheet" href="./src/styles.css?v=20260902-30">
-  <link rel="stylesheet" href="./src/premium.css?v=20260902-30">
-  <link rel="stylesheet" href="./src/glass-premium.css?v=20260902-30">
-  <link rel="stylesheet" href="./public/auth.css?v=20260902-30">
-  <link rel="stylesheet" href="./src/responsive-premium.css?v=20260902-30">
-  <link rel="stylesheet" href="./src/vexa-notify-bridge.css?v=20260902-30">
-  <link rel="stylesheet" href="./src/vexatrade-notifications.css?v=20260902-30">
+  <link rel="stylesheet" href="./src/theme.css?v=20260902-31">
+  <link rel="stylesheet" href="./src/styles.css?v=20260902-31">
+  <link rel="stylesheet" href="./src/premium.css?v=20260902-31">
+  <link rel="stylesheet" href="./src/glass-premium.css?v=20260902-31">
+  <link rel="stylesheet" href="./public/auth.css?v=20260902-31">
+  <link rel="stylesheet" href="./src/responsive-premium.css?v=20260902-31">
+  <link rel="stylesheet" href="./src/vexa-notify-bridge.css?v=20260902-31">
+  <link rel="stylesheet" href="./src/vexatrade-notifications.css?v=20260902-31">
   <title>VexaAccount — Account Center</title>
 </head>
 <body>
@@ -34,18 +34,19 @@
   </div>
   <div id="vexa-react-root" style="display:none"></div>
   <script>window.VEXA_ACCOUNT_API_BASE=window.VEXA_ACCOUNT_API_BASE||'https://api-vexaaccount.onrender.com';</script>
-  <script src="./src/vexa-notify-bridge.js?v=20260902-30"></script>
-  <script src="./src/sso-frontend.js?v=20260902-30"></script>
-  <script src="./src/app.js?v=20260902-30"></script>
-  <script src="./src/app-v3.js?v=20260902-30"></script>
-  <script src="./src/auth-session-bridge.js?v=20260902-30"></script>
-  <script src="./src/premium-interactions.js?v=20260902-30"></script>
-  <script src="./src/hooks/useNotification.js?v=20260902-30"></script>
-  <script src="./src/components/ToastNotification.js?v=20260902-30"></script>
-  <script src="./src/notification-runtime.js?v=20260902-30"></script>
-  <script src="./src/account-center-network-guard.js?v=20260902-30"></script>
-  <script src="./src/account-center-loader.js?v=20260902-30"></script>
-  <script src="./src/account-center-runtime-fix.js?v=20260902-30"></script>
-  <script src="./src/account-center-ui-stability.js?v=20260902-30"></script>
+  <!-- Install the account request guard before any account-center runtime can issue API reads. -->
+  <script src="./src/account-center-fetch-guard.js?v=20260902-31"></script>
+  <script src="./src/vexa-notify-bridge.js?v=20260902-31"></script>
+  <script src="./src/sso-frontend.js?v=20260902-31"></script>
+  <script src="./src/app.js?v=20260902-31"></script>
+  <script src="./src/app-v3.js?v=20260902-31"></script>
+  <script src="./src/auth-session-bridge.js?v=20260902-31"></script>
+  <script src="./src/premium-interactions.js?v=20260902-31"></script>
+  <script src="./src/hooks/useNotification.js?v=20260902-31"></script>
+  <script src="./src/components/ToastNotification.js?v=20260902-31"></script>
+  <script src="./src/notification-runtime.js?v=20260902-31"></script>
+  <script src="./src/account-center-loader.js?v=20260902-31"></script>
+  <script src="./src/account-center-live-metrics.js?v=20260902-31"></script>
+  <script src="./src/account-center-ui-stability.js?v=20260902-31"></script>
 </body>
 </html>
