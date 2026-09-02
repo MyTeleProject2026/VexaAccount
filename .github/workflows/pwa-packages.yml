@@ -1,0 +1,55 @@
+name: VexaAccount PWA packages
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  validate-pwa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate manifest
+        run: node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('frontend-VexaAccount-user/public/manifest.json','utf8'));for(const k of ['name','short_name','start_url','scope','display','theme_color','background_color'])if(!m[k])throw Error('Missing '+k);if(m.display!=='standalone')throw Error('display must be standalone');for(const i of m.icons||[])if(!['192x192','512x512'].includes(i.sizes)||i.type!=='image/png')throw Error('Invalid production icon declaration');console.log('PWA manifest OK')"
+      - name: Validate required PWA assets
+        run: |
+          test -f frontend-VexaAccount-user/sw.js
+          test -f frontend-VexaAccount-user/offline.html
+          test -f frontend-VexaAccount-user/public/icons/icon-192.png
+          test -f frontend-VexaAccount-user/public/icons/icon-512.png
+      - name: Upload PWA packaging inputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: vexaaccount-pwa-packaging-inputs
+          path: |
+            frontend-VexaAccount-user/public/manifest.json
+            frontend-VexaAccount-user/public/icons/*.png
+            frontend-VexaAccount-user/sw.js
+            frontend-VexaAccount-user/offline.html
+            frontend-VexaAccount-user/packaging/android/twa-manifest.json
+
+  android-project-build:
+    if: ${{ hashFiles('frontend-VexaAccount-user/packaging/android/gradlew') != '' }}
+    needs: validate-pwa
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build Android APK/AAB project
+        working-directory: frontend-VexaAccount-user/packaging/android
+        run: ./gradlew assembleRelease bundleRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vexaaccount-android-release
+          path: |
+            frontend-VexaAccount-user/packaging/android/**/outputs/apk/release/*.apk
+            frontend-VexaAccount-user/packaging/android/**/outputs/bundle/release/*.aab
+
+  store-package-note:
+    needs: validate-pwa
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "PWA is validated and ready for PWABuilder packaging. Android can be built by Bubblewrap; iOS requires an Xcode/macOS build environment; Windows MSIX packaging is produced through PWABuilder's current Windows packaging service."
