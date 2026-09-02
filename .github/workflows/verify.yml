@@ -18,25 +18,47 @@ jobs:
         run: find backend/src -type f -name '*.js' -print0 | xargs -0 -n1 node --check
       - name: Check user frontend JavaScript syntax
         run: find frontend-VexaAccount-user/src -type f -name '*.js' -print0 | xargs -0 -n1 node --check
-      - name: Check super admin JavaScript syntax
+      - name: Check Super Admin JavaScript syntax
         run: find frontend-VexaAccount-Super-admin/src -type f -name '*.js' -print0 | xargs -0 -n1 node --check
-      - name: Enforce canonical user runtime entrypoint
+      - name: Enforce canonical user runtime entrypoint and clean tree
         run: |
           node <<'NODE'
           const fs=require('fs');
           const html=fs.readFileSync('frontend-VexaAccount-user/index.html','utf8');
-          const required=['account-center-fetch-guard.js','app.js','auth-session-bridge.js','account-center-toast-guard.js','vexa-notify-bridge.js','sso-frontend.js','account-center-loader.js'];
-          for(const file of required){if(!html.includes(file)){console.error('Missing canonical runtime script:',file);process.exit(1)}}
-          const forbidden=['app-v3.js','app-fixed.js','account-center-runtime.js','account-center-full-workflows.js','account-center-runtime-bridge.js','account-center-network-guard.js','notification-runtime.js','react-account-center-loader.js','account-center-live-metrics.js','account-center-ui-stability.js','vexatrade-toast-runtime.js','vexatrade-toast-compat.js'];
-          for(const file of forbidden){if(html.includes(file)){console.error('Legacy or overlapping runtime loaded by index:',file);process.exit(1)}}
+          const required=['account-center-fetch-guard.js','app.js','auth-session-bridge.js','account-center-toast-guard.js','vexa-notify-bridge.js','sso-frontend.js','account-center-loader.js','notification-live-runtime.js','pwa.js'];
+          for(const file of required){if(!html.includes(file)){console.error('Missing canonical user runtime script:',file);process.exit(1)}}
+          const forbidden=['app-v3.js','app-fixed.js','auth-flow-fix.js','account-center-runtime.js','account-center-full-workflows.js','account-center-runtime-bridge.js','account-center-runtime-fix.js','account-center-network-guard.js','account-center-hotfix.js','account-center-live-metrics.js','account-center-ui-stability.js','notification-runtime.js','react-account-center-loader.js','react-account-center.js','vexatrade-toast-runtime.js','vexatrade-toast-compat.js','account-center-action-wiring.js','account-center-enhancements.js'];
+          for(const file of forbidden){if(html.includes(file)){console.error('Legacy runtime loaded by user index:',file);process.exit(1)}}
           if((html.match(/account-center-fetch-guard\.js/g)||[]).length!==1){console.error('Fetch guard must load exactly once');process.exit(1)}
           NODE
-      - name: Enforce non-secret SSO config contract
+      - name: Enforce canonical Owner runtime and clean tree
         run: |
           node <<'NODE'
           const fs=require('fs');
-          const app=fs.readFileSync('frontend-VexaAccount-Super-admin/src/app.js','utf8');
-          const forbidden=/VEXA_ACCOUNT_SSO_CONFIG[^\n]{0,150}clientSecret|JSON\.stringify\(\{[^}]{0,250}clientSecret/;
-          if(forbidden.test(app)){ console.error('Client secret must not be embedded in VEXA_ACCOUNT_SSO_CONFIG'); process.exit(1); }
-          if(!app.includes('VEXA_ACCOUNT_CLIENT_SECRET')){ console.error('Separate client secret guidance is required'); process.exit(1); }
+          const html=fs.readFileSync('frontend-VexaAccount-Super-admin/index.html','utf8');
+          for(const file of ['owner-console-runtime.js','owner-control-center.js']){if(!html.includes(file)){console.error('Missing canonical Owner runtime:',file);process.exit(1)}}
+          const forbidden=['src/app.js','sso-control-upgrade.js','sso-create-wizard.js','sso-integration-patch.js','sso-receipt-security.js','user-management.js','support-control.js','platform-settings.js','react-notification-bridge.js','premium-interactions.js','vexatrade-notifications.js','vexatrade-notifications.css','user-management.css'];
+          for(const file of forbidden){if(html.includes(file)){console.error('Legacy Owner runtime loaded by index:',file);process.exit(1)}}
+          if(fs.existsSync('frontend-VexaAccount-Super-admin/src/app.js')){console.error('Legacy Owner app.js must not exist');process.exit(1)}
+          for(const file of ['sso-control-upgrade.js','sso-create-wizard.js','sso-integration-patch.js','sso-receipt-security.js','user-management.js','support-control.js','platform-settings.js']){if(fs.existsSync('frontend-VexaAccount-Super-admin/src/'+file)){console.error('Obsolete Owner file still exists:',file);process.exit(1)}}
+          NODE
+      - name: Enforce non-secret SSO configuration contract
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const file='frontend-VexaAccount-Super-admin/src/owner-console-runtime.js';
+          const app=fs.readFileSync(file,'utf8');
+          if(/clientJWT|clientJwt/.test(app)){console.error('Legacy client JWT credential aliases are forbidden');process.exit(1)}
+          if(/VEXA_ACCOUNT_SSO_CONFIG[^\n]{0,300}clientSecret/.test(app)){console.error('Client secret must not be embedded in VEXA_ACCOUNT_SSO_CONFIG');process.exit(1)}
+          if(/localStorage\.(setItem|getItem)\([^)]*clientSecret|sessionStorage\.(setItem|getItem)\([^)]*clientSecret/.test(app)){console.error('Client secret must not be stored in browser storage');process.exit(1)}
+          if(/location\.(href|assign|replace)[^;\n]*clientSecret/.test(app)){console.error('Client secret must not be placed in URLs');process.exit(1)}
+          if(!app.includes('VEXA_ACCOUNT_CLIENT_SECRET')){console.error('Separate client secret storage guidance is required');process.exit(1)}
+          NODE
+      - name: Verify root entrypoint is only a canonical redirect
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const html=fs.readFileSync('index.html','utf8');
+          if(!html.includes('./frontend-VexaAccount-user/')){console.error('Root entrypoint must redirect to the canonical user frontend');process.exit(1)}
+          if(fs.existsSync('src/account-center-loader.js')||fs.existsSync('src/account-center-fetch-guard.js')){console.error('Duplicate root Account Center runtime files must not exist');process.exit(1)}
           NODE
