@@ -1,7 +1,0 @@
-(()=>{
-'use strict';
-const API='https://api-vexaaccount.onrender.com';
-const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function inject(){const eyebrow=[...document.querySelectorAll('.eyebrow')].find(x=>/^USER #\d+$/i.test(x.textContent.trim()));if(!eyebrow||document.querySelector('#um-permanent-delete'))return;const id=eyebrow.textContent.trim().match(/\d+/)[0];const target=document.querySelector('.user-hero .badge');const b=document.createElement('button');b.id='um-permanent-delete';b.className='danger';b.textContent='Permanently delete account';b.title='Irreversible Owner action';(target?.parentElement||eyebrow.parentElement).appendChild(b);b.onclick=async()=>{const email=prompt('Permanent deletion. Type the user email exactly to confirm:');if(!email)return;if(!confirm('This permanently deletes the VexaAccount user and associated SSO/security/storage-control records. Continue?'))return;try{const r=await fetch(`${API}/api/owner/users/${id}`,{method:'DELETE',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmation:email})});const d=await r.json().catch(()=>({}));if(!r.ok||d.success===false)throw new Error(d.message||`Request failed: ${r.status}`);alert('User permanently deleted.');location.reload()}catch(e){alert(e.message)}}}
-window.addEventListener('load',()=>{inject();new MutationObserver(inject).observe(document.body,{childList:true,subtree:true})});
-})();
