@@ -1,18 +1,21 @@
 (()=>{
 'use strict';
-if(window.__VEXA_ACCOUNT_TOAST_GUARD_V1__)return;
-window.__VEXA_ACCOUNT_TOAST_GUARD_V1__=true;
-const MAX=4, DEDUPE_MS=1800, TTL=3600;
+if(window.__VEXA_ACCOUNT_TOAST_GUARD_V2__)return;
+window.__VEXA_ACCOUNT_TOAST_GUARD_V2__=true;
+const MAX=4, DEDUPE_MS=1800, TTL=3600, EXPLICIT_SETTING_WINDOW_MS=5000;
 const recent=new Map();
-let stack=null;
+let stack=null,lastTrustedActionAt=0;
 function getStack(){
   if(stack&&stack.isConnected)return stack;
   stack=document.getElementById('vx-toast-stack');
   if(!stack){stack=document.createElement('div');stack.id='vx-toast-stack';stack.className='vx-toast-stack';document.body.appendChild(stack)}
   return stack;
 }
+function rememberUserAction(e){if(e?.isTrusted)lastTrustedActionAt=Date.now()}
+for(const type of ['pointerdown','click','keydown','input','change','submit'])document.addEventListener(type,rememberUserAction,true);
 function show(message,type='info',duration=3200){
   const text=String(message??'').trim();if(!text)return null;
+  if(text.toLowerCase()==='setting updated'&&Date.now()-lastTrustedActionAt>EXPLICIT_SETTING_WINDOW_MS)return null;
   const key=`${type}:${text}`,now=Date.now(),last=recent.get(key)||0;
   if(now-last<DEDUPE_MS)return null;
   recent.set(key,now);
@@ -23,8 +26,7 @@ function show(message,type='info',duration=3200){
   node.textContent=text;
   host.appendChild(node);
   while(host.children.length>MAX)host.firstElementChild?.remove();
-  const timer=setTimeout(()=>{node.remove()},Math.max(500,duration));
-  node.dataset.vexaToastTimer=String(timer);
+  setTimeout(()=>node.remove(),Math.max(500,duration));
   return node;
 }
 window.vexaReactNotify={
