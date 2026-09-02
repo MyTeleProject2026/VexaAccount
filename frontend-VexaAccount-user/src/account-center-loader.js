@@ -9,13 +9,10 @@ const loadScript=(src,marker)=>new Promise((resolve,reject)=>{if(document.queryS
 let loading=false;
 function exposeRoot(){const r=document.getElementById('vexa-react-root'),a=document.getElementById('app');if(r)r.style.display='block';if(a)a.style.display='none'}
 async function load(){if(loading||window.__VEXA_ACCOUNT_CENTER_READY__||AUTH.test(location.hash||'')||!token())return;loading=true;exposeRoot();try{
-  // Install the bounded notification bridge first. The canonical runtime can then
-  // never fall back to an unbounded DOM toast stack during early bootstrap.
-  await loadScript('./src/account-center-toast-guard.js?v=20260903-01','account-center-toast-guard.js');
-  // One canonical Account Center runtime. Legacy workflow runtimes are deliberately
-  // excluded because their observers/intervals can re-route an already-rendered page.
-  await loadScript('./src/account-center-runtime-v2.js?v=20260903-01','account-center-runtime-v2.js');
-  await loadScript('./src/account-center-v2-compat.js?v=20260903-01','account-center-v2-compat.js');
+  await loadScript('./src/account-center-toast-guard.js?v=20260903-02','account-center-toast-guard.js');
+  // Canonical Account Center runtime only. Legacy workflow runtimes are intentionally not loaded.
+  await loadScript('./src/account-center-runtime-v2.js?v=20260903-02','account-center-runtime-v2.js');
+  await loadScript('./src/account-center-v2-compat.js?v=20260903-02','account-center-v2-compat.js');
   window.__VEXA_ACCOUNT_CENTER_READY__=true;
 }catch(e){console.error('[VexaAccount] Account Center canonical runtime failed to load',e)}finally{loading=false}}
 function schedule(){clearTimeout(window.__VEXA_ACCOUNT_RUNTIME_TIMER__);window.__VEXA_ACCOUNT_RUNTIME_TIMER__=setTimeout(load,0)}
