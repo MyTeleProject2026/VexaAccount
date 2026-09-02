@@ -1,13 +1,17 @@
 name: VexaAccount production E2E
+
 on:
   workflow_dispatch:
   schedule:
     - cron: '17 * * * *'
+
+permissions:
+  contents: read
+
 jobs:
   smoke:
+    name: Deployed API smoke
     runs-on: ubuntu-latest
-    env:
-      HAS_AUTH_E2E: ${{ secrets.VEXA_E2E_USER_EMAIL != '' && secrets.VEXA_E2E_USER_PASSWORD != '' && secrets.VEXA_E2E_OWNER_EMAIL != '' && secrets.VEXA_E2E_OWNER_PASSWORD != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -17,7 +21,38 @@ jobs:
         env:
           VEXA_ACCOUNT_BASE_URL: https://api-vexaaccount.onrender.com
         run: node scripts/e2e-production-smoke.js
-      - name: Run authenticated support-to-notification E2E
+
+  authenticated:
+    name: Authenticated user-owner-notification E2E
+    runs-on: ubuntu-latest
+    env:
+      HAS_AUTH_E2E: ${{ secrets.VEXA_E2E_USER_EMAIL != '' && secrets.VEXA_E2E_USER_PASSWORD != '' && secrets.VEXA_E2E_OWNER_EMAIL != '' && secrets.VEXA_E2E_OWNER_PASSWORD != '' }}
+    steps:
+      - name: Require dedicated production credentials for manual certification
+        if: ${{ github.event_name == 'workflow_dispatch' && env.HAS_AUTH_E2E != 'true' }}
+        run: |
+          echo 'Authenticated production certification cannot run yet.'
+          echo 'Configure all four repository or environment secrets:'
+          echo '  VEXA_E2E_USER_EMAIL'
+          echo '  VEXA_E2E_USER_PASSWORD'
+          echo '  VEXA_E2E_OWNER_EMAIL'
+          echo '  VEXA_E2E_OWNER_PASSWORD'
+          exit 1
+
+      - name: Skip authenticated certification on scheduled smoke-only runs
+        if: ${{ github.event_name == 'schedule' && env.HAS_AUTH_E2E != 'true' }}
+        run: |
+          echo 'Scheduled production smoke passed/continues independently.'
+          echo 'Authenticated certification is skipped because the four dedicated E2E secrets are not configured.'
+          echo 'Run this workflow manually after configuring the credentials to obtain authenticated production certification.'
+
+      - uses: actions/checkout@v4
+        if: ${{ env.HAS_AUTH_E2E == 'true' }}
+      - uses: actions/setup-node@v4
+        if: ${{ env.HAS_AUTH_E2E == 'true' }}
+        with:
+          node-version: 20
+      - name: Run authenticated production support-to-notification E2E
         if: ${{ env.HAS_AUTH_E2E == 'true' }}
         env:
           VEXA_ACCOUNT_BASE_URL: https://api-vexaaccount.onrender.com
@@ -26,11 +61,14 @@ jobs:
           VEXA_E2E_OWNER_EMAIL: ${{ secrets.VEXA_E2E_OWNER_EMAIL }}
           VEXA_E2E_OWNER_PASSWORD: ${{ secrets.VEXA_E2E_OWNER_PASSWORD }}
         run: node scripts/e2e-support-notification.js
-      - name: Report authenticated E2E configuration status
+
+      - name: Report authenticated production certification status
         if: ${{ always() }}
         run: |
           if [ "$HAS_AUTH_E2E" = "true" ]; then
-            echo "Authenticated production support/notification E2E was configured for this run."
+            echo 'Authenticated production E2E executed against the deployed API.'
+          elif [ "$GITHUB_EVENT_NAME" = 'workflow_dispatch' ]; then
+            echo 'Manual authenticated production certification was blocked because credentials are missing.'
           else
-            echo "Authenticated production support/notification E2E was skipped because its four test credentials are not configured."
+            echo 'Scheduled run performed smoke verification only; authenticated certification was not claimed.'
           fi
