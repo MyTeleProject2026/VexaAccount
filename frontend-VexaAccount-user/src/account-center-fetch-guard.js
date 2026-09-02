@@ -1,11 +1,12 @@
 (()=>{
   'use strict';
-  if(window.__VEXA_ACCOUNT_CENTER_FETCH_GUARD_V2__) return;
-  window.__VEXA_ACCOUNT_CENTER_FETCH_GUARD_V2__=true;
+  if(window.__VEXA_ACCOUNT_CENTER_FETCH_GUARD_V3__) return;
+  window.__VEXA_ACCOUNT_CENTER_FETCH_GUARD_V3__=true;
 
   const nativeFetch=window.fetch.bind(window);
   const inflight=new Map();
   const cache=new Map();
+  const cooldown=new Map();
   const ACCOUNT=/^https?:\/\/[^/]+\/api\/account\//i;
   const SETTINGS=/\/api\/account\/settings(?:\?|$)/i;
   const allowedSettings=new Set([
@@ -13,7 +14,13 @@
     'location_sharing_enabled','personalization_enabled','activity_history_enabled',
     'service_activity_enabled','communication_enabled'
   ]);
-  const CACHE_MS=5000;
+
+  // Account Center pages are rendered from the same authenticated snapshot. A short
+  // cache is useful, but a 5s window was still small enough for navigation/live-refresh
+  // handlers to create repeated bursts. Keep reads stable for 30s and never auto-retry.
+  const CACHE_MS=30000;
+  const STALE_MS=120000;
+  const RATE_LIMIT_COOLDOWN_MS=15000;
 
   const urlOf=input=>typeof input==='string'?input:(input?.url||'');
   const methodOf=(input,init)=>String(init?.method||(typeof input!=='string'?input?.method:'')||'GET').toUpperCase();
@@ -40,6 +47,13 @@
       return keys.length>0 && keys.every(k=>!allowedSettings.has(k));
     }catch{return false}
   }
+  function cachedResponse(key,allowStale=false){
+    const item=cache.get(key);
+    if(!item) return null;
+    const age=Date.now()-item.at;
+    if(age<=CACHE_MS || (allowStale&&age<=STALE_MS)) return responseFrom(item);
+    return null;
+  }
 
   window.fetch=async(input,init={})=>{
     const url=urlOf(input);
@@ -53,27 +67,49 @@
     }
 
     if(!ACCOUNT.test(url)||method!=='GET'){
-      if(ACCOUNT.test(url)&&method!=='GET'){
-        // Any successful mutation invalidates cached account reads so the next render sees fresh state.
-        for(const key of cache.keys()) cache.delete(key);
-      }
+      if(ACCOUNT.test(url)&&method!=='GET') cache.clear();
       return nativeFetch(input,init);
     }
 
     const key=keyOf(method,url);
     const now=Date.now();
-    const cached=cache.get(key);
-    if(cached && now-cached.at<CACHE_MS) return responseFrom(cached);
 
+    // Serve a recent authenticated snapshot instead of hitting the API again.
+    const fresh=cachedResponse(key);
+    if(fresh) return fresh;
+
+    // Coalesce duplicate reads that are already in flight.
     if(inflight.has(key)) return responseFrom(await inflight.get(key));
 
+    // A 429 starts a small client-side quiet period. During that period use the
+    // last successful response when available instead of creating another burst.
+    const quietUntil=cooldown.get(key)||0;
+    if(now<quietUntil){
+      const stale=cachedResponse(key,true);
+      if(stale) return stale;
+      return new Response(JSON.stringify({success:false,message:'Account data is temporarily rate-limited. Please wait a moment.'}),{
+        status:429,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Retry-After':String(Math.ceil((quietUntil-now)/1000))}
+      });
+    }
+
     const promise=(async()=>{
-      // Do not retry account reads automatically. A retry storm is what turns a temporary
-      // browser/network problem into ERR_INSUFFICIENT_RESOURCES and 429 responses.
-      const response=await nativeFetch(input,init);
-      const snap=await snapshot(response);
-      if(response.ok) cache.set(key,{...snap,at:Date.now()});
-      return snap;
+      try{
+        const response=await nativeFetch(input,init);
+        const snap=await snapshot(response);
+        if(response.ok){
+          cache.set(key,{...snap,at:Date.now()});
+          cooldown.delete(key);
+        }else if(response.status===429){
+          cooldown.set(key,Date.now()+RATE_LIMIT_COOLDOWN_MS);
+        }
+        return snap;
+      }catch(error){
+        // Do not retry network failures automatically. Keep the last successful
+        // account snapshot usable during transient browser/network failures.
+        const stale=cache.get(key);
+        if(stale&&Date.now()-stale.at<=STALE_MS) return stale;
+        throw error;
+      }
     })();
 
     inflight.set(key,promise);
