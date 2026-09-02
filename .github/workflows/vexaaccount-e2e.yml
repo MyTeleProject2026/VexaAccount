@@ -1,0 +1,17 @@
+name: VexaAccount production E2E smoke
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run deployed API and security smoke checks
+        env:
+          VEXA_ACCOUNT_BASE_URL: https://api-vexaaccount.onrender.com
+        run: node scripts/e2e-production-smoke.js
