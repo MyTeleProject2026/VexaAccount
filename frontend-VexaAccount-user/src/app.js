@@ -1,32 +1,59 @@
-/* VexaAccount canonical authentication/session bootstrap. */
+/* VexaAccount canonical auth bootstrap + auth-route renderer. */
 (()=>{
 'use strict';
-if(window.__VEXA_ACCOUNT_RUNTIME_LOADING__)return;
-window.__VEXA_ACCOUNT_RUNTIME_LOADING__=true;
+if(window.__VEXA_ACCOUNT_AUTH_BOOTSTRAP__)return;
+window.__VEXA_ACCOUNT_AUTH_BOOTSTRAP__=true;
+const API=window.VEXA_ACCOUNT_API_BASE||'https://api-vexaaccount.onrender.com';
 const PRIMARY_KEY='vexaaccount_access_token';
 const LEGACY_KEYS=['vexa_access_token','access_token','token','userToken','accessToken'];
-const read=(store,key)=>{try{const value=store.getItem(key);return value&&String(value).trim()?String(value).trim():null}catch{return null}};
+const AUTH=/^#\/(login|signin|register|forgot-password|verify-email|reset-password|login-2fa)(?:[/?]|$)/i;
+const q=(s,r=document)=>r.querySelector(s);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const read=(store,key)=>{try{const v=store.getItem(key);return v&&String(v).trim()?String(v).trim():null}catch{return null}};
 const getToken=()=>read(localStorage,PRIMARY_KEY)||read(sessionStorage,PRIMARY_KEY)||LEGACY_KEYS.map(k=>read(localStorage,k)||read(sessionStorage,k)).find(Boolean)||null;
-const saveToken=token=>{if(!token||typeof token!=='string'||!token.trim())return;try{localStorage.setItem(PRIMARY_KEY,token.trim())}catch{try{sessionStorage.setItem(PRIMARY_KEY,token.trim())}catch{}}};
+const saveToken=token=>{if(!token||typeof token!=='string'||!token.trim())return;try{localStorage.setItem(PRIMARY_KEY,token.trim());sessionStorage.removeItem(PRIMARY_KEY)}catch{try{sessionStorage.setItem(PRIMARY_KEY,token.trim())}catch{}}};
 const clearToken=()=>{for(const store of [localStorage,sessionStorage])for(const key of [PRIMARY_KEY,...LEGACY_KEYS]){try{store.removeItem(key)}catch{}}};
-const pickToken=data=>data?.token||data?.accessToken||data?.access_token||data?.data?.token||data?.data?.accessToken||data?.data?.access_token||data?.session?.token||null;
-const previousFetch=window.fetch.bind(window);
+const pickToken=d=>d?.token||d?.accessToken||d?.access_token||d?.data?.token||d?.data?.accessToken||d?.data?.access_token||d?.session?.token||null;
+const baseFetch=window.fetch.bind(window);
 window.fetch=async(input,init={})=>{
-  const url=typeof input==='string'?input:(input&&input.url)||'';
-  const headers=new Headers(init.headers||{});
-  const token=getToken();
-  if(token&&/\/api\//.test(url)&&!headers.has('Authorization'))headers.set('Authorization','Bearer '+token);
-  const response=await previousFetch(input,{...init,headers});
-  if(/\/api\//.test(url)){
-    try{const data=await response.clone().json();const fresh=pickToken(data);if(fresh)saveToken(String(fresh))}catch{}
-  }
-  if(/\/api\/auth\/logout(?:\?|$)/.test(url)&&response.ok)clearToken();
-  return response;
+ const url=typeof input==='string'?input:(input&&input.url)||'';
+ const headers=new Headers(init.headers||{});const token=getToken();
+ if(token&&/\/api\//.test(url)&&!headers.has('Authorization'))headers.set('Authorization','Bearer '+token);
+ const response=await baseFetch(input,{...init,headers});
+ if(/\/api\//.test(url)){try{const d=await response.clone().json();const fresh=pickToken(d);if(fresh)saveToken(String(fresh))}catch{}}
+ if(/\/api\/auth\/logout(?:\?|$)/.test(url)&&response.ok){clearToken();window.dispatchEvent(new Event('vexa-auth-cleared'))}
+ return response;
 };
 window.vexaAccountAuth={getToken,saveToken,clearToken};
+const app=()=>q('#app');
+async function api(path,opt={}){
+ const r=await fetch(API+path,{credentials:'include',...opt,headers:{'Content-Type':'application/json',...(opt.headers||{})}});
+ const d=await r.json().catch(()=>({success:false,message:'The server returned an invalid response.'}));
+ if(r.status===401)throw Object.assign(new Error(d.message||'Your session has expired.'),{auth:true});
+ if(!r.ok||d.success===false)throw Error(d.message||`Request failed (${r.status})`);
+ const token=pickToken(d);if(token)saveToken(String(token));return d;
+}
+function notify(message,type='info'){if(typeof window.vexaNotify==='function')window.vexaNotify(message,type);else{let box=q('.toast-stack');if(!box){box=document.createElement('div');box.className='toast-stack';document.body.appendChild(box)}const x=document.createElement('div');x.className=`vx-toast ${type}`;x.textContent=message;box.appendChild(x);setTimeout(()=>x.remove(),3500)}}
+function auth(title,lead,body){app().innerHTML=`<main class="auth"><section class="auth-card"><img class="logo" src="./public/brand.svg" alt="VexaAccount"><p class="eyebrow">VEXA ACCOUNT</p><h1>${title}</h1><p class="lead">${lead}</p>${body}</section></main>`}
+const message=t=>{const e=q('#message');if(e){e.textContent=t||'';e.className='message show '+(t&&/success|sent|verified/i.test(t)?'success':'')}};
+function login(){
+ auth('Welcome back','Sign in to securely manage your Vexa identity and connected apps.',`<form id="auth-form" class="auth-form"><label class="field">Email<input name="email" type="email" autocomplete="email" required placeholder="you@example.com"></label><label class="field">Password<input name="password" type="password" autocomplete="current-password" required placeholder="Enter your password"></label><div class="auth-row"><a href="#/forgot-password">Forgot password?</a></div><button class="submit" type="submit">Sign in</button><p id="message" class="message" role="alert"></p></form><div class="links"><span>Don't have an account?</span><a href="#/register">Create one</a></div><div class="links"><a href="#/help">Help with signing in</a></div>`);
+ q('#auth-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.currentTarget),b=q('button',e.currentTarget);b.disabled=true;message('Signing in…');try{const d=await api('/api/auth/login',{method:'POST',body:JSON.stringify({email:String(f.get('email')).trim(),password:String(f.get('password'))})});if(d.requiresAuthenticator2fa||d.requiresEmail2fa){otp(d.requiresEmail2fa?'email':'authenticator',d.userId,String(f.get('email')).trim());return}if(!getToken())throw Error('Sign-in succeeded but no access session was returned. Please try again.');location.hash='#/';window.dispatchEvent(new Event('vexa-auth-ready'));}catch(x){const email=String(f.get('email')||'').trim().toLowerCase();if(/verify.*email|email.*verify|not verified/i.test(x.message||'')){location.hash='#/verify-email?email='+encodeURIComponent(email);return}message(x.message||'Unable to sign in.');b.disabled=false}};
+}
+function register(){auth('Create your VexaAccount','One secure identity for your connected Vexa services.',`<form id="auth-form" class="auth-form"><label class="field">Full name<input name="name" autocomplete="name" required></label><label class="field">Email<input name="email" type="email" autocomplete="email" required></label><label class="field">Password<input name="password" type="password" autocomplete="new-password" minlength="8" required></label><label class="field">Confirm password<input name="confirm" type="password" autocomplete="new-password" minlength="8" required></label><button class="submit" type="submit">Create account</button><p id="message" class="message" role="alert"></p></form><div class="links"><span>Already have an account?</span><a href="#/login">Sign in</a></div>`);q('#auth-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.currentTarget),p=String(f.get('password')),email=String(f.get('email')).trim().toLowerCase();if(p!==String(f.get('confirm')))return message('Passwords do not match.');const b=q('button',e.currentTarget);b.disabled=true;message('Creating your account…');try{await api('/api/auth/register',{method:'POST',body:JSON.stringify({name:String(f.get('name')).trim(),email,password:p})});location.hash='#/verify-email?email='+encodeURIComponent(email)}catch(x){message(x.message);b.disabled=false}}}
+function verify(email){auth('Verify your email','Enter the 6-digit code sent to your email.',`<form id="auth-form" class="auth-form"><label class="field">Email<input name="email" id="verifyEmail" type="email" autocomplete="email" value="${esc(email)}" required></label><label class="field">Verification code<input name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required placeholder="000000"></label><button class="submit" type="submit">Verify email</button><p id="message" class="message" role="alert"></p></form><div class="links"><button id="resend" type="button" class="link-button">Resend code</button><a href="#/login">Back to sign in</a></div>`);q('#auth-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.currentTarget),b=q('button',e.currentTarget);b.disabled=true;try{const d=await api('/api/auth/verify-otp',{method:'POST',body:JSON.stringify({email:String(f.get('email')).trim(),otp:String(f.get('otp')).trim()})});notify(d.message||'Email verified successfully.','success');location.hash='#/';window.dispatchEvent(new Event('vexa-auth-ready'))}catch(x){message(x.message);b.disabled=false}};q('#resend').onclick=async()=>{const email=String(q('#verifyEmail').value||'').trim().toLowerCase();if(!email)return message('Enter your email address first.');try{await api('/api/auth/resend-otp',{method:'POST',body:JSON.stringify({email})});message('A new verification code was sent.')}catch(x){message(x.message)}}}
+function otp(type,userId,email){auth('Verify your sign-in',type==='email'?'Enter the code sent to your email.':'Enter the code from your authenticator app.',`<form id="auth-form" class="auth-form"><label class="field">${type==='email'?'Verification code':'Authenticator code'}<input name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required placeholder="000000"></label><button class="submit">Verify and continue</button><p id="message" class="message" role="alert"></p></form><div class="links"><a href="#/login">Cancel</a>${type==='email'?'<button id="resend" type="button" class="link-button">Resend code</button>':''}</div>`);q('#auth-form').onsubmit=async e=>{e.preventDefault();const code=String(new FormData(e.currentTarget).get('otp')).trim(),b=q('button',e.currentTarget);b.disabled=true;try{await api(type==='email'?'/api/auth/verify-email-2fa':'/api/auth/twofa/verify',{method:'POST',body:JSON.stringify(type==='email'?{userId,email,otp:code}:{userId,token:code})});if(!getToken())throw Error('Verification succeeded but no access session was returned. Please sign in again.');location.hash='#/';window.dispatchEvent(new Event('vexa-auth-ready'))}catch(x){message(x.message);b.disabled=false}};if(type==='email')q('#resend').onclick=async()=>{try{await api('/api/auth/resend-email-2fa',{method:'POST',body:JSON.stringify({userId,email})});message('A new verification code was sent.')}catch(x){message(x.message)}}}
+function forgot(){auth('Reset your password','Enter your email and we will send a secure reset link.',`<form id="auth-form" class="auth-form"><label class="field">Email<input name="email" type="email" autocomplete="email" required placeholder="you@example.com"></label><button class="submit">Send reset link</button><p id="message" class="message" role="alert"></p></form><div class="links"><a href="#/login">Back to sign in</a></div>`);q('#auth-form').onsubmit=async e=>{e.preventDefault();const email=String(new FormData(e.currentTarget).get('email')).trim();const b=q('button',e.currentTarget);b.disabled=true;try{const d=await api('/api/auth/forgot-password',{method:'POST',body:JSON.stringify({email})});message(d.message||'If the email is registered, a reset link will be sent.')}catch(x){message(x.message)}finally{b.disabled=false}}}
+function reset(token){if(!token)return forgot();auth('Choose a new password','Create a strong password with at least 8 characters.',`<form id="auth-form" class="auth-form"><label class="field">New password<input name="password" type="password" autocomplete="new-password" minlength="8" required></label><label class="field">Confirm password<input name="confirm" type="password" autocomplete="new-password" minlength="8" required></label><button class="submit">Reset password</button><p id="message" class="message" role="alert"></p></form><div class="links"><a href="#/login">Back to sign in</a></div>`);q('#auth-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.currentTarget),p=String(f.get('password'));if(p!==String(f.get('confirm')))return message('Passwords do not match.');const b=q('button',e.currentTarget);b.disabled=true;try{const d=await api('/api/auth/reset-password',{method:'POST',body:JSON.stringify({token,newPassword:p})});message(d.message||'Password reset successfully.');setTimeout(()=>location.hash='#/login',1200)}catch(x){message(x.message);b.disabled=false}}}
+function help(){auth('Get help signing in','Use the recovery options below to regain secure access.',`<div class="help-grid"><a class="help-card" href="#/forgot-password"><b>Forgot password?</b><span>Reset your password by email.</span></a><a class="help-card" href="#/verify-email"><b>Verify email</b><span>Complete registration verification.</span></a><a class="help-card" href="#/login"><b>Try again</b><span>Return to secure sign in.</span></a></div>`)}
+function route(){const raw=location.hash||'#/login';const clean=raw.replace(/^#\//,'');const [path,query='']=clean.split('?');const params=new URLSearchParams(query);if(path==='login'||path==='signin')login();else if(path==='register')register();else if(path==='forgot-password')forgot();else if(path==='verify-email')verify(params.get('email')||'');else if(path==='reset-password')reset(params.get('token')||'');else if(path==='login-2fa')otp(params.get('type')==='email'?'email':'authenticator',params.get('userId')||'',params.get('email')||'');else if(path==='help')help()}
+function renderAuth(){if(AUTH.test(location.hash||'')){document.documentElement.classList.add('vexa-auth-route');if(q('#vexa-react-root'))q('#vexa-react-root').style.display='none';route()}}
+window.addEventListener('hashchange',renderAuth);
+window.addEventListener('vexa-auth-cleared',()=>{if(!AUTH.test(location.hash||''))location.hash='#/login';renderAuth()});
+window.addEventListener('vexa-auth-ready',()=>{if(AUTH.test(location.hash||''))return;window.dispatchEvent(new Event('vexa-account-route-change'))});
 try{
-  const hash=location.hash||'';
-  const authRoute=/^#\/(login|signin|register|forgot-password|verify-email|reset-password|login-2fa)(?:[/?]|$)/i;
-  if(!getToken()&&!authRoute.test(hash)&&!hash.startsWith('#/sso/authorize'))location.hash='#/login';
+ const hash=location.hash||'';
+ if(!getToken()&&!AUTH.test(hash)&&!hash.startsWith('#/sso/authorize'))location.hash='#/login';
+ else if(AUTH.test(hash))renderAuth();
 }catch{}
 })();
