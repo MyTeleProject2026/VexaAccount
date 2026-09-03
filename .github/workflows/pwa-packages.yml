@@ -37,10 +37,10 @@ jobs:
       USER_KEYSTORE_PASSWORD: ${{ secrets.VEXAACCOUNT_USER_KEYSTORE_PASSWORD }}
       USER_KEY_ALIAS: ${{ secrets.VEXAACCOUNT_USER_KEY_ALIAS }}
       USER_KEY_PASSWORD: ${{ secrets.VEXAACCOUNT_USER_KEY_PASSWORD }}
-      OWNER_KEYSTORE_PATH: ${{ github.workspace }}/.release-keystores/owner.jks
-      OWNER_KEYSTORE_PASSWORD: ${{ secrets.VEXAACCOUNT_OWNER_KEYSTORE_PASSWORD }}
-      OWNER_KEY_ALIAS: ${{ secrets.VEXAACCOUNT_OWNER_KEY_ALIAS }}
-      OWNER_KEY_PASSWORD: ${{ secrets.VEXAACCOUNT_OWNER_KEY_PASSWORD }}
+      SUPER_ADMIN_KEYSTORE_PATH: ${{ github.workspace }}/.release-keystores/super-admin.jks
+      SUPER_ADMIN_KEYSTORE_PASSWORD: ${{ secrets.VEXAACCOUNT_SUPER_ADMIN_KEYSTORE_PASSWORD }}
+      SUPER_ADMIN_KEY_ALIAS: ${{ secrets.VEXAACCOUNT_SUPER_ADMIN_KEY_ALIAS }}
+      SUPER_ADMIN_KEY_PASSWORD: ${{ secrets.VEXAACCOUNT_SUPER_ADMIN_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-java@v5
@@ -50,34 +50,42 @@ jobs:
       - uses: android-actions/setup-android@v4
       - name: Install Android SDK platform
         run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
-      - name: Restore release keystores
+      - name: Restore and verify release keystores
         env:
           USER_KEYSTORE_BASE64: ${{ secrets.VEXAACCOUNT_USER_KEYSTORE_BASE64 }}
-          OWNER_KEYSTORE_BASE64: ${{ secrets.VEXAACCOUNT_OWNER_KEYSTORE_BASE64 }}
+          SUPER_ADMIN_KEYSTORE_BASE64: ${{ secrets.VEXAACCOUNT_SUPER_ADMIN_KEYSTORE_BASE64 }}
         run: |
           set -euo pipefail
-          mkdir -p "$(dirname "$USER_KEYSTORE_PATH")" "$(dirname "$OWNER_KEYSTORE_PATH")"
+          : "${USER_KEYSTORE_BASE64:?Missing VEXAACCOUNT_USER_KEYSTORE_BASE64 repository secret}"
+          : "${USER_KEYSTORE_PASSWORD:?Missing VEXAACCOUNT_USER_KEYSTORE_PASSWORD repository secret}"
+          : "${USER_KEY_ALIAS:?Missing VEXAACCOUNT_USER_KEY_ALIAS repository secret}"
+          : "${USER_KEY_PASSWORD:?Missing VEXAACCOUNT_USER_KEY_PASSWORD repository secret}"
+          : "${SUPER_ADMIN_KEYSTORE_BASE64:?Missing VEXAACCOUNT_SUPER_ADMIN_KEYSTORE_BASE64 repository secret}"
+          : "${SUPER_ADMIN_KEYSTORE_PASSWORD:?Missing VEXAACCOUNT_SUPER_ADMIN_KEYSTORE_PASSWORD repository secret}"
+          : "${SUPER_ADMIN_KEY_ALIAS:?Missing VEXAACCOUNT_SUPER_ADMIN_KEY_ALIAS repository secret}"
+          : "${SUPER_ADMIN_KEY_PASSWORD:?Missing VEXAACCOUNT_SUPER_ADMIN_KEY_PASSWORD repository secret}"
+          mkdir -p "$(dirname "$USER_KEYSTORE_PATH")" "$(dirname "$SUPER_ADMIN_KEYSTORE_PATH")"
           printf '%s' "$USER_KEYSTORE_BASE64" | base64 --decode > "$USER_KEYSTORE_PATH"
-          printf '%s' "$OWNER_KEYSTORE_BASE64" | base64 --decode > "$OWNER_KEYSTORE_PATH"
-          chmod 600 "$USER_KEYSTORE_PATH" "$OWNER_KEYSTORE_PATH"
+          printf '%s' "$SUPER_ADMIN_KEYSTORE_BASE64" | base64 --decode > "$SUPER_ADMIN_KEYSTORE_PATH"
+          chmod 600 "$USER_KEYSTORE_PATH" "$SUPER_ADMIN_KEYSTORE_PATH"
           keytool -list -keystore "$USER_KEYSTORE_PATH" -storepass "$USER_KEYSTORE_PASSWORD" -alias "$USER_KEY_ALIAS" >/dev/null
-          keytool -list -keystore "$OWNER_KEYSTORE_PATH" -storepass "$OWNER_KEYSTORE_PASSWORD" -alias "$OWNER_KEY_ALIAS" >/dev/null
-          echo "Release keystores and aliases verified."
+          keytool -list -keystore "$SUPER_ADMIN_KEYSTORE_PATH" -storepass "$SUPER_ADMIN_KEYSTORE_PASSWORD" -alias "$SUPER_ADMIN_KEY_ALIAS" >/dev/null
+          echo "VexaAccount User and Super Admin release keystores and aliases verified."
       - name: Build VexaAccount User APK/AAB
         working-directory: packaging/android
         run: |
           chmod +x ./gradlew
           ./gradlew assembleUserRelease bundleUserRelease
-      - name: Build VexaAccount Owner APK/AAB
+      - name: Build VexaAccount Super Admin APK/AAB
         working-directory: packaging/android
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleOwnerRelease bundleOwnerRelease
+          ./gradlew assembleSuperAdminRelease bundleSuperAdminRelease
       - name: Verify release binaries
         working-directory: packaging/android
         run: |
           set -euo pipefail
-          for pattern in 'app/build/outputs/apk/user/release/*.apk' 'app/build/outputs/apk/owner/release/*.apk' 'app/build/outputs/bundle/userRelease/*.aab' 'app/build/outputs/bundle/ownerRelease/*.aab'; do
+          for pattern in 'app/build/outputs/apk/user/release/*.apk' 'app/build/outputs/apk/superAdmin/release/*.apk' 'app/build/outputs/bundle/userRelease/*.aab' 'app/build/outputs/bundle/superAdminRelease/*.aab'; do
             matches=( $pattern )
             [ -e "${matches[0]}" ] || { echo "Missing release binary: $pattern" >&2; exit 1; }
           done
@@ -92,11 +100,11 @@ jobs:
           if-no-files-found: error
           path: |
             packaging/android/app/build/outputs/apk/user/release/*.apk
-            packaging/android/app/build/outputs/apk/owner/release/*.apk
+            packaging/android/app/build/outputs/apk/superAdmin/release/*.apk
             packaging/android/app/build/outputs/bundle/userRelease/*.aab
-            packaging/android/app/build/outputs/bundle/ownerRelease/*.aab
+            packaging/android/app/build/outputs/bundle/superAdminRelease/*.aab
   store-package-note:
     needs: validate-pwa
     runs-on: ubuntu-latest
     steps:
-      - run: echo "PWA validation and native Android APK/AAB packaging are configured for the VexaAccount web applications."
+      - run: echo "PWA validation and native Android APK/AAB packaging are configured for the VexaAccount User and Super Admin applications."
