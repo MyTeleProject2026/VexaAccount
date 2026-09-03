@@ -6,38 +6,69 @@ def signingEnv = { String name ->
     value
 }
 
-def releaseSigning = { String flavor ->
-    def prefix = flavor.toUpperCase(Locale.ROOT)
-    def storePath = signingEnv("${prefix}_KEYSTORE_PATH")
-    def storePassword = signingEnv("${prefix}_KEYSTORE_PASSWORD")
-    def keyAlias = signingEnv("${prefix}_KEY_ALIAS")
-    def keyPassword = signingEnv("${prefix}_KEY_PASSWORD")
-    signingConfigs.create("${flavor}Release") {
-        storeFile file(storePath)
-        storePassword storePassword
-        keyAlias keyAlias
-        keyPassword keyPassword
-        enableV1Signing true
-        enableV2Signing true
-        enableV3Signing true
-        enableV4Signing true
-    }
-}
-
 android {
     namespace 'com.mytele.vexaaccount.android'
     compileSdk 36
-    defaultConfig { minSdk 24; targetSdk 36; versionCode 1; versionName '1.0.0' }
+    defaultConfig {
+        minSdk 24
+        targetSdk 36
+        versionCode 1
+        versionName '1.0.0'
+    }
+
     flavorDimensions += 'surface'
-    productFlavors {
-        user { dimension 'surface'; applicationId 'com.mytele.vexaaccount.user'; resValue 'string','app_name','VexaAccount'; buildConfigField 'String','WEB_APP_URL','"' + (project.findProperty('userWebAppUrl') ?: 'https://vexaaccount-management.onrender.com') + '"' }
-        owner { dimension 'surface'; applicationId 'com.mytele.vexaaccount.owner'; resValue 'string','app_name','VexaAccount Owner Control Center'; buildConfigField 'String','WEB_APP_URL','"' + (project.findProperty('ownerWebAppUrl') ?: 'https://vexaaccount-super-admin.onrender.com') + '"' }
-    }
+
     signingConfigs {
-        userRelease { def p = System.getenv('USER_KEYSTORE_PATH'); if (!p) throw new GradleException('USER_KEYSTORE_PATH is required for release signing'); storeFile file(p); storePassword signingEnv('USER_KEYSTORE_PASSWORD'); keyAlias signingEnv('USER_KEY_ALIAS'); keyPassword signingEnv('USER_KEY_PASSWORD'); enableV1Signing true; enableV2Signing true; enableV3Signing true; enableV4Signing true }
-        ownerRelease { def p = System.getenv('OWNER_KEYSTORE_PATH'); if (!p) throw new GradleException('OWNER_KEYSTORE_PATH is required for release signing'); storeFile file(p); storePassword signingEnv('OWNER_KEYSTORE_PASSWORD'); keyAlias signingEnv('OWNER_KEY_ALIAS'); keyPassword signingEnv('OWNER_KEY_PASSWORD'); enableV1Signing true; enableV2Signing true; enableV3Signing true; enableV4Signing true }
+        userRelease {
+            def p = System.getenv('USER_KEYSTORE_PATH')
+            if (!p) throw new GradleException('USER_KEYSTORE_PATH is required for release signing')
+            storeFile file(p)
+            storePassword signingEnv('USER_KEYSTORE_PASSWORD')
+            keyAlias signingEnv('USER_KEY_ALIAS')
+            keyPassword signingEnv('USER_KEY_PASSWORD')
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
+            enableV4Signing true
+        }
+        ownerRelease {
+            def p = System.getenv('OWNER_KEYSTORE_PATH')
+            if (!p) throw new GradleException('OWNER_KEYSTORE_PATH is required for release signing')
+            storeFile file(p)
+            storePassword signingEnv('OWNER_KEYSTORE_PASSWORD')
+            keyAlias signingEnv('OWNER_KEY_ALIAS')
+            keyPassword signingEnv('OWNER_KEY_PASSWORD')
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
+            enableV4Signing true
+        }
     }
-    buildTypes { release { minifyEnabled false } }
-    applicationVariants.all { variant -> if (variant.buildType.name == 'release') { variant.signingConfig = signingConfigs.findByName("${variant.flavorName}Release") } }
-    buildFeatures { buildConfig true }
+
+    productFlavors {
+        user {
+            dimension 'surface'
+            applicationId 'com.mytele.vexaaccount.user'
+            signingConfig signingConfigs.userRelease
+            resValue 'string', 'app_name', 'VexaAccount'
+            buildConfigField 'String', 'WEB_APP_URL', '"' + (project.findProperty('userWebAppUrl') ?: 'https://vexaaccount-management.onrender.com') + '"'
+        }
+        owner {
+            dimension 'surface'
+            applicationId 'com.mytele.vexaaccount.owner'
+            signingConfig signingConfigs.ownerRelease
+            resValue 'string', 'app_name', 'VexaAccount Owner Control Center'
+            buildConfigField 'String', 'WEB_APP_URL', '"' + (project.findProperty('ownerWebAppUrl') ?: 'https://vexaaccount-super-admin.onrender.com') + '"'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
 }
