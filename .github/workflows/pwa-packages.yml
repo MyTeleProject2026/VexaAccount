@@ -65,8 +65,13 @@ jobs:
           : "${OWNER_KEY_ALIAS:?Missing VEXAACCOUNT_SUPER_ADMIN_KEY_ALIAS repository secret}"
           : "${OWNER_KEY_PASSWORD:?Missing VEXAACCOUNT_SUPER_ADMIN_KEY_PASSWORD repository secret}"
           mkdir -p "$(dirname "$USER_KEYSTORE_PATH")" "$(dirname "$OWNER_KEYSTORE_PATH")"
-          printf '%s' "$USER_KEYSTORE_BASE64" | base64 --decode > "$USER_KEYSTORE_PATH"
-          printf '%s' "$OWNER_KEYSTORE_BASE64" | base64 --decode > "$OWNER_KEYSTORE_PATH"
+          decode_keystore() {
+            local encoded="$1"
+            local output="$2"
+            printf '%s' "$encoded" | tr -d '[:space:]' | base64 --decode > "$output"
+          }
+          decode_keystore "$USER_KEYSTORE_BASE64" "$USER_KEYSTORE_PATH"
+          decode_keystore "$OWNER_KEYSTORE_BASE64" "$OWNER_KEYSTORE_PATH"
           chmod 600 "$USER_KEYSTORE_PATH" "$OWNER_KEYSTORE_PATH"
           keytool -list -keystore "$USER_KEYSTORE_PATH" -storepass "$USER_KEYSTORE_PASSWORD" -alias "$USER_KEY_ALIAS" >/dev/null
           keytool -list -keystore "$OWNER_KEYSTORE_PATH" -storepass "$OWNER_KEYSTORE_PASSWORD" -alias "$OWNER_KEY_ALIAS" >/dev/null
