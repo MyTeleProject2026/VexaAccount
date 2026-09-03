@@ -68,7 +68,18 @@ jobs:
           decode_keystore() {
             local encoded="$1"
             local output="$2"
-            printf '%s' "$encoded" | tr -d '[:space:]' | base64 --decode > "$output"
+            encoded="$(printf '%s' "$encoded" | tr -d '[:space:]')"
+            encoded="${encoded//-/+}"
+            encoded="${encoded//_//}"
+            [ -n "$encoded" ] || { echo "Keystore Base64 value is empty." >&2; return 1; }
+            case $(( ${#encoded} % 4 )) in
+              0) ;;
+              2) encoded="${encoded}==" ;;
+              3) encoded="${encoded}=" ;;
+              *) echo "Keystore Base64 has invalid length." >&2; return 1 ;;
+            esac
+            printf '%s' "$encoded" | base64 --decode > "$output"
+            [ -s "$output" ] || { echo "Decoded keystore is empty." >&2; return 1; }
           }
           decode_keystore "$USER_KEYSTORE_BASE64" "$USER_KEYSTORE_PATH"
           decode_keystore "$OWNER_KEYSTORE_BASE64" "$OWNER_KEYSTORE_PATH"
