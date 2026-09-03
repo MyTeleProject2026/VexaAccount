@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+GRADLE_VERSION="8.9"
+CACHE="${GRADLE_USER_HOME:-$HOME/.gradle}/wrapper/dists/custom-gradle-${GRADLE_VERSION}"
+DIST="$CACHE/gradle-${GRADLE_VERSION}"
+if [ ! -x "$DIST/bin/gradle" ]; then
+  mkdir -p "$CACHE"
+  archive="$CACHE/gradle.zip"
+  curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -o "$archive"
+  rm -rf "$DIST" "$CACHE/gradle-${GRADLE_VERSION}"
+  unzip -q "$archive" -d "$CACHE"
+  rm -f "$archive"
+fi
+exec "$DIST/bin/gradle" -p "$ROOT" "$@"
