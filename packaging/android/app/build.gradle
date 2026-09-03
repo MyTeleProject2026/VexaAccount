@@ -2,33 +2,13 @@ plugins { id 'com.android.application' }
 
 android {
     namespace 'com.mytele.vexaaccount.android'
-    compileSdk 35
-
-    defaultConfig {
-        minSdk 24
-        targetSdk 35
-        versionCode 1
-        versionName '1.0.0'
-    }
-
+    compileSdk 36
+    defaultConfig { minSdk 24; targetSdk 36; versionCode 1; versionName '1.0.0' }
     flavorDimensions += 'surface'
     productFlavors {
-        user {
-            dimension 'surface'
-            applicationId 'com.mytele.vexaaccount.user'
-            resValue 'string', 'app_name', 'VexaAccount'
-            buildConfigField 'String', 'WEB_APP_URL', '"' + (project.findProperty('userWebAppUrl') ?: 'https://vexaaccount-management.onrender.com') + '"'
-        }
-        owner {
-            dimension 'surface'
-            applicationId 'com.mytele.vexaaccount.owner'
-            resValue 'string', 'app_name', 'VexaAccount Owner Control Center'
-            buildConfigField 'String', 'WEB_APP_URL', '"' + (project.findProperty('ownerWebAppUrl') ?: 'https://vexaaccount-super-admin.onrender.com') + '"'
-        }
+        user { dimension 'surface'; applicationId 'com.mytele.vexaaccount.user'; resValue 'string','app_name','VexaAccount'; buildConfigField 'String','WEB_APP_URL','"' + (project.findProperty('userWebAppUrl') ?: 'https://vexaaccount-management.onrender.com') + '"' }
+        owner { dimension 'surface'; applicationId 'com.mytele.vexaaccount.owner'; resValue 'string','app_name','VexaAccount Owner Control Center'; buildConfigField 'String','WEB_APP_URL','"' + (project.findProperty('ownerWebAppUrl') ?: 'https://vexaaccount-super-admin.onrender.com') + '"' }
     }
-
-    buildTypes {
-        release { minifyEnabled false }
-    }
+    buildTypes { release { minifyEnabled false } }
     buildFeatures { buildConfig true }
 }
