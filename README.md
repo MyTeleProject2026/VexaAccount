@@ -1,49 +1,445 @@
 # VexaAccount
 
-VexaAccount is the central identity, authentication, account-management and SSO platform for the Vexa ecosystem. It provides user authentication/recovery, Account Center workflows, application registration, authorization-code SSO with S256 PKCE, SSO session lifecycle, Super Admin Owner controls, platform settings, support/notifications and audit/security records.
+VexaAccount is the central identity, authentication, account-management and SSO platform for the Vexa ecosystem. It owns authentication, identity, recovery, security-sensitive account state, SSO authorization and connected-application lifecycle. External applications should integrate with VexaAccount rather than rebuilding these identity workflows.
 
 **Default branch:** `master`  
 **Production API:** `https://api-vexaaccount.onrender.com`
 
-> **Operational truth:** source-code completion and CI success are not the same as live production certification. Live certification is an execution result from the deployed API using dedicated test credentials and the real production database.
+> **Operational truth:** source completion and CI success do not equal live production certification. Live certification requires an actual successful execution against the deployed API/database with dedicated test credentials.
+
+## Core principle for integrations
+
+VexaAccount is the identity provider. A connected application is a relying party/client.
+
+```text
+VexaAccount
+  ├── Login / Register
+  ├── Email verification
+  ├── Forgot / Reset Password
+  ├── Help with Signing In / recovery
+  ├── 2FA and security controls
+  ├── Account Center
+  ├── SSO authorization + consent
+  ├── SSO token/session lifecycle
+  └── Owner/Super Admin application registry
+          │
+          ▼
+     Connected application
+          ├── own application session
+          ├── own database/data
+          └── own application authorization
+```
+
+**Do not copy VexaAccount Login, Register, Forgot Password, verification or 2FA pages into an integrating application.** Use the canonical VexaAccount User frontend SSO bridge so users receive the same VexaAccount authentication and recovery experience.
 
 ## Repository structure
 
 ```text
 VexaAccount/
 ├── backend/
+│   ├── src/index.js
+│   ├── src/routes/auth.js
+│   ├── src/routes/sso.js
+│   ├── src/routes/sso-registry.js
+│   ├── src/middleware/ssoUserAuth.js
+│   └── src/services/ssoClient.service.js
 ├── frontend-VexaAccount-user/
+│   ├── index.html
+│   └── src/sso-frontend.js
 ├── frontend-VexaAccount-Super-admin/
+│   ├── owner-console-runtime.js
+│   └── owner-control-center-loader.js
 ├── integrations/vexaaccount-node-backend/
 ├── scripts/
-│   ├── e2e-production-smoke.js
-│   └── e2e-support-notification.js
 ├── docs/
-│   └── PRODUCTION_E2E.md
 └── .github/workflows/
-    ├── verify.yml
-    └── vexaaccount-e2e.yml
 ```
-
-The repository root is a canonical redirect to the standalone User frontend. The User and Super Admin frontends have one canonical runtime each; superseded browser runtimes and patch files are not part of the active source tree.
 
 ## Runtime architecture
 
 ```text
-User Frontend                         Owner / Super Admin
-      │                                      │
-      ▼                                      ▼
-Account Center                       Owner Control Plane
-      │                                      │
-      └──────────────┬───────────────────────┘
-                     ▼
-             VexaAccount API
-                     │
-                     ▼
-              MySQL / persistence
+                 ┌──────────────────────────────┐
+                 │      VexaAccount Backend     │
+                 │ authentication / identity    │
+                 │ SSO / sessions / registry    │
+                 └──────────────┬───────────────┘
+                                │
+             ┌──────────────────┴──────────────────┐
+             ▼                                     ▼
+   VexaAccount User frontend              Owner/Super Admin frontend
+   Login / Register / Recovery             Application registry/control
+   Account Center / SSO bridge             Security / audit / operations
+                                │
+                                ▼
+                         MySQL persistence
 ```
 
-The backend is authoritative for authentication, authorization, identity, security-sensitive state and persistence. Frontend state is presentation state only.
+The backend is authoritative. Frontend state is presentation state only.
+
+## Canonical User frontend SSO bridge
+
+The canonical browser entry point for an external application is:
+
+```text
+https://<vexaaccount-user-host>/#/sso/authorize?client_id=...&redirect_uri=...&response_type=code&scope=openid%20profile%20email&state=...&code_challenge=...&code_challenge_method=S256
+```
+
+This route is implemented by `frontend-VexaAccount-user/src/sso-frontend.js`.
+
+### Why external apps must use this route
+
+The backend `/api/sso/authorize` endpoint is protected by the authenticated VexaAccount session. It is **not** a public login page. A direct unauthenticated call can correctly return `Authentication required`.
+
+The User frontend bridge is the browser authentication layer:
+
+```text
+External application
+  ↓
+#/sso/authorize
+  ↓
+SSO continuation screen
+  ↓
+Not authenticated?
+  ↓
+VexaAccount Login / Register / Forgot Password / Help / verification / 2FA
+  ↓
+Authentication succeeds
+  ↓
+Pending SSO request is resumed
+  ↓
+Authenticated browser calls /api/sso/authorize
+  ↓
+Provider validates request and issues one-time code
+  ↓
+Browser returns to external application's exact callback
+```
+
+The pending authorization request is held in the User frontend session state during the authentication transition. The external application does not need to implement duplicate VexaAccount login/recovery screens.
+
+## Complete external-application SSO workflow
+
+### Phase 1 — Owner registers the application
+
+1. Owner/Super Admin opens the SSO application registry.
+2. Creates a unique application name/key.
+3. Adds one or more exact redirect URIs.
+4. Selects only the scopes the application needs.
+5. Activates the client.
+6. Receives the generated client ID and client secret.
+7. Transfers the secret securely to the application's backend only.
+
+Production redirect URIs must be exact HTTPS URLs. Wildcards are not supported for production callbacks.
+
+### Phase 2 — Application starts SSO
+
+The integrating backend creates a transaction containing:
+
+```text
+state       = cryptographically random value
+verifier    = cryptographically random PKCE verifier
+challenge   = BASE64URL(SHA256(verifier))
+```
+
+It then sends the browser to the User frontend SSO bridge with:
+
+```text
+client_id
+redirect_uri
+response_type=code
+scope
+state
+code_challenge
+code_challenge_method=S256
+```
+
+### Phase 3 — VexaAccount authenticates the user
+
+The User frontend displays the requested access and uses the existing VexaAccount authentication experience when the user is signed out. Existing account creation, email verification, password recovery and 2FA remain VexaAccount-owned workflows.
+
+### Phase 4 — Authorization
+
+The authenticated browser reaches:
+
+```text
+GET /api/sso/authorize
+```
+
+VexaAccount validates:
+
+- `response_type=code`
+- `client_id`
+- exact registered `redirect_uri`
+- `state`
+- `code_challenge`
+- `code_challenge_method=S256`
+- requested scopes
+- client active status
+- requested scopes are both supported and allowed for that client
+
+VexaAccount creates a short-lived, one-time authorization code and records the authorization/consent/security event.
+
+### Phase 5 — Callback and token exchange
+
+The browser is redirected to:
+
+```text
+https://external-app.example.com/auth/callback?code=...&state=...
+```
+
+The **external application's backend** must:
+
+1. Validate `state` against its stored login transaction.
+2. Retrieve the original PKCE verifier.
+3. POST to VexaAccount `/api/sso/token`.
+4. Authenticate with its client secret.
+5. Send the same exact redirect URI.
+6. Send the PKCE verifier.
+7. Receive an access token and refresh token.
+8. Call `/api/sso/userinfo` with the access token.
+9. Map `userinfo.sub` to its own local user identity.
+10. Create its own application session.
+
+The client secret, access token and refresh token must remain server-side.
+
+## SSO endpoints
+
+```text
+GET  /.well-known/openid-configuration
+GET  /api/sso/authorize
+POST /api/sso/token
+GET  /api/sso/userinfo
+POST /api/sso/logout
+```
+
+Discovery advertises authorization-code SSO, refresh-token grant, S256 PKCE and `client_secret_post` token endpoint authentication.
+
+## Available scopes — complete reference
+
+The current provider supports exactly:
+
+```text
+openid
+profile
+email
+account
+session
+applications
+notifications
+```
+
+### `openid`
+
+**Grants:** the core OpenID-style identity contract, including the stable `sub` subject used to identify the VexaAccount user.
+
+**Why:** an identity/SSO client needs a stable subject to map the authenticated VexaAccount account into its own user table.
+
+**Typical use:** virtually every user-login integration should request `openid`.
+
+**Does not mean:** access to all account/profile data.
+
+### `profile`
+
+**Grants through `userinfo`:**
+
+```text
+name
+given_name
+family_name
+picture
+phone_number
+country
+```
+
+**Why:** lets an application display the user's VexaAccount profile information without asking the user to re-enter it.
+
+**Use when:** the application needs profile/display information.
+
+**Do not request when:** the application only needs a stable `sub` and does not use profile fields.
+
+### `email`
+
+**Grants through `userinfo`:**
+
+```text
+email
+email_verified
+```
+
+**Why:** lets an application associate an email address with the account and know whether VexaAccount considers it verified.
+
+**Use when:** email is required for application identity, communication or account matching.
+
+**Do not request when:** the application can operate solely from `sub`.
+
+### `account`
+
+**Grants through `userinfo`:**
+
+```text
+account_id
+vexa_account=true
+```
+
+**Why:** explicitly identifies that the client is using VexaAccount account-level identity semantics.
+
+**Use when:** an integration needs an explicit VexaAccount account identifier/flag in addition to `sub`.
+
+**Do not request when:** `sub` already provides everything the application needs.
+
+### `session`
+
+**Grants through `userinfo`:**
+
+```text
+vexa_session=true
+```
+
+**Why:** provides an explicit session-related claim to clients that have a feature requiring it.
+
+**Use when:** the application contract explicitly depends on the VexaAccount SSO session claim.
+
+**Do not request when:** the application simply needs its own local session. The provider session and application session are separate concepts.
+
+### `applications`
+
+**Grants through `userinfo`:**
+
+```text
+vexa_applications=true
+```
+
+**Why:** indicates that the connected-application capability/claim was granted.
+
+**Use when:** an integration has a feature explicitly dependent on this VexaAccount application capability.
+
+**Do not request when:** the application only needs basic identity.
+
+### `notifications`
+
+**Grants through `userinfo`:**
+
+```text
+vexa_notifications=true
+```
+
+**Why:** indicates that the VexaAccount notification capability/claim was granted.
+
+**Use when:** the integration explicitly consumes VexaAccount notification-related capability.
+
+**Do not request when:** the application has unrelated, application-owned notifications.
+
+### Scope selection rule
+
+**Least privilege is the default.** A normal application login often needs:
+
+```text
+openid profile email
+```
+
+A minimal identity-only integration may need only:
+
+```text
+openid
+```
+
+Add `account`, `session`, `applications` or `notifications` only when a real application feature requires the corresponding claim.
+
+## How scopes are enforced
+
+A scope must pass **both** checks:
+
+```text
+requested scope
+      │
+      ├── supported by VexaAccount?
+      │       └── must be yes
+      │
+      └── allowed for this registered client?
+              └── must be yes
+```
+
+Therefore adding a scope to an application's configuration alone is not sufficient. The Owner must also grant that scope to the registered SSO client.
+
+### Example: adding `profile`
+
+1. Owner opens the registered application.
+2. Adds `profile` to its allowed scopes.
+3. Application backend adds `profile` to its requested scope list.
+4. Application starts a new authorization request.
+5. VexaAccount issues a code containing the granted scope set.
+6. Token exchange preserves that scope.
+7. `userinfo` returns the profile claims.
+
+The same process applies to every supported scope.
+
+## Client registration and secret lifecycle
+
+The SSO registry is Owner/Super Admin protected. It supports:
+
+```text
+GET    /api/sso-registry/scopes
+GET    /api/sso-registry/applications
+GET    /api/sso-registry/applications/:clientId
+GET    /api/sso-registry/applications/:clientId/integration-config
+POST   /api/sso-registry/applications
+PATCH  /api/sso-registry/applications/:clientId
+PATCH  /api/sso-registry/applications/:clientId/status
+POST   /api/sso-registry/applications/:clientId/redirect-uris
+DELETE /api/sso-registry/applications/:clientId/redirect-uris
+POST   /api/sso-registry/applications/:clientId/rotate-secret
+DELETE /api/sso-registry/applications/:clientId
+GET    /api/sso-registry/audit
+```
+
+Secrets are generated server-side, stored as hashes, and returned only at creation/rotation time. A secret cannot be recovered from the registry after that one-time delivery.
+
+## Application status and containment
+
+Registered clients use lifecycle statuses including:
+
+```text
+pending
+active
+disabled
+maintenance
+rejected
+revoked
+```
+
+Only active clients can authorize/token-exchange successfully. Disabling or revoking a client also participates in session/consent containment so a compromised integration can be stopped centrally.
+
+## Connected-application security boundary
+
+```text
+Browser
+  │
+  │ no client secret
+  ▼
+VexaAccount User frontend
+  │
+  │ authenticated browser session
+  ▼
+VexaAccount /api/sso/authorize
+  │
+  │ one-time code
+  ▼
+External application's backend
+  │
+  ├── client secret
+  ├── PKCE verifier
+  ├── access token
+  └── refresh token
+```
+
+Never expose a client secret in:
+
+- browser JavaScript
+- `localStorage` / `sessionStorage`
+- Vite `VITE_*` variables
+- URLs/query parameters
+- Git commits
+- screenshots/logs
+- client-side configuration files
 
 ## Canonical User runtime
 
@@ -53,18 +449,13 @@ frontend-VexaAccount-user/index.html
   ├── account-center-fetch-guard.js
   ├── sso-frontend.js
   ├── account-center-loader.js
-  │     ├── account-center-runtime-v2.js
-  │     ├── account-center-v2-compat.js
-  │     └── account-center-premium-theme.js
   ├── notification-live-runtime.js
   └── pwa.js
 ```
 
-The Account Center covers login, registration, email verification, 2FA, forgot/reset password, profile, security, privacy/data, password, devices/sessions, connected applications, notifications, people/sharing, verification, account activity/recovery, support and account deletion. Security-sensitive mutations are backend-backed.
+The User frontend covers Login, Register, email verification, 2FA, forgot/reset password, profile, security, privacy/data, password, devices/sessions, connected applications, notifications, people/sharing, verification, account activity/recovery, support and account deletion.
 
-The notification runtime uses the authenticated notification API, polls while visible, refreshes when the application becomes visible and reacts to authentication changes. It does not invent notification state locally.
-
-## Canonical Owner runtime
+## Canonical Owner/Super Admin runtime
 
 ```text
 frontend-VexaAccount-Super-admin/index.html
@@ -73,178 +464,88 @@ frontend-VexaAccount-Super-admin/index.html
           └── owner-control-center.js
 ```
 
-The Owner Control Plane provides explicit, backend-backed controls for supported user administration, security containment, SSO applications, redirect URI allowlists, support, platform settings, health, audit and security review. It never exposes arbitrary SQL, shell, JavaScript or source-file execution from the browser.
+The Owner Control Plane is the administrative source for supported user controls, SSO application registration, exact redirect allowlists, scope grants, client activation/disablement, secret rotation, session containment, audit/security review, support and platform operations.
 
-### Owner user workflow
+## Owner SSO workflow
 
 ```text
 Owner login
-  → authenticated Owner session
-  → Users
-  → inspect safe account details
-  → apply supported profile/security/account control
-  → confirm backend response
-  → review audit/security event
-```
-
-Supported controls include search, safe detail inspection, supported profile edits, enable/disable, supported 2FA/passcode reset, SSO-session revocation, supported credit/coin adjustments with a reason, notes, storage metadata and explicit destructive account deletion. Password hashes and other sensitive credential material are not returned by the safe user-detail flow.
-
-### Owner SSO workflow
-
-```text
-Create application
-  → exact redirect URI allowlist
-  → grant supported scopes
-  → activate client
-  → external app performs state + S256 PKCE
+  → SSO Applications
+  → Create application
+  → set application name/key
+  → add exact HTTPS callback
+  → select minimum required scopes
+  → activate
+  → securely deliver client secret to application's backend
+  → application starts state + S256 PKCE
+  → User frontend #/sso/authorize
+  → VexaAccount authentication
   → /api/sso/authorize
-  → one-time authorization code
-  → /api/sso/token
-  → access/refresh token
-  → /api/sso/userinfo
-  → external app maps stable sub and creates its session
+  → authorization code
+  → application /api/sso/token
+  → application /api/sso/userinfo
+  → local application session
 ```
 
-Redirect URI management:
+## What an integrating application must implement
+
+At minimum, the application needs:
 
 ```text
-GET    /api/sso-registry/applications/:clientId/redirect-uris
-POST   /api/sso-registry/applications/:clientId/redirect-uris
-DELETE /api/sso-registry/applications/:clientId/redirect-uris
+1. VexaAccount client ID
+2. VexaAccount client secret (backend only)
+3. Exact registered redirect URI
+4. State generation + validation
+5. PKCE verifier/challenge generation
+6. Browser redirect to VexaAccount User frontend #/sso/authorize
+7. Callback handling
+8. Authorization-code exchange
+9. Userinfo validation
+10. Stable-subject user mapping
+11. Its own application session
+12. Safe logout/revocation handling
 ```
 
-Production callbacks must be exact HTTPS values. Wildcard production callbacks are not supported.
+It does **not** need to implement a second VexaAccount password database or duplicate VexaAccount registration/recovery UI.
 
-## Client Secret security boundary
+## Integration environment pattern
 
-```text
-POST /api/sso-registry/applications
-        or
-POST /api/sso-registry/applications/:clientId/rotate-secret
-        ↓
-backend generates secret
-        ↓
-secret is returned once
-        ↓
-Owner transfers it to the external application's backend
-```
-
-The browser must never persist the Client Secret in localStorage/sessionStorage, URLs, logs, PDFs or non-secret configuration. The Owner runtime contains no `clientJWT`/`clientJwt` aliases.
-
-External applications use:
+For a Node.js backend, use a server-only configuration such as:
 
 ```env
-VEXA_ACCOUNT_CLIENT_SECRET=server_only_secret
-VEXA_ACCOUNT_SSO_CONFIG={"url":"https://api-vexaaccount.onrender.com","clientId":"YOUR_CLIENT_ID","redirectUri":"https://your-app.example.com/auth/vexaaccount/callback","scopes":["openid","profile","email"],"timeoutMs":10000}
+VEXA_ACCOUNT_CLIENT_SECRET=GENERATED_CLIENT_SECRET
+VEXA_ACCOUNT_SSO_CONFIG={"url":"https://api-vexaaccount.onrender.com","userUrl":"https://<vexaaccount-user-host>","clientId":"YOUR_CLIENT_ID","redirectUri":"https://your-app.example.com/auth/callback","scopes":["openid","profile","email"],"timeoutMs":10000}
 ```
 
-`VEXA_ACCOUNT_SSO_CONFIG` must not contain `clientSecret`. The secret belongs only in the integrating application's server-side secret store.
+`VEXA_ACCOUNT_SSO_CONFIG` is connection metadata. **Do not put `clientSecret` inside it.**
 
-## Support → notification two-way workflow
+## Troubleshooting SSO
 
-```text
-User login
-  → create support ticket
-  → Owner login
-  → Owner lists/opens ticket
-  → Owner replies
-  → backend persists reply + user notification + audit record
-  → User notification API returns the new notification
-  → User marks notifications read
-  → Owner closes ticket
-  → Owner audit trail confirms the reply
-```
+### `Authentication required`
 
-Relevant APIs:
+The application called the protected provider authorization endpoint without an authenticated VexaAccount browser session. Start the browser at the User frontend `#/sso/authorize` bridge.
 
-```text
-POST  /api/account/support/tickets
-GET   /api/owner/support/tickets
-POST  /api/owner/support/tickets/:ticketId/replies
-PATCH /api/owner/support/tickets/:ticketId/status
-GET   /api/account/notifications
-POST  /api/account/notifications/read-all
-PATCH /api/account/notifications/:id/read
-```
+### `Invalid SSO client or redirect URI`
 
-The frontend notification poller is a delivery/read-state UI layer; the database/API remains the source of truth.
+Verify that:
 
-## Production verification — complete workflow
+- the client ID is correct;
+- the client is active;
+- the callback is registered;
+- the callback matches exactly, character for character;
+- production uses HTTPS.
 
-There are two separate verification layers.
+### `Requested scope is not allowed`
 
-### 1. Deployed smoke verification
+The requested scope is either unsupported or was not granted to that client. Check both the provider's supported-scope list and the client's allowed scopes.
 
-`scripts/e2e-production-smoke.js` verifies the deployed API's health/security surface, including production SSO discovery and unauthenticated protection.
+### `PKCE verification failed`
 
-It does not prove that an authenticated User and Owner can complete a real transaction.
+The token request used a verifier that does not hash to the authorization request's S256 challenge. Persist the original verifier for the duration of the login transaction and send that exact value to `/api/sso/token`.
 
-### 2. Authenticated production certification
+### `Client authentication failed`
 
-`scripts/e2e-support-notification.js` is the real authenticated two-way production test. It executes against the deployed API and verifies:
-
-```text
-1. User authenticates
-2. User session is confirmed
-3. User creates a real support ticket
-4. Owner authenticates
-5. Owner sees the ticket
-6. Owner sends a real reply
-7. User receives the persisted notification
-8. User acknowledges notifications as read
-9. Owner closes the ticket
-10. Owner audit trail contains the reply
-```
-
-The GitHub Actions workflow is `.github/workflows/vexaaccount-e2e.yml`.
-
-### Dedicated production E2E credentials
-
-The authenticated certification requires these four GitHub Actions secrets:
-
-```text
-VEXA_E2E_USER_EMAIL
-VEXA_E2E_USER_PASSWORD
-VEXA_E2E_OWNER_EMAIL
-VEXA_E2E_OWNER_PASSWORD
-```
-
-These must belong to dedicated test accounts, not personal accounts. The User account must be able to create a support ticket. The Owner account must have the required Super Admin/Owner permissions to read/reply/close tickets and inspect the audit trail.
-
-**Do not put these credentials in repository files, workflow YAML, frontend environment variables, source code or issue comments.** Configure them as GitHub Actions repository/environment secrets.
-
-### Running certification
-
-1. Configure all four dedicated secrets in GitHub Actions.
-2. Ensure the deployed API and database contain the dedicated test User and Owner accounts.
-3. Open the `VexaAccount production E2E` workflow.
-4. Start it with **Run workflow**.
-5. The `Authenticated user-owner-notification E2E` job must execute rather than report missing credentials.
-6. The job must finish successfully and print `Support two-way notification E2E passed`.
-7. Treat that successful workflow run as the production certification result for that execution.
-
-Scheduled runs perform smoke verification. If the four credentials are absent, scheduled authenticated certification is skipped. A **manual** workflow run without all four credentials fails explicitly instead of silently claiming certification.
-
-This repository cannot manufacture or reveal the four production credentials. They must be supplied securely by the deployment/operations owner. Therefore, a source commit cannot truthfully be described as having completed live authenticated certification until a workflow run actually executes the authenticated test successfully.
-
-See [`docs/PRODUCTION_E2E.md`](docs/PRODUCTION_E2E.md) for the exact operational checklist and failure interpretation.
-
-## CI and source-tree verification
-
-`.github/workflows/verify.yml` checks:
-
-- backend JavaScript syntax
-- User frontend JavaScript syntax
-- Super Admin JavaScript syntax
-- canonical entrypoints
-- legacy runtime/source-tree cleanup
-- Owner loader/runtime integration
-- Client Secret boundary
-- absence of legacy `clientJWT`/`clientJwt`
-- root redirect contract
-- duplicate runtime prevention
-
-CI success proves repository-level contracts only; it is not a substitute for the authenticated production E2E.
+The client secret is missing, incorrect, rotated, or the client is inactive. Replace the application's server-side secret with the currently active secret after a controlled rotation.
 
 ## Database source of truth
 
@@ -253,9 +554,9 @@ The backend is authoritative for:
 - users and identity
 - passwords/authentication state
 - OTP/recovery state
-- SSO clients and credentials
+- SSO clients and credential hashes
 - redirect allowlists and scopes
-- sessions/tokens/consents
+- SSO sessions/tokens/consents
 - account settings/privacy
 - notifications
 - support tickets/messages
@@ -263,51 +564,65 @@ The backend is authoritative for:
 - audit/security records
 - platform settings
 
+## Production verification
+
+There are two verification levels.
+
+### Repository/source verification
+
+CI checks source-tree contracts, JavaScript syntax, canonical runtimes, Owner integration, secret boundaries and other repository invariants.
+
+### Authenticated production certification
+
+The authenticated production E2E must execute against the deployed API/database with dedicated test accounts. A successful source commit alone is never described as live certification.
+
+The repository's production workflow verifies the supported authenticated user/Owner support-notification path and its persisted notification/audit behavior.
+
 ## Deployment sequence
 
 ```text
-1. Commit code
+1. Commit source changes
 2. Run repository verification
 3. Deploy backend
-4. Run required DB migrations
+4. Run required database migrations
 5. Verify /api/health
 6. Deploy User frontend
 7. Deploy Super Admin frontend
-8. Verify User login/session
+8. Verify User login/session/recovery
 9. Verify Owner login/session
-10. Verify Account Center workflows
-11. Verify Owner controls
-12. Verify SSO discovery/registration
-13. Configure dedicated E2E secrets
-14. Run authenticated production E2E
-15. Review audit/security output
+10. Verify Account Center
+11. Verify SSO registry
+12. Register/activate test application
+13. Verify SSO discovery
+14. Verify User frontend #/sso/authorize
+15. Verify authorization-code + S256 PKCE exchange
+16. Verify userinfo claims for requested scopes
+17. Verify application-side session creation
+18. Verify revocation/disablement behavior
+19. Run authenticated production E2E where configured
 ```
-
-## Security rules
-
-- Never expose database credentials, JWT signing keys, SMTP credentials, access tokens, refresh tokens or Client Secrets to browser code.
-- Use exact redirect URIs.
-- Use S256 PKCE for authorization-code SSO.
-- Validate state server-side.
-- Use `userinfo.sub` as the stable external identity key.
-- Rotate compromised Client Secrets immediately.
-- Revoke compromised sessions/applications.
-- Keep Owner controls explicit, validated and auditable.
-- Never add arbitrary SQL/shell/source-code execution to the Owner UI.
 
 ## Documentation map
 
-- `README.md` — repository-wide architecture, workflows and production certification rules
+- `README.md` — canonical architecture, SSO workflow, scopes and integration guide
 - `README_OWNER_CONTROL_CENTER.md` — Owner Control Center operations and security boundary
-- `docs/PRODUCTION_E2E.md` — exact authenticated production E2E setup/run/checklist
-- `docs/SSO_INTEGRATION.md` — SSO contract
-- `docs/VexaAccount-SSO-Frontend-Integration.md` — frontend SSO integration
-- `integrations/vexaaccount-node-backend/README.md` — external backend integration
+- `docs/SSO_INTEGRATION.md` — SSO provider contract
+- `docs/VexaAccount-SSO-Frontend-Integration.md` — canonical User frontend SSO browser bridge
+- `integrations/vexaaccount-node-backend/README.md` — Node.js backend integration pattern
 - `frontend-VexaAccount-user/README.md` — User frontend runtime
-- `frontend-VexaAccount-Super-admin/README.md` — Owner frontend runtime
+- `frontend-VexaAccount-Super-admin/README.md` — Owner/Super Admin runtime
+- `docs/PRODUCTION_E2E.md` — production verification procedure
 
-## Current operational status
+## Security rules — non-negotiable
 
-The canonical runtime consolidation, source-tree cleanup, secret boundary, live notification polling and authenticated E2E implementation are in the repository.
-
-**Live authenticated production certification is complete only after the authenticated GitHub Actions job has actually executed successfully against `https://api-vexaaccount.onrender.com`.**
+- Authorization code + S256 PKCE is required.
+- State must be unpredictable and validated by the integrating backend.
+- Redirect URIs must be exact.
+- Client secrets are backend-only.
+- Tokens are backend-only for server-side integrations.
+- `userinfo.sub` is the stable external identity key.
+- Request only the scopes actually required.
+- Rotate compromised client secrets immediately.
+- Revoke compromised clients/sessions.
+- Do not add arbitrary SQL, shell, JavaScript or source-code execution to Owner controls.
+- Do not treat CI success as proof of live authenticated production success.
