@@ -1,4 +1,5 @@
 name: VexaAccount PWA packages
+
 on:
   push:
     branches: [master]
@@ -7,6 +8,8 @@ on:
 jobs:
   validate-pwa:
     runs-on: ubuntu-latest
+    outputs:
+      android_gradle_wrapper: ${{ steps.android-check.outputs.present }}
     steps:
       - uses: actions/checkout@v4
       - name: Validate manifest
@@ -17,6 +20,16 @@ jobs:
           test -f frontend-VexaAccount-user/offline.html
           test -f frontend-VexaAccount-user/public/icons/icon-192.png
           test -f frontend-VexaAccount-user/public/icons/icon-512.png
+      - name: Detect Android Gradle project
+        id: android-check
+        shell: bash
+        run: |
+          if [ -f frontend-VexaAccount-user/packaging/android/gradlew ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "Android Gradle wrapper is not present; skipping native Android build."
+          fi
       - name: Upload PWA packaging inputs
         uses: actions/upload-artifact@v4
         with:
@@ -29,7 +42,7 @@ jobs:
             frontend-VexaAccount-user/packaging/android/twa-manifest.json
 
   android-project-build:
-    if: ${{ hashFiles('frontend-VexaAccount-user/packaging/android/gradlew') != '' }}
+    if: ${{ needs.validate-pwa.outputs.android_gradle_wrapper == 'true' }}
     needs: validate-pwa
     runs-on: ubuntu-latest
     steps:
@@ -40,7 +53,9 @@ jobs:
           java-version: '17'
       - name: Build Android APK/AAB project
         working-directory: frontend-VexaAccount-user/packaging/android
-        run: ./gradlew assembleRelease bundleRelease
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease bundleRelease
       - uses: actions/upload-artifact@v4
         with:
           name: vexaaccount-android-release
