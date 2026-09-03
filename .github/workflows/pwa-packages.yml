@@ -101,15 +101,26 @@ jobs:
         working-directory: packaging/android
         run: |
           set -euo pipefail
-          for pattern in 'app/build/outputs/apk/user/release/*.apk' 'app/build/outputs/apk/owner/release/*.apk' 'app/build/outputs/bundle/userRelease/*.aab' 'app/build/outputs/bundle/ownerRelease/*.aab'; do
-            matches=( $pattern )
-            [ -e "${matches[0]}" ] || { echo "Missing release binary: $pattern" >&2; exit 1; }
+          apk_user="app/build/outputs/apk/user/release/app-user-release.apk"
+          apk_owner="app/build/outputs/apk/owner/release/app-owner-release.apk"
+          aab_user="app/build/outputs/bundle/userRelease/app-user-release.aab"
+          aab_owner="app/build/outputs/bundle/ownerRelease/app-owner-release.aab"
+          for f in "$apk_user" "$apk_owner" "$aab_user" "$aab_owner"; do
+            test -f "$f" || { echo "Missing release binary: $f" >&2; exit 1; }
+            test -s "$f" || { echo "Release binary is empty: $f" >&2; exit 1; }
           done
-          find app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \) -print -exec stat -c '%n %s bytes' {} \;
-          while IFS= read -r f; do
-            size=$(stat -c '%s' "$f")
-            [ "$size" -gt 100000 ] || { echo "Release binary is unexpectedly small: $f ($size bytes)" >&2; exit 1; }
-          done < <(find app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \))
+          echo "Release binaries:" 
+          stat -c '%n %s bytes' "$apk_user" "$apk_owner" "$aab_user" "$aab_owner"
+          for apk in "$apk_user" "$apk_owner"; do
+            unzip -t "$apk" >/dev/null
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$apk"
+          done
+          for aab in "$aab_user" "$aab_owner"; do
+            unzip -t "$aab" >/dev/null
+            unzip -l "$aab" | grep -q 'AndroidManifest.xml' || { echo "AAB missing AndroidManifest.xml: $aab" >&2; exit 1; }
+            jarsigner -verify -strict "$aab" >/dev/null
+          done
+          echo "All APKs are structurally valid and signed; all AABs are valid ZIP bundles containing AndroidManifest.xml and pass JAR signature verification."
       - uses: actions/upload-artifact@v7
         with:
           name: vexaaccount-android-release
