@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - name: Run deployed API and security smoke checks
         env:
           VEXA_ACCOUNT_BASE_URL: https://api-vexaaccount.onrender.com
@@ -51,7 +51,7 @@ jobs:
       - uses: actions/setup-node@v4
         if: ${{ env.HAS_AUTH_E2E == 'true' }}
         with:
-          node-version: 20
+          node-version: 24
       - name: Run authenticated production support-to-notification E2E
         if: ${{ env.HAS_AUTH_E2E == 'true' }}
         env:
