@@ -1,13 +1,10 @@
 name: VexaAccount PWA packages
-
 on:
   push:
     branches: [master]
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
   validate-pwa:
     runs-on: ubuntu-latest
@@ -31,19 +28,16 @@ jobs:
             frontend-VexaAccount-user/sw.js
             frontend-VexaAccount-user/offline.html
             frontend-VexaAccount-user/packaging/android/twa-manifest.json
-
   android-project-build:
     needs: validate-pwa
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
+        with: { distribution: temurin, java-version: '17' }
       - uses: android-actions/setup-android@v3
       - name: Install Android SDK platform
-        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
       - name: Build VexaAccount User APK/AAB
         working-directory: packaging/android
         run: |
@@ -62,7 +56,6 @@ jobs:
             packaging/android/app/build/outputs/apk/owner/release/*.apk
             packaging/android/app/build/outputs/bundle/userRelease/*.aab
             packaging/android/app/build/outputs/bundle/ownerRelease/*.aab
-
   store-package-note:
     needs: validate-pwa
     runs-on: ubuntu-latest
