@@ -1,15 +1,14 @@
 (()=>{
   'use strict';
-  if(window.__VEXA_OWNER_CONTROL_LOADER__) return;
-  window.__VEXA_OWNER_CONTROL_LOADER__ = true;
+  if(window.__VEXA_OWNER_CONTROL_LOADER__)return;
+  window.__VEXA_OWNER_CONTROL_LOADER__=true;
   function load(){
-    if(document.querySelector('script[data-vexa-owner-control]')) return;
-    if(!document.querySelector('#app')){ setTimeout(load,100); return; }
+    if(!document.querySelector('#app')){setTimeout(load,100);return;}
+    if(document.querySelector('script[data-vexa-owner-os]'))return;
     const script=document.createElement('script');
-    script.src='/src/owner-control-center.js?v=20260904-02';
-    script.dataset.vexaOwnerControl='1';
+    script.src='/src/owner-os.js?v=20260904-01';
+    script.dataset.vexaOwnerOs='1';
     document.body.appendChild(script);
   }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',load,{once:true});
-  else load();
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',load,{once:true});else load();
 })();
