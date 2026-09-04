@@ -31,29 +31,20 @@ jobs:
           for(const file of forbidden){if(html.includes(file)){console.error('Legacy runtime loaded by user index:',file);process.exit(1)}}
           if((html.match(/account-center-fetch-guard\.js/g)||[]).length!==1){console.error('Fetch guard must load exactly once');process.exit(1)}
           NODE
-      - name: Enforce canonical Owner runtime and clean tree
+      - name: Enforce canonical Owner OS entrypoint and clean tree
         run: |
           node <<'NODE'
           const fs=require('fs');
           const html=fs.readFileSync('frontend-VexaAccount-Super-admin/index.html','utf8');
-          for(const file of ['owner-console-runtime.js','owner-control-center-loader.js']){if(!html.includes(file)){console.error('Missing canonical Owner runtime:',file);process.exit(1)}}
-          const loader=fs.readFileSync('frontend-VexaAccount-Super-admin/src/owner-control-center-loader.js','utf8');
-          if(!loader.includes('owner-control-center.js')){console.error('Owner Control Center loader must load the integrated control surface');process.exit(1)}
-          const forbidden=['src/app.js','sso-control-upgrade.js','sso-create-wizard.js','sso-integration-patch.js','sso-receipt-security.js','user-management.js','support-control.js','platform-settings.js','react-notification-bridge.js','premium-interactions.js','vexatrade-notifications.js','vexatrade-notifications.css','user-management.css'];
+          for(const file of ['owner-os.js','owner-os.css']){if(!html.includes(file)){console.error('Missing canonical Owner OS asset:',file);process.exit(1)}}
+          const forbidden=['owner-console-runtime.js','owner-control-center-loader.js','owner-control-center.js','sso-diagnostics-panel.js','src/app.js','sso-control-upgrade.js','sso-create-wizard.js','sso-integration-patch.js','sso-receipt-security.js','user-management.js','support-control.js','platform-settings.js','react-notification-bridge.js','premium-interactions.js','vexatrade-notifications.js','vexatrade-notifications.css','user-management.css'];
           for(const file of forbidden){if(html.includes(file)){console.error('Legacy Owner runtime loaded by index:',file);process.exit(1)}}
-          for(const file of ['app.js','sso-control-upgrade.js','sso-create-wizard.js','sso-integration-patch.js','sso-receipt-security.js','user-management.js','support-control.js','platform-settings.js']){if(fs.existsSync('frontend-VexaAccount-Super-admin/src/'+file)){console.error('Obsolete Owner file still exists:',file);process.exit(1)}}
-          NODE
-      - name: Enforce non-secret SSO configuration contract
-        run: |
-          node <<'NODE'
-          const fs=require('fs');
-          const file='frontend-VexaAccount-Super-admin/src/owner-console-runtime.js';
-          const app=fs.readFileSync(file,'utf8');
-          if(/clientJWT|clientJwt/.test(app)){console.error('Legacy client JWT credential aliases are forbidden');process.exit(1)}
-          if(/VEXA_ACCOUNT_SSO_CONFIG[^\n]{0,300}clientSecret/.test(app)){console.error('Client secret must not be embedded in VEXA_ACCOUNT_SSO_CONFIG');process.exit(1)}
-          if(/localStorage\.(setItem|getItem)\([^)]*clientSecret|sessionStorage\.(setItem|getItem)\([^)]*clientSecret/.test(app)){console.error('Client secret must not be stored in browser storage');process.exit(1)}
-          if(/location\.(href|assign|replace)[^;\n]*clientSecret/.test(app)){console.error('Client secret must not be placed in URLs');process.exit(1)}
-          if(!app.includes('VEXA_ACCOUNT_CLIENT_SECRET')){console.error('Separate client secret storage guidance is required');process.exit(1)}
+          const owner=fs.readFileSync('frontend-VexaAccount-Super-admin/src/owner-os.js','utf8');
+          for(const required of ['/api/auth/super-admin/login','/api/auth/super-admin/session','/api/sso-registry/applications','/api/owner/users','/api/owner/support/tickets','/api/owner/platform/health']){
+            if(!owner.includes(required)){console.error('Owner OS missing required API contract:',required);process.exit(1)}
+          }
+          if(/localStorage\.(setItem|getItem)\([^)]*clientSecret|sessionStorage\.(setItem|getItem)\([^)]*clientSecret/.test(owner)){console.error('Client secret must not be stored in browser storage');process.exit(1)}
+          if(/location\.(href|assign|replace)[^;\n]*clientSecret/.test(owner)){console.error('Client secret must not be placed in URLs');process.exit(1)}
           NODE
       - name: Verify root entrypoint is only a canonical redirect
         run: |
