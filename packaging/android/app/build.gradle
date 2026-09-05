@@ -58,7 +58,7 @@ android {
             applicationId 'com.mytele.vexaaccount.owner'
             signingConfig signingConfigs.ownerRelease
             resValue 'string', 'app_name', 'VexaAccount Owner Control Center'
-            buildConfigField 'String', 'WEB_APP_URL', '"' + (project.findProperty('ownerWebAppUrl') ?: 'https://vexaaccount-super-admin.onrender.com') + '"'
+            buildConfigField 'String', 'WEB_APP_URL', '"' + (project.findProperty('ownerWebAppUrl') ?: 'https://super-admin-vexaaccount.onrender.com') + '"'
         }
     }
 
