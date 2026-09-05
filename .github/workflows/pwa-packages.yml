@@ -87,12 +87,13 @@ jobs:
           keytool -list -keystore "$USER_KEYSTORE_PATH" -storepass "$USER_KEYSTORE_PASSWORD" -alias "$USER_KEY_ALIAS" >/dev/null
           keytool -list -keystore "$OWNER_KEYSTORE_PATH" -storepass "$OWNER_KEYSTORE_PASSWORD" -alias "$OWNER_KEY_ALIAS" >/dev/null
           echo "VexaAccount User and Super Admin release keystores and aliases verified."
-      - name: Prepare VexaAccount Android launcher icons
+      - name: Verify source PWA launcher icons
         run: |
           set -euo pipefail
-          mkdir -p packaging/android/app/src/main/res/drawable-nodpi
-          cp frontend-VexaAccount-user/public/icons/icon-512.png packaging/android/app/src/main/res/drawable-nodpi/vexa_launcher_image.png
-          test -s packaging/android/app/src/main/res/drawable-nodpi/vexa_launcher_image.png
+          for icon in frontend-VexaAccount-user/public/icons/icon-192.png frontend-VexaAccount-user/public/icons/icon-512.png; do
+            test -s "$icon"
+            test "$(head -c 8 "$icon" | xxd -p)" = "89504e470d0a1a0a" || { echo "Invalid PNG signature: $icon" >&2; exit 1; }
+          done
       - name: Build VexaAccount User APK/AAB
         working-directory: packaging/android
         run: |
