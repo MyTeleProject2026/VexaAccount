@@ -51,8 +51,16 @@ public final class MainActivity extends Activity {
                 }
             }
 
-            @Override public void onReceivedError(WebView view, WebResourceRequest request, int errorCode, String description, String failingUrl) {
-                if (request.isForMainFrame()) showLoadError("Unable to load the VexaAccount service: " + description);
+            @Override public void onReceivedError(WebView view, WebResourceRequest request, android.webkit.WebResourceError error) {
+                if (request.isForMainFrame() && error != null) {
+                    CharSequence description = error.getDescription();
+                    showLoadError("Unable to load the VexaAccount service: " + (description == null ? "Unknown network error" : description));
+                }
+            }
+
+            @Override @SuppressWarnings("deprecation")
+            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                showLoadError("Unable to load the VexaAccount service: " + (description == null ? "Unknown network error" : description));
             }
         });
         webView.getSettings().setJavaScriptEnabled(true);
