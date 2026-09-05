@@ -13,29 +13,67 @@ Authenticated Owner OS session
   ↓
 Controller Selection
   ├─ System A — VexaAccount SSO Full Controlling System
-  │    ├─ Overview
-  │    ├─ Application Registry
-  │    ├─ Application Detail
-  │    ├─ Redirect URI management
-  │    ├─ Scope management
+  │    ├─ Overview / registry / application detail
+  │    ├─ Redirect URI + scope management
   │    ├─ Client secret creation / rotation
-  │    ├─ SSO diagnostics / repair
-  │    ├─ SSO security controls
+  │    ├─ Diagnostics / repair / lifecycle status
+  │    ├─ Integration configuration
+  │    ├─ Runtime health sync
+  │    ├─ Complete SSO Integration Factory
   │    └─ SSO audit
   │
   └─ System B — Owner Control Center
-       ├─ Overview
-       ├─ User administration
+       ├─ Overview / users
        ├─ User profile/security detail
-       ├─ Credits and coins adjustments
-       ├─ SSO session revocation
-       ├─ Storage record controls
-       ├─ Owner notes
+       ├─ Credits / storage / sessions / notes
        ├─ Support desk / replies / ticket closure
        └─ Platform settings / health
 ```
 
-The Owner must authenticate first. A successful Owner session lands on the controller-selection page instead of a giant combined console. The two controller systems are separate workflows with independent navigation and a controlled return to the selection screen.
+## Complete SSO Integration Factory
+
+From **SSO Control System → Application Detail → Generate Complete SSO Package**, the Owner can select the target backend/frontend stack and generate a deterministic integration source package from the authoritative application registry response.
+
+Supported application-specific profiles:
+
+- VexaMail — mail identity, profile, session and notification scopes
+- VexaWallet — wallet identity/account/session scopes
+- VexaCloud — cloud identity/account/session scopes
+- Vexa Password Manager — identity/account/session scopes
+- VexaAuthenticator — identity/security-session/notification scopes
+- VexaWholes Professional — full ecosystem identity/application/notification scopes
+
+The factory supports Node/Express, Next.js server integration, Python/FastAPI and a Django adapter profile, plus React, Next.js, Vue and Vanilla JS frontend selections.
+
+Generated package areas include:
+
+```text
+backend/src/auth/vexaaccount-sso.js
+backend/src/routes/auth-vexaaccount.js
+backend/src/middleware/require-vexaaccount-user.js
+backend/.env.example
+frontend-user/src/services/vexaAccountSso.js
+frontend-user/src/auth/VexaAccountLogin.*
+frontend-user/src/auth/VexaAccountAuthGuard.jsx
+database/vexaaccount-sso.sql
+tests/vexaaccount-sso.e2e.test.js
+deployment/vexaaccount-sso.md
+integration-config.json
+integration-patch-manifest.json
+VEXAACCOUNT-SSO-SETUP.md
+```
+
+The generated backend flow covers authorization redirect, server-side state, authorization-code exchange, userinfo retrieval, local-user upsert adapter, local session creation, logout and protected-route middleware. Database generation provides a VexaAccount subject-to-local-user identity mapping table while deliberately leaving the target application's existing user schema authoritative.
+
+The generated test contract covers success and negative paths: denied authorization, invalid/expired state, invalid code, disabled/revoked clients, token exchange failure, missing scopes, logout and secret exposure checks. The deployment checklist validates exact HTTPS redirect registration, secret-manager storage, migration, route mounting and staging certification.
+
+### Automatic patching boundary
+
+The Owner browser generates a deterministic `integration-patch-manifest.json`; it does **not** silently write into another application's repository. A real repository writer must authenticate separately to the target repository and review/apply the manifest. This prevents the Owner browser from becoming a cross-repository credential-writing channel and keeps `VEXA_ACCOUNT_CLIENT_SECRET` backend-only.
+
+### Authoritative configuration
+
+The factory reads `GET /api/sso-registry/applications/:id/integration-config` and uses its registered URL, client ID, exact redirect URI, scopes and timeout. The client secret is intentionally not included in integration-config and is represented only as `PASTE_ONE_TIME_SECRET_HERE` in `.env.example`; the Owner must transfer the one-time secret to the integrating backend's secret manager.
 
 ## Real backend workflows
 
@@ -51,62 +89,18 @@ The frontend does not simulate mutations. It calls the existing authenticated ba
 
 Existing backend authorization and audit middleware remain authoritative. Database access is never exposed to the browser.
 
-## Existing source preservation
-
-The previous `owner-console-runtime.js`, `owner-control-center.js`, `owner-control-center-loader.js`, `owner-control-center.css`, and `sso-diagnostics-panel.js` sources remain in the repository for source-history and compatibility purposes, but the production entry point now loads `owner-os.js` as the canonical runtime. The new runtime does not depend on the legacy `#createTop` console element or legacy overlay mounting sequence.
-
-Existing backend SSO registry, Owner user-management, support, platform, audit, diagnostics and authentication routes are retained and reused rather than replaced with UI-only mocks.
-
 ## Security boundary
 
 - Super Admin authentication is cookie/session based.
 - No database credentials are shipped to the frontend.
 - No JWT signing key is shipped to the frontend.
 - Client secrets are never stored in localStorage/sessionStorage.
-- Client secrets are returned by the backend only at application creation or rotation and are displayed transiently for secure transfer to the integrating application's backend.
-- `VEXA_ACCOUNT_CLIENT_SECRET` belongs on the integrating application's backend, never in the public frontend configuration.
+- Client secrets are returned by the backend only at application creation or rotation and are displayed transiently for secure transfer.
+- `VEXA_ACCOUNT_CLIENT_SECRET` belongs on the integrating application's backend, never in public frontend code.
 - Redirect URI validation and SSO scope validation remain backend-enforced.
 
-## Deployment
+## Verification
 
-Deploy this directory independently from the VexaAccount backend and User frontend. Configure the API origin with `VEXA_ACCOUNT_ADMIN_API_BASE` or the existing server-side/static configuration mechanism. The production default remains `https://api-vexaaccount.onrender.com`.
+`.github/workflows/verify.yml` syntax-checks the frontend/backend JavaScript and verifies that the Owner OS entrypoint includes the complete SSO factory plus all six ecosystem application profiles, framework generators, environment contract, database mapping, E2E test contract, deployment checklist and patch manifest.
 
-After deployment, verify the browser receives the new `owner-os.js` and `owner-os.css` versions and no legacy Super Admin runtime is loaded by `index.html`.
-
-## Support → notification workflow
-
-```text
-User creates ticket
-  → Owner lists/opens ticket
-  → Owner replies
-  → backend persists reply + notification + audit
-  → User reads persisted notification
-  → Owner closes ticket
-```
-
-The Owner UI calls the existing support APIs; it does not fake ticket state locally.
-
-## Production E2E certification
-
-The repository's authenticated production test remains:
-
-```text
-scripts/e2e-support-notification.js
-```
-
-It is executed by:
-
-```text
-.github/workflows/vexaaccount-e2e.yml
-```
-
-Configure dedicated GitHub Actions secrets:
-
-```text
-VEXA_E2E_USER_EMAIL
-VEXA_E2E_USER_PASSWORD
-VEXA_E2E_OWNER_EMAIL
-VEXA_E2E_OWNER_PASSWORD
-```
-
-Never commit or print those credentials. A successful source check is not a substitute for a live production E2E run.
+A static source check is not the same as live production certification. The generated integration should be run against a staging target before production.
