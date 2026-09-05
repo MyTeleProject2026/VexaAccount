@@ -2,13 +2,19 @@ package com.mytele.vexaaccount.android;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -22,6 +28,11 @@ public final class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        createWebView();
+        webView.loadUrl(BuildConfig.WEB_APP_URL);
+    }
+
+    private void createWebView() {
         webView = new WebView(this);
         setContentView(webView);
         webView.setWebChromeClient(new WebChromeClient());
@@ -33,6 +44,16 @@ public final class MainActivity extends Activity {
                 startActivity(new Intent(Intent.ACTION_VIEW, uri));
                 return true;
             }
+
+            @Override public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse errorResponse) {
+                if (request.isForMainFrame() && errorResponse != null && errorResponse.getStatusCode() == 404) {
+                    showLoadError("The VexaAccount service returned Not Found. Check the deployed application route and try again.");
+                }
+            }
+
+            @Override public void onReceivedError(WebView view, WebResourceRequest request, int errorCode, String description, String failingUrl) {
+                if (request.isForMainFrame()) showLoadError("Unable to load the VexaAccount service: " + description);
+            }
         });
         webView.getSettings().setJavaScriptEnabled(true);
         webView.getSettings().setDomStorageEnabled(true);
@@ -41,7 +62,37 @@ public final class MainActivity extends Activity {
         webView.getSettings().setAllowContentAccess(false);
         webView.getSettings().setSupportMultipleWindows(false);
         CookieManager.getInstance().setAcceptCookie(true);
-        webView.loadUrl(BuildConfig.WEB_APP_URL);
+    }
+
+    private void showLoadError(String message) {
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setGravity(Gravity.CENTER);
+        int p = (int) (24 * getResources().getDisplayMetrics().density);
+        layout.setPadding(p, p, p, p);
+        layout.setBackgroundColor(Color.rgb(5, 8, 17));
+
+        TextView title = new TextView(this);
+        title.setText(getString(R.string.app_name));
+        title.setTextColor(Color.WHITE);
+        title.setTextSize(22);
+
+        TextView detail = new TextView(this);
+        detail.setText("\n" + message + "\n\nURL: " + BuildConfig.WEB_APP_URL);
+        detail.setTextColor(Color.LTGRAY);
+        detail.setTextSize(15);
+
+        Button retry = new Button(this);
+        retry.setText("Retry");
+        retry.setOnClickListener(v -> {
+            createWebView();
+            webView.loadUrl(BuildConfig.WEB_APP_URL);
+        });
+
+        layout.addView(title);
+        layout.addView(detail);
+        layout.addView(retry);
+        setContentView(layout);
     }
 
     @Override public void onBackPressed() {
@@ -49,7 +100,11 @@ public final class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
-        if (webView != null) { webView.loadUrl("about:blank"); webView.stopLoading(); webView.destroy(); }
+        if (webView != null) {
+            webView.loadUrl("about:blank");
+            webView.stopLoading();
+            webView.destroy();
+        }
         super.onDestroy();
     }
 }
