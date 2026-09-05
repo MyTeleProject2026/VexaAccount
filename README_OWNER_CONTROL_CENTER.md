@@ -6,20 +6,56 @@ The VexaAccount Super Admin frontend uses one canonical Owner Control Plane runt
 
 ```text
 Super Admin
-└── Canonical Owner Console
-    ├── Overview
-    ├── Applications / SSO
-    ├── SSO Activity & Audit
-    ├── Security Control
-    ├── Platform Settings
-    └── Integrated Owner Control Center
-        ├── Users
-        ├── SSO & Applications
-        ├── Support
-        └── Platform & Security
+└── Owner OS Session
+    ├── SYSTEM A · Identity Infrastructure
+    │   └── VexaAccount SSO Full Controlling System
+    ├── SYSTEM B · Platform Authority
+    │   └── Owner Control Center
+    └── SYSTEM C · Identity Observability OS
+        └── VexaAccount Live Integration & Runtime Observatory
 ```
 
-The Super Admin entrypoint loads the canonical Owner runtime and then uses `owner-control-center-loader.js` to load the integrated control surface after the Owner shell is mounted. This ordering prevents the previous initialization race.
+## System C — Identity Observability OS
+
+System C is a separate authenticated, read-only operating environment for real VexaAccount runtime visibility. It is not a fake event simulator and does not generate synthetic transactions.
+
+```text
+Real VexaAccount request / SSO operation
+          ↓
+Backend API lifecycle
+          ↓
+Persistent observability telemetry + existing SSO/audit records
+          ↓
+System C snapshot
+          ↓
+Authenticated SSE stream
+          ↓
+Live Owner observatory UI
+```
+
+The runtime observatory exposes:
+
+- Live API request/failure counts and measured API latency.
+- Active SSO sessions and active consent records.
+- Registered application state and real SSO session counts.
+- SSO security events and Owner audit evidence.
+- Database connectivity plus safe MySQL runtime counters (connections, running work, questions, commits and rollbacks).
+- Live SSE reconnect/heartbeat behavior.
+- Source filtering, search, pause/resume, manual refresh, feed clearing and safe selected-event inspection.
+
+The observability telemetry table is `vexa_observability_events` and is created by migration `014_system_c_observability.sql`. The normal backend start command runs the migration runner before starting the API, so a deployed backend receives the schema automatically.
+
+System C deliberately excludes access tokens, Client Secrets, arbitrary SQL, raw request bodies and private backend internals. External application internals are visible only when the activity reaches VexaAccount or is explicitly persisted/reported at the integration boundary.
+
+The standalone System C frontend is:
+
+```text
+frontend-VexaAccount-Super-admin/system-c/index.html
+frontend-VexaAccount-Super-admin/system-c/system-c.js
+frontend-VexaAccount-Super-admin/system-c/system-c.css
+```
+
+Its API target is the VexaAccount backend service (`https://api-vexaaccount.onrender.com`) rather than the static Super Admin frontend host.
 
 ## User management workflow
 
@@ -64,14 +100,7 @@ Production callbacks must be exact HTTPS values. No wildcard production callback
 
 During application creation or secret rotation, the backend deliberately returns the new Client Secret once. The Owner UI displays it transiently so the Owner can transfer it to the external application's backend secret store.
 
-The browser must never persist the secret in localStorage/sessionStorage, URLs, logs, PDFs or `VEXA_ACCOUNT_SSO_CONFIG`. The external application keeps it only in its server-side secret configuration:
-
-```env
-VEXA_ACCOUNT_CLIENT_SECRET=server_only_secret
-VEXA_ACCOUNT_SSO_CONFIG={"url":"https://api-vexaaccount.onrender.com","clientId":"YOUR_CLIENT_ID","redirectUri":"https://your-app.example.com/auth/vexaaccount/callback","scopes":["openid","profile","email"],"timeoutMs":10000}
-```
-
-`VEXA_ACCOUNT_SSO_CONFIG` must never contain `clientSecret`. The Owner runtime contains no legacy `clientJWT`/`clientJwt` credential aliases.
+The browser must never persist the secret in localStorage/sessionStorage, URLs, logs, PDFs or `VEXA_ACCOUNT_SSO_CONFIG`. The external application keeps it only in its server-side secret configuration.
 
 ## Support and notification two-way workflow
 
@@ -95,44 +124,7 @@ Owner replies are backend-backed and auditable. The User frontend's live notific
 
 ## Production E2E certification
 
-The repository includes a real authenticated production E2E:
-
-```text
-scripts/e2e-support-notification.js
-```
-
-and workflow:
-
-```text
-.github/workflows/vexaaccount-e2e.yml
-```
-
-It verifies the deployed User → Owner → notification → read acknowledgement → close → audit path using separate authenticated sessions.
-
-The workflow requires these four dedicated GitHub Actions secrets:
-
-```text
-VEXA_E2E_USER_EMAIL
-VEXA_E2E_USER_PASSWORD
-VEXA_E2E_OWNER_EMAIL
-VEXA_E2E_OWNER_PASSWORD
-```
-
-Use dedicated non-personal test accounts. A manual workflow run without all four credentials fails explicitly. Scheduled runs perform smoke checks and skip authenticated certification when credentials are absent.
-
-### Certification procedure
-
-1. Deploy the intended `master` backend.
-2. Ensure the dedicated E2E User and Owner accounts exist in the production database.
-3. Configure all four GitHub Actions secrets.
-4. Run **VexaAccount production E2E** manually against `master`.
-5. Require the authenticated job to execute successfully.
-6. Confirm the output contains `Support two-way notification E2E passed`.
-7. Record that workflow run as certification evidence for the deployed revision.
-
-A repository commit is not itself proof of live certification. The credentials cannot be safely manufactured by source code, and they must not be committed to the repository.
-
-See `docs/PRODUCTION_E2E.md` for the complete operational runbook.
+The repository includes a real authenticated production E2E for the support/notification workflow and its GitHub Actions workflow. A repository commit is not itself proof of live certification; certification requires the deployed revision and dedicated test credentials.
 
 ## Platform and security controls
 
@@ -146,22 +138,6 @@ GET /api/owner/platform/scopes
 
 These are explicit validated controls. The Owner browser is never granted arbitrary SQL, shell, JavaScript or source-code execution.
 
-## User Account Center runtime
-
-```text
-index.html
-  ↓
-account-center-loader.js
-  ↓
-account-center-runtime-v2.js
-  ↓
-account-center-v2-compat.js
-  ↓
-account-center-premium-theme.js
-```
-
-Authentication/session, notification, SSO and PWA bridges are loaded by the canonical User entrypoint. Superseded duplicate Account Center/auth/React/toast runtimes have been removed.
-
 ## Security rules
 
 1. Keep Client Secrets server-side except the deliberate one-time creation/rotation display.
@@ -174,5 +150,3 @@ Authentication/session, notification, SSO and PWA bridges are loaded by the cano
 8. Keep Owner actions explicit, validated and auditable.
 9. Never expose arbitrary code execution from the Owner UI.
 10. Never put Client Secrets in browser storage, URLs, logs, PDFs or non-secret integration configuration.
-
-For repository-wide production verification, see `README.md` and `docs/PRODUCTION_E2E.md`.
