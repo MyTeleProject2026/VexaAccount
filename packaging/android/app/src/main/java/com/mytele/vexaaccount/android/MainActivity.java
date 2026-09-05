@@ -29,7 +29,7 @@ public final class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         createWebView();
-        webView.loadUrl(BuildConfig.WEB_APP_URL);
+        webView.loadUrl(startUrl());
     }
 
     private void createWebView() {
@@ -61,7 +61,14 @@ public final class MainActivity extends Activity {
         webView.getSettings().setAllowFileAccess(false);
         webView.getSettings().setAllowContentAccess(false);
         webView.getSettings().setSupportMultipleWindows(false);
+        webView.getSettings().setCacheMode(android.webkit.WebSettings.LOAD_DEFAULT);
+        webView.getSettings().setUserAgentString(webView.getSettings().getUserAgentString() + " VexaAccountAndroid/1.0");
         CookieManager.getInstance().setAcceptCookie(true);
+    }
+
+    private String startUrl() {
+        String configured = BuildConfig.WEB_APP_URL == null ? "" : BuildConfig.WEB_APP_URL.trim();
+        return configured.endsWith("/") ? configured : configured + "/";
     }
 
     private void showLoadError(String message) {
@@ -86,7 +93,7 @@ public final class MainActivity extends Activity {
         retry.setText("Retry");
         retry.setOnClickListener(v -> {
             createWebView();
-            webView.loadUrl(BuildConfig.WEB_APP_URL);
+            webView.loadUrl(startUrl());
         });
 
         layout.addView(title);
