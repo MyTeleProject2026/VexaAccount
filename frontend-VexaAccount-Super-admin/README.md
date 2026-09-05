@@ -5,29 +5,22 @@ Standalone static frontend for the Vexa ecosystem Owner OS.
 ## Owner OS architecture
 
 ```text
-index.html
-  ↓
-owner-os.js
-  ↓
-Authenticated Owner OS session
+Owner login
   ↓
 Controller Selection
   ├─ System A — VexaAccount SSO Full Controlling System
-  │    ├─ Overview / registry / application detail
-  │    ├─ Redirect URI + scope management
-  │    ├─ Client secret creation / rotation
-  │    ├─ Diagnostics / repair / lifecycle status
-  │    ├─ Integration configuration
-  │    ├─ Runtime health sync
-  │    ├─ Complete SSO Integration Factory
-  │    └─ SSO audit
+  │    ├─ Application Registry
+  │    ├─ Application Detail
+  │    ├─ Redirect URI / scope controls
+  │    ├─ Credentials / rotation
+  │    ├─ Diagnostics / runtime sync
+  │    └─ Complete SSO Integration Factory
   │
   └─ System B — Owner Control Center
-       ├─ Overview / users
-       ├─ User profile/security detail
-       ├─ Credits / storage / sessions / notes
-       ├─ Support desk / replies / ticket closure
-       └─ Platform settings / health
+       ├─ Users
+       ├─ Account security
+       ├─ Support
+       └─ Platform operations
 ```
 
 ## Complete SSO Integration Factory
@@ -45,62 +38,53 @@ Supported application-specific profiles:
 
 The factory supports Node/Express, Next.js server integration, Python/FastAPI and a Django adapter profile, plus React, Next.js, Vue and Vanilla JS frontend selections.
 
-Generated package areas include:
-
-```text
-backend/src/auth/vexaaccount-sso.js
-backend/src/routes/auth-vexaaccount.js
-backend/src/middleware/require-vexaaccount-user.js
-backend/.env.example
-frontend-user/src/services/vexaAccountSso.js
-frontend-user/src/auth/VexaAccountLogin.*
-frontend-user/src/auth/VexaAccountAuthGuard.jsx
-database/vexaaccount-sso.sql
-tests/vexaaccount-sso.e2e.test.js
-deployment/vexaaccount-sso.md
-integration-config.json
-integration-patch-manifest.json
-VEXAACCOUNT-SSO-SETUP.md
-```
+Generated package areas include backend authentication/callback/session files, frontend SSO files, a database identity-mapping migration, `.env.example`, E2E test contract, deployment checklist, authoritative integration configuration and a deterministic patch manifest.
 
 The generated backend flow covers authorization redirect, server-side state, authorization-code exchange, userinfo retrieval, local-user upsert adapter, local session creation, logout and protected-route middleware. Database generation provides a VexaAccount subject-to-local-user identity mapping table while deliberately leaving the target application's existing user schema authoritative.
 
-The generated test contract covers success and negative paths: denied authorization, invalid/expired state, invalid code, disabled/revoked clients, token exchange failure, missing scopes, logout and secret exposure checks. The deployment checklist validates exact HTTPS redirect registration, secret-manager storage, migration, route mounting and staging certification.
+## Real GitHub installation
 
-### Automatic patching boundary
+The Owner can now optionally install the generated package into an allowed GitHub repository directly from the SSO Integration Factory. The browser sends generated source files to the authenticated VexaAccount backend; the backend performs the Git operation server-side and creates one atomic commit from the selected target branch.
 
-The Owner browser generates a deterministic `integration-patch-manifest.json`; it does **not** silently write into another application's repository. A real repository writer must authenticate separately to the target repository and review/apply the manifest. This prevents the Owner browser from becoming a cross-repository credential-writing channel and keeps `VEXA_ACCOUNT_CLIENT_SECRET` backend-only.
+Configure the VexaAccount backend/Render service with:
 
-### Authoritative configuration
+```text
+GITHUB_SSO_DEPLOY_TOKEN=<fine-grained GitHub token with Contents: write>
+GITHUB_SSO_ALLOWED_REPOSITORIES=MyTeleProject2026/VexaMail,MyTeleProject2026/VexaWallet
+GITHUB_API_URL=https://api.github.com
+```
 
-The factory reads `GET /api/sso-registry/applications/:id/integration-config` and uses its registered URL, client ID, exact redirect URI, scopes and timeout. The client secret is intentionally not included in integration-config and is represented only as `PASTE_ONE_TIME_SECRET_HERE` in `.env.example`; the Owner must transfer the one-time secret to the integrating backend's secret manager.
+The repository allowlist is strongly recommended. The token must never be placed in frontend code, browser storage, URLs or the VexaAccount database. The deployment API uses the existing Super Admin authentication and audit middleware and never force-pushes a branch.
 
-## Real backend workflows
+Owner flow:
 
-The frontend does not simulate mutations. It calls the existing authenticated backend APIs:
+```text
+Application Detail
+  → Generate Complete SSO Package
+  → select backend/frontend target
+  → inspect generated files
+  → enter target repository + branch
+  → Check repository
+  → Commit integration
+  → GitHub atomic commit
+  → receive commit SHA
+```
 
-- `/api/auth/super-admin/login`
-- `/api/auth/super-admin/session`
-- `/api/auth/logout`
-- `/api/sso-registry/*`
-- `/api/owner/users/*`
-- `/api/owner/support/*`
-- `/api/owner/platform/*`
+The deployment operation writes the generated package files and leaves unrelated existing source untouched. Existing application entrypoints still require review when the target architecture needs an import/mount change; the generated patch manifest/setup document identifies those integration points rather than guessing and overwriting unrelated code.
 
-Existing backend authorization and audit middleware remain authoritative. Database access is never exposed to the browser.
+## Authoritative configuration
+
+The factory reads `GET /api/sso-registry/applications/:id/integration-config` and uses its registered URL, client ID, exact redirect URI, scopes and timeout. The client secret is intentionally not included and is represented only as `PASTE_ONE_TIME_SECRET_HERE` in `.env.example`; the Owner transfers the one-time secret to the integrating backend's secret manager.
 
 ## Security boundary
 
 - Super Admin authentication is cookie/session based.
-- No database credentials are shipped to the frontend.
-- No JWT signing key is shipped to the frontend.
+- No database credentials or JWT signing keys are shipped to the frontend.
 - Client secrets are never stored in localStorage/sessionStorage.
-- Client secrets are returned by the backend only at application creation or rotation and are displayed transiently for secure transfer.
-- `VEXA_ACCOUNT_CLIENT_SECRET` belongs on the integrating application's backend, never in public frontend code.
-- Redirect URI validation and SSO scope validation remain backend-enforced.
+- Client secrets are returned only at application creation/rotation and are not recoverable later.
+- GitHub deployment credentials remain server-side.
+- Redirect URI and SSO scope authorization remain backend-enforced.
 
 ## Verification
 
-`.github/workflows/verify.yml` syntax-checks the frontend/backend JavaScript and verifies that the Owner OS entrypoint includes the complete SSO factory plus all six ecosystem application profiles, framework generators, environment contract, database mapping, E2E test contract, deployment checklist and patch manifest.
-
-A static source check is not the same as live production certification. The generated integration should be run against a staging target before production.
+`.github/workflows/verify.yml` syntax-checks frontend/backend JavaScript and verifies canonical Owner OS assets, factory contracts and GitHub deployment API contracts. Static checks do not substitute for a live staging deployment.
