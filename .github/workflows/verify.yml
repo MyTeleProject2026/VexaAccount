@@ -47,13 +47,15 @@ jobs:
           node <<'NODE'
           const fs=require('fs');
           const html=fs.readFileSync('frontend-VexaAccount-Super-admin/index.html','utf8');
-          for(const file of ['owner-os.js','owner-os.css','sso-integration-generator.js','sso-runtime-sync.js','sso-status-sync.js','sso-integration-factory-v3.js']){if(!html.includes(file)){console.error('Missing canonical Owner OS asset:',file);process.exit(1)}}
+          for(const file of ['owner-os.js','owner-os.css','sso-integration-generator.js','sso-runtime-sync.js','sso-status-sync.js','sso-integration-factory-v3.js','sso-github-deployer.js']){if(!html.includes(file)){console.error('Missing canonical Owner OS asset:',file);process.exit(1)}}
           const forbidden=['owner-console-runtime.js','owner-control-center-loader.js','owner-control-center.js','sso-diagnostics-panel.js','src/app.js','sso-control-upgrade.js','sso-create-wizard.js','sso-integration-patch.js','sso-receipt-security.js','user-management.js','support-control.js','platform-settings.js','react-notification-bridge.js','premium-interactions.js','vexatrade-notifications.js','vexatrade-notifications.css','user-management.css'];
           for(const file of forbidden){if(html.includes(file)){console.error('Legacy Owner runtime loaded by index:',file);process.exit(1)}}
           const owner=fs.readFileSync('frontend-VexaAccount-Super-admin/src/owner-os.js','utf8');
           for(const required of ['/api/auth/super-admin/login','/api/auth/super-admin/session','/api/sso-registry/applications','/api/sso-registry/applications/','/api/owner/users','/api/owner/support/tickets','/api/owner/platform/health'])if(!owner.includes(required)){console.error('Owner OS missing required API contract:',required);process.exit(1)}
           if(/localStorage\.(setItem|getItem)\([^)]*clientSecret|sessionStorage\.(setItem|getItem)\([^)]*clientSecret/.test(owner)){console.error('Client secret must not be stored in browser storage');process.exit(1)}
           if(/location\.(href|assign|replace)[^;\n]*clientSecret/.test(owner)){console.error('Client secret must not be placed in URLs');process.exit(1)}
+          const deployer=fs.readFileSync('frontend-VexaAccount-Super-admin/src/sso-github-deployer.js','utf8');
+          for(const required of ['/api/sso-integration/status','/api/sso-integration/preflight','/api/sso-integration/deploy'])if(!deployer.includes(required)){console.error('Missing deployment API contract:',required);process.exit(1)}
           NODE
       - name: Verify root entrypoint is only a canonical redirect
         run: |
