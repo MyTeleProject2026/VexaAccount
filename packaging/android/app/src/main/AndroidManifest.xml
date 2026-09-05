@@ -3,8 +3,8 @@
     <application
         android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:label="@string/app_name"
-        android:icon="@drawable/vexa_launcher"
-        android:roundIcon="@drawable/vexa_launcher"
+        android:icon="@mipmap/vexa_launcher"
+        android:roundIcon="@mipmap/vexa_launcher"
         android:usesCleartextTraffic="false"
         android:allowBackup="false"
         android:supportsRtl="true">
