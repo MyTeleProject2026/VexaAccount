@@ -14,7 +14,7 @@ function getToken(req) {
 async function requireActiveUser(decoded) {
   const id = decoded.sub || decoded.id;
   if (!id || decoded.role !== 'user') return null;
-  const [rows] = await pool.query('SELECT id,email,is_active FROM store_users WHERE id=? AND is_active=1 LIMIT 1',[id]);
+  const [rows] = await pool.query('SELECT id,email,is_active,session_version FROM store_users WHERE id=? AND is_active=1 LIMIT 1',[id]);
   return rows[0] || null;
 }
 
@@ -35,9 +35,9 @@ const authUser = async (req, res, next) => {
     if (!token) return res.status(401).json({ success: false, message: 'Authentication required' });
     const decoded = jwt.verify(token, JWT_SECRET);
     const activeUser = await requireActiveUser(decoded);
-    if (!activeUser) {
+    if (!activeUser || Number(decoded.sv || 1) !== Number(activeUser.session_version || 1)) {
       res.clearCookie('vexaccount_session',{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:process.env.COOKIE_SAME_SITE||'lax',path:'/'});
-      return res.status(401).json({ success: false, message: 'Invalid, expired, or inactive user session' });
+      return res.status(401).json({ success: false, message: 'Invalid, expired, inactive, or revoked user session' });
     }
     req.user = decoded;
     req.authenticatedUser = activeUser;
