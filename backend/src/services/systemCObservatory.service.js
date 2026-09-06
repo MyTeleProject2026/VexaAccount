@@ -154,8 +154,7 @@ async function cleanupTelemetry() {
   const days = Math.min(90, Math.max(1, Number(process.env.VEXA_OBSERVABILITY_RETENTION_DAYS || 30)));
   try {
     const result = await pool.query(
-      'DELETE FROM vexa_observability_events WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)',
-      [days]
+      `DELETE FROM vexa_observability_events WHERE created_at < DATE_SUB(NOW(), INTERVAL ${days} DAY)`
     );
     return { deleted: Number(result?.[0]?.affectedRows || 0), retentionDays: days };
   } catch (error) {
