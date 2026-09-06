@@ -30,6 +30,18 @@ jobs:
           for(const x of required)if(!s.includes(x)){console.error('SSO factory missing contract:',x);process.exit(1)}
           if(s.includes('localStorage')||s.includes('sessionStorage')){console.error('SSO factory must not persist credentials in browser storage');process.exit(1)}
           NODE
+      - name: Verify account security route mounting and recovery workflow contract
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const index=fs.readFileSync('backend/src/index.js','utf8');
+          const recovery=fs.readFileSync('backend/src/routes/account-recovery-email.js','utf8');
+          const people=fs.readFileSync('backend/src/routes/account-people.js','utf8');
+          for(const required of ["require('./routes/account-recovery-email')","require('./routes/account-people')","app.use('/api/account',accountRecoveryEmailRoutes)","app.use('/api/account',accountPeopleRoutes)"]){if(!index.includes(required)){console.error('Missing account route mount contract:',required);process.exit(1)}}
+          for(const required of ['/recovery','/recovery/confirm','/recovery/test','crypto.randomInt(100000,1000000)','requiresVerification:true','RECOVERY_EMAIL_VERIFICATION_REQUIRED','vexa_account_recovery_email_changes']){if(!recovery.includes(required)){console.error('Recovery workflow missing contract:',required);process.exit(1)}}
+          if(recovery.includes('Math.random')){console.error('Recovery OTP must not use Math.random');process.exit(1)}
+          for(const required of ['/people','location_sharing_enabled','personalization_enabled','RECOVERY_EMAIL_VERIFICATION_REQUIRED']){if(!people.includes(required)){console.error('People workflow missing contract:',required);process.exit(1)}}
+          NODE
       - name: Enforce canonical user runtime entrypoint and clean tree
         run: |
           node <<'NODE'
