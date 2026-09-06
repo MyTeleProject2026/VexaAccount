@@ -26,13 +26,7 @@ jobs:
           const fs=require('fs');
           const files=['backend/src/routes/auth.js','backend/src/routes/auth-recovery.js','backend/src/routes/account-change-flows.js','backend/src/routes/account-recovery-email.js','backend/src/routes/account-profile.js'];
           for(const p of files){const s=fs.readFileSync(p,'utf8');if(s.includes('Math.random')){console.error('Insecure Math.random OTP generation remains in:',p);process.exit(1)}}
-          const secure=[
-            ['backend/src/routes/auth.js','crypto.randomInt'],
-            ['backend/src/routes/auth-recovery.js','crypto.randomInt'],
-            ['backend/src/routes/account-change-flows.js','crypto.randomInt(100000,1000000)'],
-            ['backend/src/routes/account-recovery-email.js','crypto.randomInt(100000,1000000)'],
-            ['backend/src/routes/account-profile.js','crypto.randomInt(100000, 1000000)']
-          ];
+          const secure=[['backend/src/routes/auth.js','crypto.randomInt'],['backend/src/routes/auth-recovery.js','crypto.randomInt'],['backend/src/routes/account-change-flows.js','crypto.randomInt(100000,1000000)'],['backend/src/routes/account-recovery-email.js','crypto.randomInt(100000,1000000)'],['backend/src/routes/account-profile.js','crypto.randomInt(100000, 1000000)']];
           for(const [p,needle] of secure){if(!fs.readFileSync(p,'utf8').includes(needle)){console.error('Secure OTP contract missing:',p,needle);process.exit(1)}}
           NODE
       - name: Verify canonical SSO integration factory contract
@@ -74,7 +68,7 @@ jobs:
           const fs=require('fs');
           const sso=fs.readFileSync('backend/src/routes/sso.js','utf8');
           const auth=fs.readFileSync('backend/src/middleware/ssoUserAuth.js','utf8');
-          for(const required of ['code_challenge_method!==\'S256\'','consumed_at IS NULL','FOR UPDATE','PKCE verification failed','UPDATE sso_authorization_codes SET consumed_at=NOW()','UPDATE sso_refresh_tokens SET revoked_at=NOW()','sso_refresh_tokens','token_hash','crypto.randomBytes','session_version','decoded.sv','Invalid, inactive, or revoked SSO token'])if(!sso.includes(required)){console.error('SSO lifecycle contract missing:',required);process.exit(1)}
+          for(const required of ["codeChallengeMethod !== 'S256'",'consumed_at IS NULL','FOR UPDATE','PKCE verification failed','UPDATE sso_authorization_codes SET consumed_at=NOW()','UPDATE sso_refresh_tokens SET revoked_at=NOW()','sso_refresh_tokens','token_hash','crypto.randomBytes','session_version','decoded.sv','Invalid, inactive, or revoked SSO token'])if(!sso.includes(required)){console.error('SSO lifecycle contract missing:',required);process.exit(1)}
           for(const required of ["require('../config/database')",'async function requireSsoUser','session_version','is_active=1','Invalid, inactive, or revoked session'])if(!auth.includes(required)){console.error('SSO authorization user-session contract missing:',required);process.exit(1)}
           NODE
       - name: Verify server-side JWT invalidation contracts
