@@ -26,12 +26,23 @@ jobs:
         run: |
           set -euo pipefail
           base="${VEXA_API_BASE%/}"
-          code="$(curl --silent --show-error --location --retry 3 --retry-delay 3 --max-time 30 -o /tmp/auth-body -w '%{http_code}' -H 'Content-Type: application/json' -d '{}' "$base/api/auth/login")"
-          test "$code" = "400"
-          code="$(curl --silent --show-error --location --retry 3 --retry-delay 3 --max-time 30 -o /tmp/register-body -w '%{http_code}' -H 'Content-Type: application/json' -d '{}' "$base/api/auth/register")"
-          test "$code" = "400"
-          code="$(curl --silent --show-error --location --retry 3 --retry-delay 3 --max-time 30 -o /tmp/sso-body -w '%{http_code}' "$base/api/sso/authorize")"
-          test "$code" = "400"
+          check_endpoint() {
+            local name="$1"
+            local expected="$2"
+            local url="$3"
+            shift 3
+            local body_file="/tmp/${name}-body"
+            local code
+            code="$(curl --silent --show-error --location --retry 3 --retry-delay 3 --max-time 30 -o "$body_file" -w '%{http_code}' "$@" "$url")"
+            echo "$name HTTP status: $code"
+            echo "$name response:"
+            cat "$body_file"
+            echo
+            test "$code" = "$expected"
+          }
+          check_endpoint login 400 "$base/api/auth/login" -H 'Content-Type: application/json' -d '{}'
+          check_endpoint register 400 "$base/api/auth/register" -H 'Content-Type: application/json' -d '{}'
+          check_endpoint sso-authorize 400 "$base/api/sso/authorize"
       - name: Check user frontend serves canonical runtime
         env:
           VEXA_USER_BASE: ${{ vars.VEXA_USER_BASE || 'https://vexaaccount-management.onrender.com' }}
