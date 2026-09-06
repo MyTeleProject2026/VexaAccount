@@ -42,7 +42,9 @@ jobs:
           }
           check_endpoint login 400 "$base/api/auth/login" -H 'Content-Type: application/json' -d '{}'
           check_endpoint register 400 "$base/api/auth/register" -H 'Content-Type: application/json' -d '{}'
-          check_endpoint sso-authorize 400 "$base/api/sso/authorize"
+          # Authorization is intentionally protected by the authenticated VexaAccount session.
+          # A request without that session must be rejected rather than issuing an authorization code.
+          check_endpoint sso-authorize 401 "$base/api/sso/authorize"
       - name: Check user frontend serves canonical runtime
         env:
           VEXA_USER_BASE: ${{ vars.VEXA_USER_BASE || 'https://vexaaccount-management.onrender.com' }}
