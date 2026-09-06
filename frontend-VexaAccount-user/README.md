@@ -1,99 +1,53 @@
 # VexaAccount User Frontend
 
-Standalone static frontend for the VexaAccount Account Center.
+Canonical standalone static frontend for the VexaAccount User Account Center.
 
-## Deployment
+## Current runtime entrypoint
 
-Deploy this directory independently from the VexaAccount backend and Super Admin frontend.
-
-Configure the backend/API origin through environment-specific frontend configuration. This static application must never contain database credentials, SMTP credentials, SSO Client Secrets, JWT signing keys or other server secrets.
-
-## Canonical runtime
-
-The production entrypoint is `index.html`.
+`index.html` is the production entrypoint. It loads the canonical runtime chain:
 
 ```text
-index.html
-  ├── authentication/session bridges
-  ├── account-center-fetch-guard.js
-  ├── sso-frontend.js
-  ├── account-center-loader.js
-  │     ├── account-center-runtime-v2.js
-  │     ├── account-center-v2-compat.js
-  │     └── account-center-premium-theme.js
-  ├── notification-live-runtime.js
-  └── pwa.js
+account-center-fetch-guard.js
+app.js
+auth-session-bridge.js
+account-center-toast-guard.js
+vexa-notify-bridge.js
+functional-runtime-bridge.js
+sso-frontend.js
+account-center-loader.js
+account-workflow-bridge.js
+notification-live-runtime.js
+pwa.js
 ```
 
-Only one primary Account Center runtime is loaded. Superseded duplicate Account Center/auth/React/toast runtimes were removed and must not be reintroduced as parallel entrypoints.
+`account-center-loader.js` loads the Account Center runtime (`account-center-runtime-v2.js`) and its compatibility/theme dependencies. Superseded duplicate Account Center/auth/runtime entrypoints must not be added.
 
-## Account Center responsibilities
+## Real backend connection
 
-- authentication and session state
-- registration and email verification
-- forgot/reset password
-- profile and personal information
-- security and recovery controls
-- password and supported 2FA/passcode workflows
-- devices and active sessions
-- connected applications and SSO consent
-- notifications and unread state
-- people/sharing and verification
-- account activity/recovery
-- help and support
-- account deletion
-- responsive mobile/desktop presentation
-- PWA installation support
+The frontend uses the VexaAccount API at `https://api-vexaaccount.onrender.com`.
 
-Security-sensitive operations are backed by the VexaAccount API; browser state is not the security source of truth.
+Authentication is cookie/session based. The session bridge sends credentials and validates `/api/auth/session`; the backend is the security source of truth.
 
-## Live notification workflow
+Existing API-backed workflows include Login, registration, email verification/resend, forgot/reset password, profile, password/security changes, 2FA/passcode controls, devices/sessions, connected applications and SSO consent, people/sharing, notifications, support, recovery, deactivation and deletion.
+
+The frontend must never contain database credentials, SMTP credentials, SSO client secrets or JWT signing keys.
+
+## SSO browser workflow
+
+External applications start at the canonical browser bridge:
 
 ```text
-Authenticated User
-  → GET /api/account/notifications
-  → notification-live-runtime.js polls while visible
-  → new persisted unread notification is detected
-  → Account Center notification UI updates
-  → User marks notification read
-  → backend persists read state
+/#/sso/authorize
 ```
 
-The runtime also polls when the application becomes visible and reacts to authentication/session changes. It does not store Client Secrets or privileged credentials.
+The bridge preserves the pending authorization request while VexaAccount performs the existing Login/Register/recovery/verification/2FA flow. After authentication it resumes authorization and calls the protected provider API.
 
-## Support two-way workflow
+Direct unauthenticated calls to `/api/sso/authorize` are expected to return `401 Authentication required`; the browser bridge is the authentication layer.
 
-```text
-User creates support ticket
-  → Owner replies through Owner Control Center
-  → backend persists reply + notification + audit
-  → User notification API returns the notification
-  → User acknowledges it as read
-```
+## Production verification
 
-The complete deployed User → Owner → notification → read acknowledgement → audit path is verified by the repository's authenticated production E2E workflow when its dedicated test credentials are configured.
+Repository verification checks the current canonical source entrypoint and API bridge contracts. Production runtime smoke checks the deployed HTML and every required runtime asset.
 
-## Production E2E
+A green source/CI check does **not** certify a stale deployment. The deployed User frontend must actually serve the current `index.html` and referenced runtime assets before production certification is complete.
 
-The repository contains:
-
-```text
-scripts/e2e-support-notification.js
-.github/workflows/vexaaccount-e2e.yml
-docs/PRODUCTION_E2E.md
-```
-
-The authenticated production certification requires four GitHub Actions secrets:
-
-```text
-VEXA_E2E_USER_EMAIL
-VEXA_E2E_USER_PASSWORD
-VEXA_E2E_OWNER_EMAIL
-VEXA_E2E_OWNER_PASSWORD
-```
-
-These must be dedicated non-personal test credentials and must never be committed to this frontend or any other repository file.
-
-A manual production workflow run without all four credentials fails explicitly. A scheduled run may perform smoke verification without authenticated certification when the credentials are not configured. **Implemented E2E tooling is not the same as a successful live certification run.**
-
-See the repository root `README.md` and `docs/PRODUCTION_E2E.md` for the exact certification procedure.
+Authenticated production E2E credentials, when configured, must be dedicated test credentials and must never be committed.
