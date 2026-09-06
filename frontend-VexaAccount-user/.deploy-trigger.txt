@@ -1,0 +1,1 @@
+Deployment verification trigger for the canonical VexaAccount User frontend. This file is intentionally inert and exists to trigger a frontend deployment after runtime verification identified a stale deployed HTML shell.
