@@ -1,12 +1,13 @@
 const express=require('express');
 const bcrypt=require('bcryptjs');
 const jwt=require('jsonwebtoken');
+const crypto=require('crypto');
 const {pool}=require('../config/database');
 const {sendOtpEmail}=require('../services/emailService');
 const router=express.Router();
 const JWT_SECRET=process.env.JWT_SECRET;
 const OTP_TTL=10*60*1000;
-const otp=()=>String(Math.floor(100000+Math.random()*900000));
+const otp=()=>String(crypto.randomInt(100000,1000000));
 function userId(req){const h=req.get('authorization')||'';const t=h.startsWith('Bearer ')?h.slice(7).trim():req.cookies?.vexaccount_session;if(!t)throw Object.assign(new Error('Authentication required'),{status:401});const d=jwt.verify(t,JWT_SECRET);if(d.role!=='user')throw Object.assign(new Error('User access required'),{status:403});return d.id||d.sub;}
 async function requireUser(req,res,next){try{req.accountUserId=userId(req);next()}catch(e){res.status(e.status||401).json({success:false,message:e.message||'Authentication required'})}}
 router.use(requireUser);
