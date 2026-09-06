@@ -1,11 +1,123 @@
-const express=require('express');
-const jwt=require('jsonwebtoken');
-const {pool}=require('../config/database');
-const router=express.Router();
-const JWT_SECRET=process.env.JWT_SECRET;
-function requireUser(req,res,next){try{const h=req.get('authorization')||'';const t=h.startsWith('Bearer ')?h.slice(7).trim():req.cookies?.vexaccount_session;if(!t)throw new Error();const c=jwt.verify(t,JWT_SECRET),id=c.sub||c.id;if(!id||c.role!=='user')throw new Error();req.userId=id;next()}catch{return res.status(401).json({success:false,message:'Authentication required'})}}
-router.use(requireUser);
-async function ensure(){await pool.query('CREATE TABLE IF NOT EXISTS vexa_account_privacy_settings (user_id BIGINT PRIMARY KEY,location_sharing_enabled TINYINT(1) NOT NULL DEFAULT 0,personalization_enabled TINYINT(1) NOT NULL DEFAULT 1,activity_history_enabled TINYINT(1) NOT NULL DEFAULT 1,push_notifications_enabled TINYINT(1) NOT NULL DEFAULT 1,product_updates_enabled TINYINT(1) NOT NULL DEFAULT 1,marketing_email_enabled TINYINT(1) NOT NULL DEFAULT 0,security_email_enabled TINYINT(1) NOT NULL DEFAULT 1,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)');await pool.query('INSERT IGNORE INTO vexa_account_privacy_settings(user_id) VALUES(?)',[arguments[0]])}
-router.get('/people',async(req,res,next)=>{try{await ensure.call(null,req.userId);const [u]=await pool.query('SELECT username,recovery_email FROM vexa_account_center_settings WHERE user_id=?',[req.userId]);const [p]=await pool.query('SELECT location_sharing_enabled,personalization_enabled FROM vexa_account_privacy_settings WHERE user_id=?',[req.userId]);res.json({success:true,sharing:{...(u[0]||{}),...(p[0]||{})}})}catch(e){next(e)}});
-router.patch('/people',async(req,res,next)=>{try{await ensure.call(null,req.userId);const p=req.body||{};if(Object.prototype.hasOwnProperty.call(p,'recovery_email'))return res.status(409).json({success:false,code:'RECOVERY_EMAIL_VERIFICATION_REQUIRED',message:'Recovery email changes must use the verified recovery-email workflow. Open Recovery and verify the new address with the code sent to it.'});const f=[],v=[];if(Object.prototype.hasOwnProperty.call(p,'username')){const x=String(p.username||'').trim().toLowerCase();if(x&&!/^[a-z0-9._-]{3,64}$/.test(x))return res.status(400).json({success:false,message:'Username must be 3-64 characters using letters, numbers, dot, underscore or hyphen.'});await pool.query('INSERT IGNORE INTO vexa_account_center_settings(user_id) VALUES(?)',[req.userId]);f.push('username=?');v.push(x||null)}const pf=[],pv=[];for(const k of ['location_sharing_enabled','personalization_enabled'])if(typeof p[k]==='boolean'){pf.push(`${k}=?`);pv.push(p[k]?1:0)}if(f.length){v.push(req.userId);await pool.query(`UPDATE vexa_account_center_settings SET ${f.join(',')} WHERE user_id=?`,v)}if(pf.length){pv.push(req.userId);await pool.query(`UPDATE vexa_account_privacy_settings SET ${pf.join(',')} WHERE user_id=?`,pv)}if(!f.length&&!pf.length)return res.status(400).json({success:false,message:'No sharing changes supplied'});res.json({success:true,message:'People and sharing settings updated'})}catch(e){if(e.code==='ER_DUP_ENTRY')return res.status(409).json({success:false,message:'Username is already in use'});next(e)}});
-module.exports=router;
+const express = require('express');
+const { pool } = require('../config/database');
+const { authUser } = require('../middleware/auth');
+
+const router = express.Router();
+const PRIVACY_FIELDS = [
+  'location_sharing_enabled',
+  'personalization_enabled',
+  'activity_history_enabled',
+  'push_notifications_enabled',
+  'product_updates_enabled',
+  'marketing_email_enabled',
+  'security_email_enabled'
+];
+
+router.use(authUser);
+router.use((req, res, next) => {
+  req.userId = req.user.id || req.user.sub;
+  next();
+});
+
+async function ensure(userId) {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS vexa_account_privacy_settings (
+      user_id BIGINT PRIMARY KEY,
+      location_sharing_enabled TINYINT(1) NOT NULL DEFAULT 0,
+      personalization_enabled TINYINT(1) NOT NULL DEFAULT 1,
+      activity_history_enabled TINYINT(1) NOT NULL DEFAULT 1,
+      push_notifications_enabled TINYINT(1) NOT NULL DEFAULT 1,
+      product_updates_enabled TINYINT(1) NOT NULL DEFAULT 1,
+      marketing_email_enabled TINYINT(1) NOT NULL DEFAULT 0,
+      security_email_enabled TINYINT(1) NOT NULL DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )
+  `);
+  await pool.query('INSERT IGNORE INTO vexa_account_privacy_settings(user_id) VALUES(?)', [userId]);
+}
+
+router.get('/people', async (req, res, next) => {
+  try {
+    await ensure(req.userId);
+    const [settings] = await pool.query(
+      'SELECT username,recovery_email FROM vexa_account_center_settings WHERE user_id=?',
+      [req.userId]
+    );
+    const [privacy] = await pool.query(
+      `SELECT ${PRIVACY_FIELDS.join(',')} FROM vexa_account_privacy_settings WHERE user_id=?`,
+      [req.userId]
+    );
+    return res.json({ success: true, sharing: { ...(settings[0] || {}), ...(privacy[0] || {}) } });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.patch('/people', async (req, res, next) => {
+  try {
+    await ensure(req.userId);
+    const body = req.body || {};
+
+    if (Object.prototype.hasOwnProperty.call(body, 'recovery_email')) {
+      return res.status(409).json({
+        success: false,
+        code: 'RECOVERY_EMAIL_VERIFICATION_REQUIRED',
+        message: 'Recovery email changes must use the verified recovery-email workflow. Open Recovery and verify the new address with the code sent to it.'
+      });
+    }
+
+    const profileFields = [];
+    const profileValues = [];
+    if (Object.prototype.hasOwnProperty.call(body, 'username')) {
+      const username = String(body.username || '').trim().toLowerCase();
+      if (username && !/^[a-z0-9._-]{3,64}$/.test(username)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Username must be 3-64 characters using letters, numbers, dot, underscore or hyphen.'
+        });
+      }
+      await pool.query('INSERT IGNORE INTO vexa_account_center_settings(user_id) VALUES(?)', [req.userId]);
+      profileFields.push('username=?');
+      profileValues.push(username || null);
+    }
+
+    const privacyFields = [];
+    const privacyValues = [];
+    for (const key of PRIVACY_FIELDS) {
+      if (typeof body[key] === 'boolean') {
+        privacyFields.push(`${key}=?`);
+        privacyValues.push(body[key] ? 1 : 0);
+      }
+    }
+
+    if (!profileFields.length && !privacyFields.length) {
+      return res.status(400).json({ success: false, message: 'No people or sharing changes supplied' });
+    }
+
+    if (profileFields.length) {
+      profileValues.push(req.userId);
+      await pool.query(
+        `UPDATE vexa_account_center_settings SET ${profileFields.join(',')} WHERE user_id=?`,
+        profileValues
+      );
+    }
+
+    if (privacyFields.length) {
+      privacyValues.push(req.userId);
+      await pool.query(
+        `UPDATE vexa_account_privacy_settings SET ${privacyFields.join(',')} WHERE user_id=?`,
+        privacyValues
+      );
+    }
+
+    return res.json({ success: true, message: 'People and sharing settings updated' });
+  } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ success: false, message: 'Username is already in use' });
+    }
+    return next(error);
+  }
+});
+
+module.exports = router;
