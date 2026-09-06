@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { pool } = require('../config/database');
 const { sendOtpEmail, sendResetEmail } = require('../services/emailService');
 
@@ -10,7 +11,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 if (!JWT_SECRET) throw new Error('JWT_SECRET must be configured');
 
-const generateOTP = () => String(Math.floor(100000 + Math.random() * 900000));
+const generateOTP = () => String(crypto.randomInt(100000, 1000000));
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 
 function setUserSession(res, user) {
