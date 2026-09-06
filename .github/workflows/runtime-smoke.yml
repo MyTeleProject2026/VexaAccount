@@ -49,10 +49,15 @@ jobs:
           set -euo pipefail
           base="${VEXA_USER_BASE%/}"
           html="$(curl --fail --silent --show-error --location --retry 4 --retry-delay 5 --max-time 45 "$base/")"
-          for asset in account-center-runtime-v2.js functional-runtime-bridge.js account-workflow-bridge.js sso-frontend.js auth-session-bridge.js; do
+          # The canonical Account Center runtime is loaded transitively by account-center-loader.js.
+          # Do not require account-center-runtime-v2.js to be a direct index.html script tag.
+          for asset in account-center-loader.js functional-runtime-bridge.js account-workflow-bridge.js sso-frontend.js auth-session-bridge.js; do
             printf '%s' "$html" | grep -q "$asset" || { echo "Canonical user runtime asset is not referenced by production HTML: $asset"; exit 1; }
             curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --max-time 30 "$base/src/$asset" >/dev/null || { echo "Production user runtime asset is not reachable: $asset"; exit 1; }
           done
+          loader="$(curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --max-time 30 "$base/src/account-center-loader.js")"
+          printf '%s' "$loader" | grep -q 'account-center-runtime-v2.js' || { echo "Canonical Account Center loader does not reference account-center-runtime-v2.js"; exit 1; }
+          curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --max-time 30 "$base/src/account-center-runtime-v2.js" >/dev/null || { echo "Production Account Center runtime is not reachable: account-center-runtime-v2.js"; exit 1; }
       - name: Check Super Admin frontend serves canonical Owner OS
         env:
           VEXA_OWNER_BASE: ${{ vars.VEXA_OWNER_BASE || 'https://super-admin-vexaaccount.onrender.com' }}
