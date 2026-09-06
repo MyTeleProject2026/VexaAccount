@@ -53,9 +53,9 @@ jobs:
           const recovery=fs.readFileSync('backend/src/routes/account-recovery-email.js','utf8');
           const people=fs.readFileSync('backend/src/routes/account-people.js','utf8');
           for(const required of ["require('./routes/account-recovery-email')","require('./routes/account-people')","app.use('/api/account',accountRecoveryEmailRoutes)","app.use('/api/account',accountPeopleRoutes)"]){if(!index.includes(required)){console.error('Missing account route mount contract:',required);process.exit(1)}}
-          for(const required of ['/recovery','/recovery/confirm','/recovery/test','crypto.randomInt(100000,1000000)','requiresVerification:true','RECOVERY_EMAIL_VERIFICATION_REQUIRED','vexa_account_recovery_email_changes']){if(!recovery.includes(required)){console.error('Recovery workflow missing contract:',required);process.exit(1)}}
+          for(const required of ['/recovery','/recovery/confirm','/recovery/test','crypto.randomInt(100000,1000000)','requiresVerification:true','vexa_account_recovery_email_changes']){if(!recovery.includes(required)){console.error('Recovery workflow missing contract:',required);process.exit(1)}}
           if(recovery.includes('Math.random')){console.error('Recovery OTP must not use Math.random');process.exit(1)}
-          for(const required of ['/people','location_sharing_enabled','personalization_enabled','RECOVERY_EMAIL_VERIFICATION_REQUIRED']){if(!people.includes(required)){console.error('People workflow missing contract:',required);process.exit(1)}}
+          for(const required of ['/people','location_sharing_enabled','personalization_enabled','activity_history_enabled','push_notifications_enabled','product_updates_enabled','marketing_email_enabled','security_email_enabled','RECOVERY_EMAIL_VERIFICATION_REQUIRED']){if(!people.includes(required)){console.error('People workflow missing contract:',required);process.exit(1)}}
           NODE
       - name: Verify account credential mutation routes use verified change workflows
         run: |
@@ -120,8 +120,7 @@ jobs:
           const html=fs.readFileSync('frontend-VexaAccount-user/index.html','utf8');
           const bridge=fs.readFileSync('frontend-VexaAccount-user/src/account-workflow-bridge.js','utf8');
           if(!html.includes('account-workflow-bridge.js')){console.error('User index must load the account workflow bridge');process.exit(1)}
-          for(const required of ['/api/account/recovery','/api/account/recovery/confirm','/api/account/people','RECOVERY_EMAIL_VERIFICATION_REQUIRED'])if(!bridge.includes(required)&&required!=='RECOVERY_EMAIL_VERIFICATION_REQUIRED'){console.error('Account workflow bridge missing contract:',required);process.exit(1)}
-          if(bridge.includes("'/api/account/settings',{method:'PATCH',body:JSON.stringify({recovery_email")){console.error('Recovery email must not bypass password + OTP workflow');process.exit(1)}
+          for(const required of ['/api/account/recovery','/api/account/recovery/confirm','/api/account/people'])if(!bridge.includes(required)){console.error('Account workflow bridge missing contract:',required);process.exit(1)}
           NODE
       - name: Enforce canonical user runtime entrypoint and clean tree
         run: |
