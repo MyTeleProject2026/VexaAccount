@@ -149,6 +149,33 @@ router.post('/forgot-password', async (req, res, next) => {
   }
 });
 
+router.post('/reset-password', async (req, res, next) => {
+  const c = await pool.getConnection();
+  try {
+    const token = String(req.body?.token || '').trim();
+    const password = String(req.body?.password || '');
+    const confirmPassword = String(req.body?.confirmPassword || req.body?.confirm || '');
+    if (!token || !password) return res.status(400).json({ success:false, message:'Reset token and new password are required.' });
+    if (password.length < 8) return res.status(400).json({ success:false, message:'Password must be at least 8 characters.' });
+    if (confirmPassword && password !== confirmPassword) return res.status(400).json({ success:false, message:'Passwords do not match.' });
+    let claims;
+    try { claims = jwt.verify(token, JWT_SECRET); } catch { return res.status(400).json({ success:false, message:'This reset link is invalid or has expired.' }); }
+    if (claims.purpose !== 'password_reset' || !(claims.id || claims.sub)) return res.status(400).json({ success:false, message:'This reset link is invalid.' });
+    const userId = claims.id || claims.sub;
+    const [codes] = await c.query('SELECT id FROM otp_codes WHERE user_id=? AND otp_code=? AND purpose="password_reset" AND is_used=0 AND expires_at>NOW() ORDER BY id DESC LIMIT 1',[userId,token]);
+    if (!codes.length) return res.status(400).json({ success:false, message:'This reset link has already been used or expired.' });
+    const hash = await bcrypt.hash(password,12);
+    await c.beginTransaction();
+    await c.query('UPDATE store_users SET password=?,session_version=COALESCE(session_version,1)+1 WHERE id=? AND is_active=1',[hash,userId]);
+    await c.query('UPDATE otp_codes SET is_used=1 WHERE id=?',[codes[0].id]);
+    await c.query('UPDATE sso_sessions SET revoked_at=NOW() WHERE user_id=? AND revoked_at IS NULL',[userId]);
+    await c.query('INSERT INTO sso_security_events (user_id,event_type,metadata) VALUES (?,?,?)',[userId,'account.password_reset',JSON.stringify({source:'email_reset'})]);
+    await c.commit();
+    res.clearCookie('vexaccount_session',{httpOnly:true,secure:IS_PRODUCTION,sameSite:process.env.COOKIE_SAME_SITE||'lax',path:'/'});
+    return res.json({ success:true, message:'Password reset successfully. Please sign in with your new password.' });
+  } catch (error) { await c.rollback().catch(()=>{}); next(error); } finally { c.release(); }
+});
+
 router.post('/login', async (req, res, next) => {
   try {
     const email = normalizeEmail(req.body.email);
