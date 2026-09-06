@@ -20,6 +20,21 @@ jobs:
         run: find frontend-VexaAccount-user/src -type f -name '*.js' -print0 | xargs -0 -n1 node --check
       - name: Check Super Admin JavaScript syntax
         run: find frontend-VexaAccount-Super-admin/src -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Verify secure OTP generation across account workflows
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const files=['backend/src/routes/auth.js','backend/src/routes/auth-recovery.js','backend/src/routes/account-change-flows.js','backend/src/routes/account-recovery-email.js','backend/src/routes/account-profile.js'];
+          for(const p of files){const s=fs.readFileSync(p,'utf8');if(s.includes('Math.random')){console.error('Insecure Math.random OTP generation remains in:',p);process.exit(1)}}
+          const secure=[
+            ['backend/src/routes/auth.js','crypto.randomInt'],
+            ['backend/src/routes/auth-recovery.js','crypto.randomInt'],
+            ['backend/src/routes/account-change-flows.js','crypto.randomInt(100000,1000000)'],
+            ['backend/src/routes/account-recovery-email.js','crypto.randomInt(100000,1000000)'],
+            ['backend/src/routes/account-profile.js','crypto.randomInt(100000, 1000000)']
+          ];
+          for(const [p,needle] of secure){if(!fs.readFileSync(p,'utf8').includes(needle)){console.error('Secure OTP contract missing:',p,needle);process.exit(1)}}
+          NODE
       - name: Verify canonical SSO integration factory contract
         run: |
           node <<'NODE'
@@ -41,6 +56,17 @@ jobs:
           for(const required of ['/recovery','/recovery/confirm','/recovery/test','crypto.randomInt(100000,1000000)','requiresVerification:true','RECOVERY_EMAIL_VERIFICATION_REQUIRED','vexa_account_recovery_email_changes']){if(!recovery.includes(required)){console.error('Recovery workflow missing contract:',required);process.exit(1)}}
           if(recovery.includes('Math.random')){console.error('Recovery OTP must not use Math.random');process.exit(1)}
           for(const required of ['/people','location_sharing_enabled','personalization_enabled','RECOVERY_EMAIL_VERIFICATION_REQUIRED']){if(!people.includes(required)){console.error('People workflow missing contract:',required);process.exit(1)}}
+          NODE
+      - name: Verify account credential mutation routes use verified change workflows
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const profile=fs.readFileSync('backend/src/routes/account-profile.js','utf8');
+          const changes=fs.readFileSync('backend/src/routes/account-change-flows.js','utf8');
+          for(const required of ['/email','/password','USE_VERIFIED_CHANGE_FLOW'])if(!profile.includes(required)){console.error('Legacy credential route guard missing:',required);process.exit(1)}
+          for(const required of ['/email/start','/email/verify','/email/resend','/password/start','/password/verify','/password/resend','crypto.randomInt(100000,1000000)'])if(!changes.includes(required)){console.error('Verified credential workflow missing:',required);process.exit(1)}
+          if(profile.includes('Math.random')){console.error('Profile route must not use Math.random');process.exit(1)}
+          if(profile.includes('UPDATE store_users SET email=')||profile.includes('UPDATE store_users SET password=')){console.error('Legacy profile route must not directly mutate credentials');process.exit(1)}
           NODE
       - name: Verify user account workflow bridge contract
         run: |
