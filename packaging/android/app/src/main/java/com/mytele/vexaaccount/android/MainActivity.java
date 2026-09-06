@@ -10,6 +10,7 @@ import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
@@ -20,6 +21,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 public final class MainActivity extends Activity {
+    private static final String ANDROID_BUILD = "100";
     private WebView webView;
     private final Set<String> allowedHosts = new HashSet<>(Arrays.asList(
         Uri.parse(BuildConfig.WEB_APP_URL).getHost(),
@@ -63,20 +65,25 @@ public final class MainActivity extends Activity {
                 showLoadError("Unable to load the VexaAccount service: " + (description == null ? "Unknown network error" : description));
             }
         });
-        webView.getSettings().setJavaScriptEnabled(true);
-        webView.getSettings().setDomStorageEnabled(true);
-        webView.getSettings().setDatabaseEnabled(true);
-        webView.getSettings().setAllowFileAccess(false);
-        webView.getSettings().setAllowContentAccess(false);
-        webView.getSettings().setSupportMultipleWindows(false);
-        webView.getSettings().setCacheMode(android.webkit.WebSettings.LOAD_DEFAULT);
-        webView.getSettings().setUserAgentString(webView.getSettings().getUserAgentString() + " VexaAccountAndroid/1.0");
-        CookieManager.getInstance().setAcceptCookie(true);
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setDatabaseEnabled(true);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
+        settings.setSupportMultipleWindows(false);
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        settings.setUserAgentString(settings.getUserAgentString() + " VexaAccountAndroid/1.1");
+        CookieManager cookies = CookieManager.getInstance();
+        cookies.setAcceptCookie(true);
+        cookies.setAcceptThirdPartyCookies(webView, true);
+        cookies.flush();
     }
 
     private String startUrl() {
         String configured = BuildConfig.WEB_APP_URL == null ? "" : BuildConfig.WEB_APP_URL.trim();
-        return configured.endsWith("/") ? configured : configured + "/";
+        String base = configured.endsWith("/") ? configured : configured + "/";
+        return base + (base.contains("?") ? "&" : "?") + "androidBuild=" + ANDROID_BUILD;
     }
 
     private void showLoadError(String message) {
