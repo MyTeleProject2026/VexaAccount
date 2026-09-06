@@ -42,12 +42,22 @@ jobs:
           if(recovery.includes('Math.random')){console.error('Recovery OTP must not use Math.random');process.exit(1)}
           for(const required of ['/people','location_sharing_enabled','personalization_enabled','RECOVERY_EMAIL_VERIFICATION_REQUIRED']){if(!people.includes(required)){console.error('People workflow missing contract:',required);process.exit(1)}}
           NODE
+      - name: Verify user account workflow bridge contract
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const html=fs.readFileSync('frontend-VexaAccount-user/index.html','utf8');
+          const bridge=fs.readFileSync('frontend-VexaAccount-user/src/account-workflow-bridge.js','utf8');
+          if(!html.includes('account-workflow-bridge.js')){console.error('User index must load the account workflow bridge');process.exit(1)}
+          for(const required of ['/api/account/recovery','/api/account/recovery/confirm','/api/account/people','RECOVERY_EMAIL_VERIFICATION_REQUIRED'])if(!bridge.includes(required)&&required!=='RECOVERY_EMAIL_VERIFICATION_REQUIRED'){console.error('Account workflow bridge missing contract:',required);process.exit(1)}
+          if(bridge.includes("'/api/account/settings',{method:'PATCH',body:JSON.stringify({recovery_email")){console.error('Recovery email must not bypass password + OTP workflow');process.exit(1)}
+          NODE
       - name: Enforce canonical user runtime entrypoint and clean tree
         run: |
           node <<'NODE'
           const fs=require('fs');
           const html=fs.readFileSync('frontend-VexaAccount-user/index.html','utf8');
-          const required=['account-center-fetch-guard.js','app.js','auth-session-bridge.js','account-center-toast-guard.js','vexa-notify-bridge.js','functional-runtime-bridge.js','sso-frontend.js','account-center-loader.js','notification-live-runtime.js','pwa.js'];
+          const required=['account-center-fetch-guard.js','app.js','auth-session-bridge.js','account-center-toast-guard.js','vexa-notify-bridge.js','functional-runtime-bridge.js','sso-frontend.js','account-center-loader.js','account-workflow-bridge.js','notification-live-runtime.js','pwa.js'];
           for(const file of required){if(!html.includes(file)){console.error('Missing canonical user runtime script:',file);process.exit(1)}}
           const forbidden=['app-v3.js','app-fixed.js','auth-flow-fix.js','account-center-runtime.js','account-center-full-workflows.js','account-center-runtime-bridge.js','account-center-runtime-fix.js','account-center-network-guard.js','account-center-hotfix.js','account-center-live-metrics.js','account-center-ui-stability.js','notification-runtime.js','react-account-center-loader.js','react-account-center.js','vexatrade-toast-runtime.js','vexatrade-toast-compat.js','account-center-action-wiring.js','account-center-enhancements.js'];
           for(const file of forbidden){if(html.includes(file)){console.error('Legacy runtime loaded by user index:',file);process.exit(1)}}
