@@ -68,6 +68,15 @@ jobs:
           if(profile.includes('Math.random')){console.error('Profile route must not use Math.random');process.exit(1)}
           if(profile.includes('UPDATE store_users SET email=')||profile.includes('UPDATE store_users SET password=')){console.error('Legacy profile route must not directly mutate credentials');process.exit(1)}
           NODE
+      - name: Verify SSO authorization and token lifecycle contracts
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const sso=fs.readFileSync('backend/src/routes/sso.js','utf8');
+          const auth=fs.readFileSync('backend/src/middleware/ssoUserAuth.js','utf8');
+          for(const required of ['code_challenge_method!==\'S256\'','consumed_at IS NULL','FOR UPDATE','PKCE verification failed','UPDATE sso_authorization_codes SET consumed_at=NOW()','UPDATE sso_refresh_tokens SET revoked_at=NOW()','sso_refresh_tokens','token_hash','crypto.randomBytes','session_version','decoded.sv','Invalid, inactive, or revoked SSO token'])if(!sso.includes(required)){console.error('SSO lifecycle contract missing:',required);process.exit(1)}
+          for(const required of ["require('../config/database')",'async function requireSsoUser','session_version','is_active=1','Invalid, inactive, or revoked session'])if(!auth.includes(required)){console.error('SSO authorization user-session contract missing:',required);process.exit(1)}
+          NODE
       - name: Verify server-side JWT invalidation contracts
         run: |
           node <<'NODE'
