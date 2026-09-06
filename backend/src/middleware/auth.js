@@ -14,8 +14,26 @@ function getToken(req) {
 async function requireActiveUser(decoded) {
   const id = decoded.sub || decoded.id;
   if (!id || decoded.role !== 'user') return null;
-  const [rows] = await pool.query('SELECT id,email,is_active,session_version FROM store_users WHERE id=? AND is_active=1 LIMIT 1',[id]);
+  const [rows] = await pool.query(
+    'SELECT id,email,is_active,session_version,session_version_changed_at FROM store_users WHERE id=? AND is_active=1 LIMIT 1',
+    [id]
+  );
   return rows[0] || null;
+}
+
+function legacyTokenIsCurrent(decoded, activeUser) {
+  // JWTs issued before the session-version claim was introduced have no `sv`.
+  // They remain valid until their normal expiry, but any session-version bump
+  // (logout, password reset/change, deactivation, account deletion, etc.) must
+  // invalidate them. The DB trigger maintains the revocation timestamp.
+  if (decoded.sv !== undefined && decoded.sv !== null) {
+    return Number(decoded.sv) === Number(activeUser.session_version || 1);
+  }
+  const changedAt = activeUser.session_version_changed_at
+    ? new Date(activeUser.session_version_changed_at).getTime()
+    : 0;
+  const issuedAt = Number(decoded.iat || 0) * 1000;
+  return !changedAt || issuedAt >= changedAt;
 }
 
 const authAdmin = (req, res, next) => {
@@ -23,10 +41,14 @@ const authAdmin = (req, res, next) => {
     const token = getToken(req);
     if (!token) return res.status(401).json({ success: false, message: 'Authentication required' });
     const decoded = jwt.verify(token, JWT_SECRET);
-    if (decoded.role !== 'admin' && !['owner', 'super_admin'].includes(decoded.role)) return res.status(403).json({ success: false, message: 'Admin access required' });
+    if (decoded.role !== 'admin' && !['owner', 'super_admin'].includes(decoded.role)) {
+      return res.status(403).json({ success: false, message: 'Admin access required' });
+    }
     req.admin = decoded;
     next();
-  } catch { return res.status(401).json({ success: false, message: 'Invalid or expired token' }); }
+  } catch {
+    return res.status(401).json({ success: false, message: 'Invalid or expired token' });
+  }
 };
 
 const authUser = async (req, res, next) => {
@@ -35,14 +57,21 @@ const authUser = async (req, res, next) => {
     if (!token) return res.status(401).json({ success: false, message: 'Authentication required' });
     const decoded = jwt.verify(token, JWT_SECRET);
     const activeUser = await requireActiveUser(decoded);
-    if (!activeUser || Number(decoded.sv || 1) !== Number(activeUser.session_version || 1)) {
-      res.clearCookie('vexaccount_session',{httpOnly:true,secure:process.env.NODE_ENV==='production',sameSite:process.env.COOKIE_SAME_SITE||'lax',path:'/'});
+    if (!activeUser || !legacyTokenIsCurrent(decoded, activeUser)) {
+      res.clearCookie('vexaccount_session', {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.COOKIE_SAME_SITE || 'lax',
+        path: '/'
+      });
       return res.status(401).json({ success: false, message: 'Invalid, expired, inactive, or revoked user session' });
     }
     req.user = decoded;
     req.authenticatedUser = activeUser;
     next();
-  } catch { return res.status(401).json({ success: false, message: 'Invalid or expired token' }); }
+  } catch {
+    return res.status(401).json({ success: false, message: 'Invalid or expired token' });
+  }
 };
 
 module.exports = { authAdmin, authUser };
