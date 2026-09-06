@@ -1,0 +1,41 @@
+name: VexaAccount production runtime smoke
+
+on:
+  push:
+    branches: [master]
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  runtime-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check API health and database dependency
+        env:
+          VEXA_API_BASE: ${{ vars.VEXA_API_BASE || 'https://api-vexaaccount.onrender.com' }}
+        run: |
+          set -euo pipefail
+          base="${VEXA_API_BASE%/}"
+          body="$(curl --fail --silent --show-error --location --retry 4 --retry-delay 5 --max-time 45 "$base/api/health")"
+          echo "$body"
+          node -e 'const d=JSON.parse(process.argv[1]); if(d.success!==true || d.status!=="healthy" || d.checks?.database!=="ok" || d.checks?.server!=="ok") process.exit(1)' "$body"
+      - name: Check user frontend serves canonical runtime
+        env:
+          VEXA_USER_BASE: ${{ vars.VEXA_USER_BASE || 'https://vexaaccount-management.onrender.com' }}
+        run: |
+          set -euo pipefail
+          base="${VEXA_USER_BASE%/}"
+          html="$(curl --fail --silent --show-error --location --retry 4 --retry-delay 5 --max-time 45 "$base/")"
+          printf '%s' "$html" | grep -q 'account-center-runtime-v2.js' || { echo 'Canonical Account Center runtime is not served by production user frontend'; exit 1; }
+          printf '%s' "$html" | grep -q 'functional-runtime-bridge.js' || { echo 'Functional runtime bridge is not served by production user frontend'; exit 1; }
+          printf '%s' "$html" | grep -q 'account-workflow-bridge.js' || { echo 'Account workflow bridge is not served by production user frontend'; exit 1; }
+      - name: Check Super Admin frontend serves canonical Owner OS
+        env:
+          VEXA_OWNER_BASE: ${{ vars.VEXA_OWNER_BASE || 'https://super-admin-vexaaccount.onrender.com' }}
+        run: |
+          set -euo pipefail
+          base="${VEXA_OWNER_BASE%/}"
+          html="$(curl --fail --silent --show-error --location --retry 4 --retry-delay 5 --max-time 45 "$base/")"
+          printf '%s' "$html" | grep -q 'owner-os.js' || { echo 'Canonical Owner OS is not served by production Super Admin frontend'; exit 1; }
+          printf '%s' "$html" | grep -q 'sso-integration-factory-v4.js' || { echo 'Canonical SSO factory is not served by production Super Admin frontend'; exit 1; }
