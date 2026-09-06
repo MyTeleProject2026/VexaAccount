@@ -1,39 +1,51 @@
 # VexaAccount Backend
 
-Standalone VexaAccount Web Services / API deployment.
+The authoritative VexaAccount API and database service.
 
-This service owns the VexaAccount MySQL/TiDB-compatible database and exposes authentication, recovery, SSO, Account Center, security, Super Admin and Owner-control APIs.
+## Mounted API areas
 
-## SSO service
-
-The SSO contract is mounted at `/api/sso` and provides:
+The current `src/index.js` mounts the existing workflows for:
 
 ```text
-GET  /api/sso/.well-known/openid-configuration
-GET  /api/sso/authorize
-POST /api/sso/token
-GET  /api/sso/userinfo
-POST /api/sso/logout
+/api/auth
+/api/auth/super-admin
+/api/sso
+/api/sso-registry
+/api/sso-integration
+/api/account
+/api/account/change
+/api/account/security
+/api/account/security-score
+/api/account/storage
+/api/owner
+/api/owner/users
+/api/owner/platform
+/api/owner/support
+/api/system-c
 ```
 
-Application registration and lifecycle administration are mounted at `/api/sso-registry` and are protected by Super Admin authentication. The registry supports application creation, editing, redirect URI and scope management, approval/disable/maintenance/rejection/revocation, secret rotation, audit records and safe non-secret integration configuration export.
+Authentication/session state and security-sensitive account state are database-backed. `/api/auth/session` validates the signed session against the active user and `session_version`; logout increments the server-side session version.
 
-Connected applications use their own Render backend environment variables:
+## SSO
+
+The provider exposes authorization-code SSO with S256 PKCE, one-time authorization codes, refresh-token lifecycle controls, consent/session containment and protected userinfo. Application registration is controlled through `/api/sso-registry`.
+
+Connected applications keep their Client Secret server-side:
 
 ```env
 VEXA_ACCOUNT_CLIENT_SECRET=<generated Client Secret>
 VEXA_ACCOUNT_SSO_CONFIG={"url":"https://api-vexaaccount.onrender.com","clientId":"<Client ID>","redirectUri":"https://your-app.example.com/auth/callback","scopes":["openid","profile","email"],"timeoutMs":10000}
 ```
 
-The Client Secret must remain server-side and must never be embedded in `VEXA_ACCOUNT_SSO_CONFIG`, browser code or a frontend deployment.
+Do not put `clientSecret` into browser configuration or `VEXA_ACCOUNT_SSO_CONFIG`.
 
-## Control-plane boundary
+## Database migrations
 
-Super Admin can control supported runtime behavior through validated APIs and database-backed platform settings. It is intentionally **not** a generic source-code, SQL, shell or JavaScript execution console. Code-level backend upgrades must go through the normal repository/deployment pipeline.
+Production startup runs the migration process before starting `src/index.js`. Current migrations include Account Center/change workflows and the `session_version` compatibility/security migration used by server-side session invalidation.
 
-## Runtime configuration
+## Health and runtime verification
 
-See `backend/.env.example` for the backend deployment variables, including `VEXA_ACCOUNT_ISSUER`, `JWT_SECRET`, database configuration, cookie settings and CORS origins.
+`GET /api/health` performs a real database query and reports database/server health. The repository also contains static verification and production runtime smoke workflows. A successful source check is not treated as production certification until the deployed API and both deployed frontends serve and execute the current source.
 
 ## Start
 
@@ -41,9 +53,5 @@ See `backend/.env.example` for the backend deployment variables, including `VEXA
 npm run migrate
 npm start
 ```
-
-The production start script runs migrations before starting `src/index.js`.
-
-For the complete ecosystem integration guide, including VexaTrade, VexaStore, VexaTrade Ecosystem, MTP2026 App Launcher, future apps, Render variables and Super Admin lifecycle controls, see the repository root `README.md`.
 
 Never put database credentials, Client Secrets or signing secrets in frontend projects.
