@@ -68,6 +68,21 @@ jobs:
           if(profile.includes('Math.random')){console.error('Profile route must not use Math.random');process.exit(1)}
           if(profile.includes('UPDATE store_users SET email=')||profile.includes('UPDATE store_users SET password=')){console.error('Legacy profile route must not directly mutate credentials');process.exit(1)}
           NODE
+      - name: Verify server-side JWT invalidation contracts
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const migration=fs.readFileSync('backend/database/migrations/20260907_session_version.sql','utf8');
+          const auth=fs.readFileSync('backend/src/middleware/auth.js','utf8');
+          const recovery=fs.readFileSync('backend/src/routes/auth-recovery.js','utf8');
+          const center=fs.readFileSync('backend/src/routes/account-center.js','utf8');
+          const profile=fs.readFileSync('backend/src/routes/account-profile.js','utf8');
+          for(const required of ['ADD COLUMN session_version','DEFAULT 1'])if(!migration.includes(required)){console.error('Session version migration missing:',required);process.exit(1)}
+          for(const required of ['session_version','decoded.sv','revoked user session'])if(!auth.includes(required)){console.error('JWT session-version middleware contract missing:',required);process.exit(1)}
+          for(const required of ["sv: Number(user.session_version || 1)","router.post('/reset-password'",'purpose !== \'password_reset\'','is_used=0','session_version=COALESCE(session_version,1)+1','account.password_reset'])if(!recovery.includes(required)){console.error('Reset/session contract missing:',required);process.exit(1)}
+          for(const required of ['router.use(authUser)','session_version=COALESCE(session_version,1)+1'])if(!center.includes(required)){console.error('Account center session contract missing:',required);process.exit(1)}
+          for(const required of ['router.use(authUser)','is_active=0,session_version=COALESCE(session_version,1)+1'])if(!profile.includes(required)){console.error('Account deletion contract missing:',required);process.exit(1)}
+          NODE
       - name: Verify protected JWT middleware rejects inactive users
         run: |
           node <<'NODE'
