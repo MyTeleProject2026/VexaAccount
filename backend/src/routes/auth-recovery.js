@@ -16,7 +16,7 @@ const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 
 function setUserSession(res, user) {
   const token = jwt.sign(
-    { id: user.id, email: user.email, role: 'user' },
+    { id: user.id, email: user.email, role: 'user', sv: Number(user.session_version || 1) },
     JWT_SECRET,
     { expiresIn: '7d' }
   );
