@@ -35,15 +35,12 @@ jobs:
             local code
             code="$(curl --silent --show-error --location --retry 3 --retry-delay 3 --max-time 30 -o "$body_file" -w '%{http_code}' "$@" "$url")"
             echo "$name HTTP status: $code"
-            echo "$name response:"
             cat "$body_file"
             echo
             test "$code" = "$expected"
           }
           check_endpoint login 400 "$base/api/auth/login" -H 'Content-Type: application/json' -d '{}'
           check_endpoint register 400 "$base/api/auth/register" -H 'Content-Type: application/json' -d '{}'
-          # Authorization is intentionally protected by the authenticated VexaAccount session.
-          # A request without that session must be rejected rather than issuing an authorization code.
           check_endpoint sso-authorize 401 "$base/api/sso/authorize"
       - name: Check user frontend serves canonical runtime
         env:
@@ -52,9 +49,10 @@ jobs:
           set -euo pipefail
           base="${VEXA_USER_BASE%/}"
           html="$(curl --fail --silent --show-error --location --retry 4 --retry-delay 5 --max-time 45 "$base/")"
-          printf '%s' "$html" | grep -q 'account-center-runtime-v2.js' || { echo 'Canonical Account Center runtime is not served by production user frontend'; exit 1; }
-          printf '%s' "$html" | grep -q 'functional-runtime-bridge.js' || { echo 'Functional runtime bridge is not served by production user frontend'; exit 1; }
-          printf '%s' "$html" | grep -q 'account-workflow-bridge.js' || { echo 'Account workflow bridge is not served by production user frontend'; exit 1; }
+          for asset in account-center-runtime-v2.js functional-runtime-bridge.js account-workflow-bridge.js sso-frontend.js auth-session-bridge.js; do
+            printf '%s' "$html" | grep -q "$asset" || { echo "Canonical user runtime asset is not referenced by production HTML: $asset"; exit 1; }
+            curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --max-time 30 "$base/src/$asset" >/dev/null || { echo "Production user runtime asset is not reachable: $asset"; exit 1; }
+          done
       - name: Check Super Admin frontend serves canonical Owner OS
         env:
           VEXA_OWNER_BASE: ${{ vars.VEXA_OWNER_BASE || 'https://super-admin-vexaaccount.onrender.com' }}
@@ -62,5 +60,7 @@ jobs:
           set -euo pipefail
           base="${VEXA_OWNER_BASE%/}"
           html="$(curl --fail --silent --show-error --location --retry 4 --retry-delay 5 --max-time 45 "$base/")"
-          printf '%s' "$html" | grep -q 'owner-os.js' || { echo 'Canonical Owner OS is not served by production Super Admin frontend'; exit 1; }
-          printf '%s' "$html" | grep -q 'sso-integration-factory-v4.js' || { echo 'Canonical SSO factory is not served by production Super Admin frontend'; exit 1; }
+          for asset in owner-os.js sso-integration-factory-v4.js; do
+            printf '%s' "$html" | grep -q "$asset" || { echo "Canonical Owner OS asset is not referenced by production HTML: $asset"; exit 1; }
+            curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --max-time 30 "$base/src/$asset" >/dev/null || { echo "Production Owner OS asset is not reachable: $asset"; exit 1; }
+          done
