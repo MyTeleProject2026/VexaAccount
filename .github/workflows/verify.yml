@@ -91,7 +91,7 @@ jobs:
           node <<'NODE'
           const fs=require('fs');
           const auth=fs.readFileSync('backend/src/middleware/auth.js','utf8');
-          for(const required of ["require('../config/database')",'requireActiveUser','SELECT id,email,is_active FROM store_users','is_active=1','Invalid, expired, or inactive user session'])if(!auth.includes(required)){console.error('Protected JWT active-user contract missing:',required);process.exit(1)}
+          for(const required of ["require('../config/database')",'requireActiveUser','SELECT id,email,is_active,session_version FROM store_users','is_active=1','Invalid, expired, inactive, or revoked user session'])if(!auth.includes(required)){console.error('Protected JWT active-user contract missing:',required);process.exit(1)}
           if(!/const authUser = async/.test(auth)){console.error('authUser must be async so active user state is checked');process.exit(1)}
           NODE
       - name: Verify security-sensitive account operations
