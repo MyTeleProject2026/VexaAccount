@@ -8,7 +8,6 @@ const token=()=>{try{const t=window.vexaAccountAuth?.getToken?.();if(t)return t}
 async function api(path,opt={}){const h=new Headers(opt.headers||{});if(opt.body&&!h.has('Content-Type'))h.set('Content-Type','application/json');const t=token();if(t)h.set('Authorization','Bearer '+t);const r=await fetch(API+path,{credentials:'include',...opt,headers:h});const d=await r.json().catch(()=>({success:false,message:'Invalid server response'}));if(!r.ok||d.success===false)throw Error(d.message||`Request failed (${r.status})`);return d}
 const esc=v=>String(v??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
 const notify=(m,type='info')=>{if(typeof window.vexaNotify==='function')return window.vexaNotify(m,type);if(typeof window.vexaReactNotify?.[type==='success'?'showSuccess':type==='error'?'showError':'showInfo']==='function')return window.vexaReactNotify[type==='success'?'showSuccess':type==='error'?'showError':'showInfo'](m);alert(m)};
-function closeModal(){document.querySelector('.vx-modal-bg')?.remove()}
 function recoveryModal(){
  const bg=document.createElement('div');bg.className='vx-modal-bg';bg.innerHTML='<div class="vx-modal"><div class="vx-modal-head"><b>Recovery email</b><button class="close" type="button">×</button></div><div class="vx-modal-body"><form id="vx-recovery-request" class="vx-form"><p class="muted">Your current password is required. The new recovery address is not saved until the verification code is confirmed.</p><label>Recovery email<input class="vx-input" type="email" name="recovery_email" required></label><label>Current password<input class="vx-input" type="password" name="current_password" autocomplete="current-password" required></label><button class="vx-btn primary">Send verification code</button></form></div></div>';
  document.body.appendChild(bg);bg.querySelector('.close').onclick=()=>bg.remove();bg.onclick=e=>{if(e.target===bg)bg.remove()};
@@ -23,7 +22,8 @@ function install(){
   if(!people)return;
   e.preventDefault();e.stopImmediatePropagation();
   const key=t.dataset.key;const value=!Number(t.dataset.value||'0');
-  if(!['location_sharing_enabled','personalization_enabled'].includes(key))return notify('This sharing control is not available through the current backend contract.','warning');
+  const supported=['location_sharing_enabled','personalization_enabled','activity_history_enabled','push_notifications_enabled','product_updates_enabled','marketing_email_enabled','security_email_enabled'];
+  if(!supported.includes(key))return notify('This sharing control is not available through the current backend contract.','warning');
   api('/api/account/people',{method:'PATCH',body:JSON.stringify({[key]:value})}).then(()=>{notify('Sharing setting updated','success');location.reload()}).catch(err=>notify(err.message,'error'));
  },true);
 }
