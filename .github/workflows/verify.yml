@@ -68,6 +68,19 @@ jobs:
           if(profile.includes('Math.random')){console.error('Profile route must not use Math.random');process.exit(1)}
           if(profile.includes('UPDATE store_users SET email=')||profile.includes('UPDATE store_users SET password=')){console.error('Legacy profile route must not directly mutate credentials');process.exit(1)}
           NODE
+      - name: Verify security-sensitive account operations
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const deactivate=fs.readFileSync('backend/src/routes/account-deactivate.js','utf8');
+          const profile=fs.readFileSync('backend/src/routes/account-profile.js','utf8');
+          const center=fs.readFileSync('backend/src/routes/account-center.js','utf8');
+          const score=fs.readFileSync('backend/src/routes/account-security-score.js','utf8');
+          for(const required of ['bcrypt.compare(password','Current password is required','UPDATE store_users SET is_active=0','UPDATE sso_sessions SET revoked_at=NOW()','UPDATE sso_consents SET revoked_at=NOW()','account.deactivated'])if(!deactivate.includes(required)){console.error('Account deactivation security contract missing:',required);process.exit(1)}
+          for(const required of ['/security/2fa/setup','/security/2fa/enable','/security/passcode/enable','/security/disable-2fa','/security/disable-passcode','bcrypt.hash(passcode,12)','authenticator.check'])if(!profile.includes(required)){console.error('Security control contract missing:',required);process.exit(1)}
+          for(const required of ['/sessions','/apps/:clientId/consent','sso.session_revoked','sso.application_access_revoked'])if(!center.includes(required)){console.error('Session or application revocation contract missing:',required);process.exit(1)}
+          for(const required of ['twofa_enabled','passcode_enabled','recovery_email','phone'])if(!score.includes(required)){console.error('Security score contract missing:',required);process.exit(1)}
+          NODE
       - name: Verify user account workflow bridge contract
         run: |
           node <<'NODE'
