@@ -28,8 +28,54 @@ async function loadTickets(){const f=$('#support-filter')?.value||'';const d=awa
 function ticketPage(t){return `<section class="os-page-head"><div>${A('‹ Support','support')}<p class="os-eyebrow">SUPPORT THREAD</p><h2>#${esc(t.id)} · ${esc(t.subject)}</h2><p class="os-muted">${esc(t.email)} · ${esc(t.name||'')}</p></div><span class="os-badge ${esc(t.status)}">${esc(t.status)}</span></section><section class="os-panel"><div class="os-list">${(t.messages||[]).map(m=>`<article class="os-card"><div><b>${esc(m.sender_type)}</b><small>${esc(m.created_at)}</small><p>${esc(m.message)}</p></div></article>`).join('')||`<article class="os-card"><p>${esc(t.message||'')}</p></article>`}</div><label class="os-field" style="margin-top:18px">Reply<textarea id="reply-text" placeholder="Write a response"></textarea></label><div class="os-actions">${A('Send reply','ticket-reply:',t.id,'os-btn os-primary')}${A('Close ticket','ticket-close:',t.id,'os-btn os-danger')}</div></section>`}
 function platformPage(){return `<section class="os-page-head"><div><p class="os-eyebrow">PLATFORM OPERATIONS</p><h2>Platform & Security</h2><p class="os-muted">Health, supported scopes and server-side settings.</p></div>${A('Refresh','platform-refresh')}</section><div id="platform-body"><div class="os-panel">Loading platform state…</div></div>`}
 async function loadPlatform(){try{const [h,s,sc]=await Promise.all([api('/api/owner/platform/health'),api('/api/owner/platform/settings'),api('/api/owner/platform/scopes')]);const rows=Object.entries(s.settings||{}).filter(([k])=>!k.startsWith('audit.last.'));$('#platform-body').innerHTML=`<section class="os-grid"><article class="os-metric"><small>Database</small><strong>${h.database?'OK':'FAIL'}</strong><span>Live check</span></article><article class="os-metric"><small>Users</small><strong>${esc(h.users)}</strong><span>Database count</span></article><article class="os-metric"><small>Applications</small><strong>${esc(h.applications)}</strong><span>Registry count</span></article><article class="os-metric"><small>Scopes</small><strong>${(sc.scopes||[]).length}</strong><span>Supported</span></article></section><section class="os-panel"><h3>Platform settings</h3><div class="os-list">${rows.map(([k,v])=>`<div class="os-row"><label class="os-field" style="flex:1">${esc(k)}<input data-setting="${esc(k)}" value="${esc(typeof v==='object'?JSON.stringify(v):String(v))}"></label>${A('Save','setting:',k)}</div>`).join('')||'<p class="os-muted">No settings configured.</p>'}</div></section>`;bind()}catch(e){$('#platform-body').innerHTML=`<div class="os-panel os-error">${esc(e.message)}</div>`}}
-async function boot(){try{const s=await api('/api/auth/super-admin/session');if(!s.success)return login();S.user=s.user;const [a,e,u]=await Promise.all([api('/api/sso-registry/applications'),api('/api/sso-registry/audit?limit=100'),api('/api/owner/users?limit=200')]);S.apps=a.applications||[];S.audit=e.events||[];S.users=u.users||[];S.system='gateway';S.page='home';render()}catch(e){S.user=null;login(e.message)}}
-async function refreshSso(){const [a,e]=await Promise.all([api('/api/sso-registry/applications'),api('/api/sso-registry/audit?limit=100')]);S.apps=a.applications||[];S.audit=e.events||[];render()}
+async function boot(){
+  try{
+    const session=await api('/api/auth/super-admin/session');
+    if(!session.success){S.user=null;return login();}
+    S.user=session.user;
+  }catch(e){
+    S.user=null;
+    return login(e.message);
+  }
+
+  // Authentication is authoritative. Registry, audit and user bootstrap data are
+  // independent operational subsystems and must never invalidate a valid Owner session.
+  const results=await Promise.allSettled([
+    api('/api/sso-registry/applications'),
+    api('/api/sso-registry/audit?limit=100'),
+    api('/api/owner/users?limit=200')
+  ]);
+
+  const [appsResult,auditResult,usersResult]=results;
+  if(appsResult.status==='fulfilled')S.apps=appsResult.value.applications||[];
+  if(auditResult.status==='fulfilled')S.audit=auditResult.value.events||[];
+  if(usersResult.status==='fulfilled')S.users=usersResult.value.users||[];
+
+  S.system='gateway';
+  S.page='home';
+  render();
+
+  const unavailable=[
+    appsResult.status==='rejected'?'SSO application registry':null,
+    auditResult.status==='rejected'?'SSO audit':null,
+    usersResult.status==='rejected'?'Owner users':null
+  ].filter(Boolean);
+  if(unavailable.length)toast(unavailable.join(', ')+' temporarily unavailable. Your Owner session remains authenticated.',true);
+}
+async function refreshSso(){
+  const [a,e]=await Promise.allSettled([
+    api('/api/sso-registry/applications'),
+    api('/api/sso-registry/audit?limit=100')
+  ]);
+  if(a.status==='fulfilled')S.apps=a.value.applications||[];
+  if(e.status==='fulfilled')S.audit=e.value.events||[];
+  render();
+  const unavailable=[
+    a.status==='rejected'?'SSO application registry':null,
+    e.status==='rejected'?'SSO audit':null
+  ].filter(Boolean);
+  if(unavailable.length)toast(unavailable.join(', ')+' temporarily unavailable.',true);
+}
 async function refreshUsers(q=''){const d=await api('/api/owner/users?limit=200'+(q?'&q='+encodeURIComponent(q):''));S.users=d.users||[];render()}
 async function openUser(id){try{const d=await api('/api/owner/users/'+encodeURIComponent(id));S.system='owner';S.page='user:'+id;S.currentUser=d.user;shell('owner','User Detail','Authoritative account management',[['home','Overview'],['users','Users'],['support','Support'],['platform','Platform']],userDetail(d));bind()}catch(e){toast(e.message,true)}}
 async function openApp(id){try{const d=await api('/api/sso-registry/applications/'+encodeURIComponent(id));S.system='sso';S.page='app:'+id;S.currentApp=d.application;shell('sso','Application Detail','Authoritative SSO integration',[['home','Overview'],['apps','Applications'],['security','Security'],['audit','Audit']],ssoDetail(d.application));bind()}catch(e){toast(e.message,true)}}
