@@ -1,54 +1,24 @@
 const crypto = require('crypto');
 const { pool } = require('../config/database');
-
 const MTP_CLIENT_ID = process.env.MTP2026_SSO_CLIENT_ID || 'vexa_mtp2026-app-launcher_b1f581a66224d89c';
 const MTP_CLIENT_SECRET = String(process.env.MTP2026_SSO_CLIENT_SECRET || '').trim();
 const MTP_REDIRECT_URI = String(process.env.MTP2026_SSO_REDIRECT_URI || 'https://mtp2026-app-launcher.onrender.com/auth/callback').trim();
-const MTP_SCOPES = ['openid', 'profile', 'email', 'account', 'session', 'applications', 'notifications'];
-
-function hashSecret(secret) {
-  // Must match sso.js clientSecretValid(), which uses SHA-256 base64url.
-  return crypto.createHash('sha256').update(String(secret)).digest('base64url');
+const MTP_SCOPES = ['openid','profile','email','account','session','applications','notifications'];
+function hashSecret(secret){return crypto.createHash('sha256').update(String(secret)).digest('base64url');}
+async function ensureMtp2026SsoClient(){
+  if(!pool)return{configured:false,reason:'DATABASE_NOT_CONFIGURED'};
+  const [existing]=await pool.query('SELECT client_id,is_active FROM sso_clients WHERE client_id=? LIMIT 1',[MTP_CLIENT_ID]);
+  // Owner Control Center is now authoritative. If the client already exists in the database,
+  // never require a duplicate environment secret on the VexaAccount service just to start.
+  if(existing.length)return{configured:true,created:false,clientId:MTP_CLIENT_ID,managedByOwner:true};
+  // First-time provisioning is intentionally performed from Owner Control Center so the
+  // generated secret can be pushed to the selected MTP2026 runtime securely through Render.
+  if(!MTP_CLIENT_SECRET)return{configured:false,reason:'OWNER_CONFIGURATION_REQUIRED',clientId:MTP_CLIENT_ID};
+  if(!MTP_REDIRECT_URI)return{configured:false,reason:'MTP2026_SSO_REDIRECT_URI_NOT_SET',clientId:MTP_CLIENT_ID};
+  const parsed=new URL(MTP_REDIRECT_URI);if(parsed.protocol!=='https:'&&parsed.hostname!=='localhost')throw new Error('MTP2026_SSO_REDIRECT_URI_MUST_BE_HTTPS');
+  const secretHash=hashSecret(MTP_CLIENT_SECRET);
+  await pool.query(`INSERT INTO sso_clients (client_id,client_secret_hash,name,redirect_uris,allowed_scopes,is_active) VALUES (?,?,?,?,?,1)`,[MTP_CLIENT_ID,secretHash,'MTP2026 App Launcher',JSON.stringify([MTP_REDIRECT_URI]),JSON.stringify(MTP_SCOPES)]);
+  await pool.query(`INSERT INTO sso_client_registry (client_id,display_name,application_key,environment,status,description) VALUES (?,?,?,'production','active',?) ON DUPLICATE KEY UPDATE display_name=VALUES(display_name),environment='production',status='active',description=VALUES(description),updated_at=CURRENT_TIMESTAMP`,[MTP_CLIENT_ID,'MTP2026 App Launcher','mtp2026-app-launcher','MTP2026 application launcher SSO client']);
+  return{configured:true,created:true,clientId:MTP_CLIENT_ID,managedByOwner:false};
 }
-
-async function ensureMtp2026SsoClient() {
-  if (!pool) return { configured: false, reason: 'DATABASE_NOT_CONFIGURED' };
-  if (!MTP_CLIENT_SECRET) return { configured: false, reason: 'MTP2026_SSO_CLIENT_SECRET_NOT_SET', clientId: MTP_CLIENT_ID };
-  if (!MTP_REDIRECT_URI) return { configured: false, reason: 'MTP2026_SSO_REDIRECT_URI_NOT_SET', clientId: MTP_CLIENT_ID };
-
-  const parsed = new URL(MTP_REDIRECT_URI);
-  if (parsed.protocol !== 'https:' && parsed.hostname !== 'localhost') {
-    throw new Error('MTP2026_SSO_REDIRECT_URI_MUST_BE_HTTPS');
-  }
-
-  const secretHash = hashSecret(MTP_CLIENT_SECRET);
-  const [existing] = await pool.query('SELECT id,client_id FROM sso_clients WHERE client_id=? LIMIT 1', [MTP_CLIENT_ID]);
-  if (existing.length) {
-    await pool.query(
-      `UPDATE sso_clients SET client_secret_hash=?,name=?,redirect_uris=?,allowed_scopes=?,is_active=1,updated_at=CURRENT_TIMESTAMP WHERE client_id=?`,
-      [secretHash, 'MTP2026 App Launcher', JSON.stringify([MTP_REDIRECT_URI]), JSON.stringify(MTP_SCOPES), MTP_CLIENT_ID]
-    );
-    await pool.query(
-      `INSERT INTO sso_client_registry (client_id,display_name,application_key,environment,status,description)
-       VALUES (?,?,?,'production','active',?)
-       ON DUPLICATE KEY UPDATE display_name=VALUES(display_name),environment='production',status='active',description=VALUES(description),updated_at=CURRENT_TIMESTAMP`,
-      [MTP_CLIENT_ID, 'MTP2026 App Launcher', 'mtp2026-app-launcher', 'MTP2026 application launcher SSO client']
-    );
-    return { configured: true, created: false, clientId: MTP_CLIENT_ID };
-  }
-
-  await pool.query(
-    `INSERT INTO sso_clients (client_id,client_secret_hash,name,redirect_uris,allowed_scopes,is_active)
-     VALUES (?,?,?,?,?,1)`,
-    [MTP_CLIENT_ID, secretHash, 'MTP2026 App Launcher', JSON.stringify([MTP_REDIRECT_URI]), JSON.stringify(MTP_SCOPES)]
-  );
-  await pool.query(
-    `INSERT INTO sso_client_registry (client_id,display_name,application_key,environment,status,description)
-     VALUES (?,?,?,'production','active',?)
-     ON DUPLICATE KEY UPDATE display_name=VALUES(display_name),environment='production',status='active',description=VALUES(description),updated_at=CURRENT_TIMESTAMP`,
-    [MTP_CLIENT_ID, 'MTP2026 App Launcher', 'mtp2026-app-launcher', 'MTP2026 application launcher SSO client']
-  );
-  return { configured: true, created: true, clientId: MTP_CLIENT_ID };
-}
-
-module.exports = { ensureMtp2026SsoClient };
+module.exports={ensureMtp2026SsoClient};
