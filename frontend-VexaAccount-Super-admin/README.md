@@ -1,38 +1,22 @@
 # VexaAccount Super Admin Frontend
 
-Canonical standalone static frontend for the VexaAccount Owner OS and Super Admin control plane.
+The Super Admin frontend is the owner operating console for the VexaAccount provider.
 
-## Current runtime entrypoint
+## Current working areas
 
-`index.html` directly loads the canonical Owner runtime:
+- Owner authentication/session
+- User administration and security controls
+- SSO application registry and lifecycle
+- SSO diagnostics and integration tooling
+- Support and platform controls
+- System C observability
 
-```text
-owner-os.js
-sso-integration-generator.js
-sso-runtime-sync.js
-sso-status-sync.js
-sso-integration-factory-v4.js
-sso-github-deployer.js
-sso-application-integration-builder.js
-sso-application-builder-launcher.js
-```
+All privileged actions must resolve to protected backend routes. UI state is never the authority for permission.
 
-The current Owner OS source is authoritative. Older loader/control-center entrypoints are not loaded by the production index.
+## SSO consumer rule
 
-## Real backend connection
+MTP2026 is managed as a registered SSO consumer. Consumer-specific implementation and debugging belong in `MyTeleProject2026/MTP2026-App-Launcher`.
 
-The Owner frontend uses the VexaAccount backend at `https://api-vexaaccount.onrender.com` and uses the existing Super Admin authentication/session boundary.
+## Security
 
-Existing Owner capabilities are API-backed, including SSO application registry, application details, exact redirect URI management, scope grants, activation/disablement, secret rotation, diagnostics/runtime synchronization, user management, support and platform operations.
-
-The SSO Integration Factory generates integration source packages from the authoritative registry configuration. Generated client secrets remain one-time/server-side values and are never persisted in browser storage.
-
-## GitHub integration deployment
-
-The optional generated-package GitHub deployment path is server-side. The frontend does not receive the GitHub deployment credential. The backend performs repository validation and the atomic commit through the configured deployment service.
-
-## Verification
-
-`.github/workflows/verify.yml` checks the current Owner OS entrypoint, SSO factory contracts, deployment API contracts and security rules. Production runtime smoke separately checks that the deployed Super Admin HTML actually serves the current Owner OS assets.
-
-A passing static check does not certify a stale deployment. Production certification requires the deployed application to serve the current repository runtime and complete the real API workflow.
+Never display or persist raw client secrets or refresh tokens in browser storage. Credential rotation/revocation must be performed through the authenticated owner backend workflow.
