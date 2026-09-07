@@ -8,9 +8,9 @@ const router = express.Router();
 router.use(requireSuperAdmin);
 
 // Fast registry listing used by the Owner OS bootstrap.
-// Keep the bootstrap contract limited to registry data. Expensive live session/
-// refresh-token counts belong to detail/diagnostic views and must never block
-// successful Owner authentication or the controller gateway.
+// Bootstrap returns only authoritative registry/client configuration. Live
+// session and refresh-token counts are deliberately excluded here because
+// they are diagnostic data and must never block a successful Owner login.
 router.get('/applications', auditAdminAction('sso.registry.list', 'sso_application'), async (req, res, next) => {
   try {
     const [rows] = await pool.query(`
@@ -26,8 +26,6 @@ router.get('/applications', auditAdminAction('sso.registry.list', 'sso_applicati
       success: true,
       applications: rows.map(row => ({
         ...row,
-        active_sessions: 0,
-        active_refresh_tokens: 0,
         redirectUris: normalizeJsonArray(row.redirect_uris),
         allowedScopes: normalizeJsonArray(row.allowed_scopes, ['openid', 'profile', 'email'])
       }))
