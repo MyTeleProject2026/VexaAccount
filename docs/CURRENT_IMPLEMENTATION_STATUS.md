@@ -1,27 +1,55 @@
-# Current Implementation Status
+# VexaAccount Current Implementation Status
 
-**Baseline:** VexaAccount `master` at `8697a9d9341ab5ee02805fb90dc351c5494ec547` before documentation-only updates.
+**Documentation baseline:** September 7, 2026
+**Repository branch:** `master`
+**Source baseline at start of documentation replacement:** `2911480811a16b71b8379a122bd46db2f8504681`
 
-## Implemented
+## Implemented provider capabilities
 
-- Canonical user authentication and DB-backed Super Admin authentication.
-- OAuth-style SSO authorization-code + PKCE lifecycle.
-- Registered SSO clients, redirect URI validation, scopes, credential rotation and revocation.
-- Server-side SSO sessions and refresh-token lifecycle.
-- Account profile/preferences/security/recovery/change workflows.
-- Session-version invalidation for sensitive account and owner operations.
-- Application consent/session management with refresh-token revocation when access is removed.
-- Cloudinary-backed authenticated storage records and owner storage controls.
+- Canonical user authentication/session validation.
+- DB-backed Super Admin authentication and protected owner routes.
+- Registration, verification, profile, preferences, security and recovery workflows.
+- Email/password change workflows with appropriate session invalidation.
+- Passcode controls and security-state management.
+- People/privacy and application-consent workflows.
+- SSO client registry and application lifecycle.
+- Exact redirect URI and scope controls.
+- Authorization Code + S256 PKCE.
+- One-time authorization codes.
+- Provider-side access/refresh token lifecycle and SSO sessions.
+- Session-version invalidation for sensitive security changes.
+- Application-consent removal with related SSO session/refresh-token revocation.
+- Authenticated Cloudinary-backed storage records and owner controls.
 - Support and notification persistence/workflows.
-- System C observability for identity, SSO/session, API, latency, security and audit signals.
+- System C identity, SSO/session, API/latency, security and audit observability.
+- PWA/Android packaging validation.
 - Production smoke/E2E tooling and migration verification.
+- Owner-only SSO Application Analyzer, precise source planner and Integration Kit.
+- Signed source-plan and signed generated-file-manifest protection for explicit GitHub installation.
 
-## Integration boundary
+## SSO Application Kit status
 
-MTP2026 is a consuming application. Its backend owns the MTP session, login transaction, PKCE verifier and encrypted copy of the Vexa token set. VexaAccount remains the identity provider.
+The current generator is intentionally Node.js/Express-oriented. Unsupported backend stacks are rejected instead of receiving misleading generated code.
 
-**No VexaAccount source-code changes are required for the MTP2026 rebuild.**
+The generated installation boundary now verifies:
 
-## Verification status
+1. signed source plan;
+2. repository and branch binding;
+3. reviewed source file set and current GitHub blob SHA;
+4. unchanged target branch head;
+5. signed generated manifest;
+6. exact generated paths;
+7. generated SHA-256 and byte sizes; and
+8. explicit Owner approval.
 
-The implementation is source-complete for the documented workflow, but deployment state and real-user browser certification must be checked independently. Do not interpret a green static/build check as proof that a deployed SSO login has succeeded.
+No target repository is modified by analysis or planning.
+
+## MTP2026 integration boundary
+
+MTP2026 is an external consuming application. Its backend owns its server-side login transaction, PKCE verifier/state, encrypted provider-token storage and `mtp_session`. Its consumer-specific fixes belong in `MyTeleProject2026/MTP2026-App-Launcher`.
+
+## Verification boundary
+
+This document describes implemented source capabilities, not a blanket production certification. Deployment health, real database state, configured secrets, registered client credentials and authenticated browser behavior must be verified independently.
+
+Use **source/build verified** for repository-level checks and **production verified** only when the deployed integration path has actually succeeded.
