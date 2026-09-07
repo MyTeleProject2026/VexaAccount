@@ -26,23 +26,26 @@ router.patch('/applications/:clientId', async (req, res, next) => {
     try {
       await connection.beginTransaction();
       const [existing] = await connection.query(
-        'SELECT client_id FROM sso_client_registry WHERE client_id=? LIMIT 1',
+        'SELECT client_id,display_name,owner_label,environment,description FROM sso_client_registry WHERE client_id=? LIMIT 1',
         [req.params.clientId]
       );
       if (!existing.length) {
         await connection.rollback();
         return res.status(404).json({ success: false, message: 'SSO application not found' });
       }
+      const current = existing[0];
 
       await connection.query(
         `UPDATE sso_client_registry
             SET display_name=?, owner_label=?, environment=?, description=?, status=?, updated_at=CURRENT_TIMESTAMP
           WHERE client_id=?`,
         [
-          clean(req.body.displayName ?? req.body.name, 255),
-          clean(req.body.ownerLabel, 255),
-          clean(req.body.environment, 32) || 'production',
-          clean(req.body.description, 1000),
+          req.body.displayName !== undefined || req.body.name !== undefined
+            ? clean(req.body.displayName ?? req.body.name, 255) || current.display_name
+            : current.display_name,
+          req.body.ownerLabel !== undefined ? clean(req.body.ownerLabel, 255) : current.owner_label,
+          req.body.environment !== undefined ? clean(req.body.environment, 32) || 'production' : current.environment,
+          req.body.description !== undefined ? clean(req.body.description, 1000) : current.description,
           status,
           req.params.clientId
         ]
