@@ -1,75 +1,94 @@
-# VexaAccount SSO Application Kit
+# VexaAccount SSO Application Integration Kit
 
-VexaAccount now has a reusable Owner-only application integration kit alongside the existing SSO implementation. The kit is intentionally additive: it does not replace the existing `/api/sso`, registry, session, consent, recovery, or account authentication flows.
+The SSO Application Integration Kit is an Owner-only workflow for preparing a consuming application for VexaAccount SSO. It is additive and does not replace the existing VexaAccount authentication, account, SSO registry, consent, session or recovery contracts.
 
-## Owner workflow
+## End-to-end Owner workflow
 
-1. Open **Owner OS**.
-2. Choose **Generate App Integration Kit**.
-3. Enter the future application's key and display name.
-4. Enter its GitHub repository and branch when source analysis is needed.
-5. Enter its backend web-service URL, user frontend static-site URL, and admin frontend static-site URL.
-6. Run **Analyze target source**. Analysis is read-only and identifies likely frontend/backend stacks, authentication/JWT/OAuth candidates, routing candidates, configuration candidates, and files that should be reviewed before any replacement.
-7. Review the integration plan and the proposed operations. The analyzer does not modify the target repository.
-8. Generate the backend, frontend-user, frontend-admin, environment and documentation files using the detected stack/language metadata.
-9. Review or download the generated files. Existing target authentication files are not automatically overwritten.
-10. Register the application and exact HTTPS redirect URI in the existing SSO Application Registry.
-11. Optionally use the existing Owner GitHub deployer to commit reviewed generated files to an allowlisted repository.
-12. Install/adapt the generated adapters in the target application and configure its server-side secrets.
+1. Open Owner OS.
+2. Select **Generate App Integration Kit**.
+3. Enter application key, display name and target URLs.
+4. Provide the GitHub repository and branch when source analysis is required.
+5. Run the read-only source analyzer.
+6. Review detected stack, authentication/session/routing candidates and warnings.
+7. Select the source files that should form the precise review plan.
+8. Build the signed source plan.
+9. Confirm the reviewed file paths, GitHub blob SHAs, source SHA-256 values and integration anchors.
+10. Generate the supported integration package.
+11. Review generated file contents and their SHA-256 values.
+12. Register the target application and exact HTTPS redirect URI in the VexaAccount SSO registry.
+13. Configure target application secrets in its own server-side secret manager.
+14. If installation is requested, explicitly approve the Owner installation action.
+15. The server verifies the signed source plan, current reviewed blobs, current branch head and signed generated-file manifest before committing.
+16. Adapt and test the generated integration in the target application.
+
+The analyzer and planner are read-only. Generation prepares files; it does not automatically overwrite target authentication code.
 
 ## Source analyzer
 
-The Owner analyzer uses a **dedicated read-only analysis credential** when `GITHUB_SSO_ANALYZE_TOKEN` is configured. It falls back to `GITHUB_SSO_DEPLOY_TOKEN` for backward compatibility. Keep both credentials server-side. Private repositories can therefore be analyzed without exposing a GitHub token to the browser.
+The analyzer uses `GITHUB_SSO_ANALYZE_TOKEN` when configured and falls back to `GITHUB_SSO_DEPLOY_TOKEN` for compatibility. Credentials remain server-side.
 
-The analyzer is deliberately bounded and read-only:
+Analysis limits are deliberately bounded:
 
-- Maximum 120 source files inspected per analysis.
+- Maximum 120 source files per analysis.
 - Files larger than 400 KB are skipped.
-- Environment files, private keys, PEM files, credential/secret-named files and similar secret-bearing paths are excluded.
-- The analyzer returns file paths, sizes, classifications and an integration plan rather than returning source contents to the Owner UI.
-- Target repository changes are never made by the analyzer endpoint.
+- Secret-bearing paths such as `.env`, PEM/private-key and credential/secret files are excluded.
+- The Owner UI receives metadata and findings rather than arbitrary secret-bearing source files.
+- No target repository write is performed by analysis.
 
-Recommended deployment configuration:
+Recommended server configuration:
 
-- `GITHUB_SSO_ANALYZE_TOKEN` — GitHub credential with only the repository read access required for source analysis.
-- `GITHUB_SSO_DEPLOY_TOKEN` — separate credential for the existing explicit deployment flow.
-- `GITHUB_SSO_ALLOWED_REPOSITORIES` — comma-separated repository allowlist.
+- `GITHUB_SSO_ANALYZE_TOKEN`: least-privilege repository-read credential.
+- `GITHUB_SSO_DEPLOY_TOKEN`: separate credential for explicit installation.
+- `GITHUB_SSO_ALLOWED_REPOSITORIES`: repository allowlist.
 
-## Integration planning and replacement safety
+## Precise source planning
 
-The analyzer produces an **additive-first** plan. Authentication/session files are classified as review candidates, not automatic replacement targets. For supported stacks, the plan can identify backend route/entry anchors and frontend authentication/login anchors where the generated adapter should be connected.
+The planner selects a bounded set of relevant files and records GitHub blob SHA plus source SHA-256. It identifies useful anchors such as authentication imports, session cookies, bearer middleware, login routes, callback routes and frontend login entry points.
 
-A complete target-file replacement is intentionally **not automatic**. Before any future replacement/deployment operation, Owner review must establish:
+The generated plan is additive-first. Existing authentication/session files are review candidates and are not treated as safe automatic replacement targets.
 
-1. the current target file contents;
-2. the current target file/blob hash;
-3. the relevant integration anchors and existing auth/session behavior;
-4. the generated replacement and its preservation of required application behavior; and
-5. explicit Owner approval for the selected files.
+### Installation guard
 
-This prevents the VexaAccount integration system from silently destroying an application's existing authentication or business logic.
+Before any patch or replacement is installed, the current target blob SHA must exactly match the reviewed plan. If it differs, the installation must stop and a new read-only plan must be created.
 
 ## Generated package
 
-The current kit contains:
+The current generator is intentionally Node.js/Express-oriented. Unsupported backend stacks are rejected rather than receiving incompatible code.
 
-- `backend/src/integrations/vexaaccount-sso.js` — Authorization Code + S256 PKCE client adapter and application-owned JWT session helper.
+Generated files include:
+
+- `backend/src/integrations/vexaaccount-sso.js` — Authorization Code + S256 PKCE client and consumer-owned JWT-session helper.
 - `backend/src/routes/vexaaccount-auth.js` — backend login/callback adapter with encrypted stateless PKCE transaction cookie.
-- `frontend-user/src/integrations/vexaaccount.js` — user-side login/account-management adapter.
-- `frontend-admin/src/integrations/vexaaccount.js` — admin-side identity integration metadata.
-- `backend/.env.vexaaccount.example` — deployment configuration template with the exact generated callback URI.
-- `VEXAACCOUNT_SSO_INTEGRATION.md` — installation and security guidance.
+- `frontend-user/src/integrations/vexaaccount.js` — user-side integration adapter.
+- `frontend-admin/src/integrations/vexaaccount.js` — admin-side integration metadata/adapter.
+- `backend/.env.vexaaccount.example` — environment template and exact callback configuration.
+- `VEXAACCOUNT_SSO_INTEGRATION.md` — target installation/security guidance.
+
+The generator version is tracked by the backend kit route; the current repository implementation is version `1.3.0`.
 
 ## Secret boundaries
 
-The target application owns its own `JWT_SECRET`. VexaAccount does not need to know or store it. The VexaAccount client secret is a separate server-side credential and must be stored only in the target application's backend secret manager.
+The target application owns its own `JWT_SECRET`. VexaAccount does not receive or store that secret. The VexaAccount client secret belongs only in the consuming backend secret manager.
 
-The Owner UI may locally insert the target application's JWT secret into the generated environment file for download. It is never included in the VexaAccount API request.
+Browser JavaScript must never contain GitHub credentials, provider client secrets or refresh tokens.
 
-Do not copy Telegram, browser, WebApp, or other third-party cookies/tokens between devices. If a target application supports VexaAccount SSO, create a fresh application session on each device through the application's own authorization flow.
+Do not copy Telegram, browser, WebApp or unrelated third-party cookies/tokens between devices. A target application must create a fresh application session through its own SSO flow.
 
-## GitHub deployment
+## Signed installation boundary
 
-The existing Owner GitHub deployer can commit reviewed generated files to an allowlisted repository. Keep GitHub credentials on the VexaAccount backend; never place a GitHub token in Owner frontend code.
+Installation is protected by multiple independent integrity checks:
 
-Deployment remains a separate explicit action after generation/review. The analyzer itself has no write capability.
+- signed source-plan token with short expiry;
+- exact repository and branch binding;
+- exact reviewed source-file set and blob SHA verification;
+- current branch-head SHA verification to prevent stale-branch writes;
+- signed generated manifest bound to repository/branch/source plan/application;
+- exact generated file paths;
+- exact generated file SHA-256 and byte-size verification; and
+- explicit Owner confirmation.
+
+If any check fails, no target repository commit is created.
+
+## Production expectations
+
+Generation success is not SSO certification. Certification requires the target application's deployed backend, configured secrets, registered redirect URI, authorization-code + PKCE exchange, userinfo, application session, logout/revocation and browser behavior to be tested in the deployed environment.
