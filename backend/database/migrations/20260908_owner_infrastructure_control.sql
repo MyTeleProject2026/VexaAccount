@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS owner_provider_connections (
 
 CREATE TABLE IF NOT EXISTS owner_application_infrastructure (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  client_id VARCHAR(191) NOT NULL,
+  client_id VARCHAR(128) NOT NULL,
   provider_connection_id BIGINT UNSIGNED NULL,
   service_id VARCHAR(191) NULL,
   service_name VARCHAR(255) NULL,
