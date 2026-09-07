@@ -1,21 +1,15 @@
-# VexaAccount Android packaging
+# VexaAccount Android Packaging
 
-This is the canonical native Android packaging project for the VexaAccount User and Owner Control Center web applications.
+The Android package wraps the VexaAccount user experience as a web-backed application.
 
-## Variants
+## Runtime boundary
 
-- `user`: `com.mytele.vexaaccount.user`
-- `owner`: `com.mytele.vexaaccount.owner`
+Authentication, account state, SSO consent and security operations remain server-authoritative. The Android shell must not contain provider client secrets or persistent refresh tokens.
 
-The app opens the HTTPS web application configured in `WEB_APP_URL`. The default deployment values can be overridden at build time with `-PuserWebAppUrl=...` and `-PownerWebAppUrl=...`.
+## MTP2026
 
-## Build
+MTP2026 is a separate consuming application. Its Android/web launcher integration is maintained in the MTP2026 repository and should consume the existing VexaAccount SSO contract.
 
-```bash
-chmod +x gradlew
-gradlew assembleUserRelease bundleUserRelease assembleOwnerRelease bundleOwnerRelease
-```
+## Release guidance
 
-GitHub Actions builds both APK and AAB artifacts on every `master` push and manual run. The project targets Android API 36; JDK 17 and the Android SDK are provisioned by CI.
-
-Release signing is intentionally not committed. Configure the production signing key in the release pipeline before publishing to an app store.
+Build from the current repository baseline, verify the deployed API/frontend endpoints, and perform an authenticated SSO smoke test before release. Do not treat packaging success as identity-flow certification.
