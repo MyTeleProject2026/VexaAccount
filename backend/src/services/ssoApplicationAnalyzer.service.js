@@ -1,7 +1,8 @@
 const axios = require('axios');
 
 const API = String(process.env.GITHUB_API_URL || 'https://api.github.com').replace(/\/$/, '');
-const TOKEN = String(process.env.GITHUB_SSO_DEPLOY_TOKEN || '').trim();
+// Keep analysis credentials separate from deployment credentials. The analyzer is read-only.
+const TOKEN = String(process.env.GITHUB_SSO_ANALYZE_TOKEN || process.env.GITHUB_SSO_DEPLOY_TOKEN || '').trim();
 const ALLOWED = String(process.env.GITHUB_SSO_ALLOWED_REPOSITORIES || '')
   .split(',').map(v => v.trim().toLowerCase()).filter(Boolean);
 const MAX_FILES = 120;
@@ -17,7 +18,7 @@ function repoName(value) {
   return repo;
 }
 function headers() {
-  if (!TOKEN) fail('GitHub source analysis is not configured. Set GITHUB_SSO_DEPLOY_TOKEN on the VexaAccount backend.', 503);
+  if (!TOKEN) fail('GitHub source analysis is not configured. Set GITHUB_SSO_ANALYZE_TOKEN on the VexaAccount backend.', 503);
   return { Authorization: `Bearer ${TOKEN}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'VexaAccount-Owner-SSO-Analyzer' };
 }
 async function request(method, path) {
@@ -63,6 +64,10 @@ function buildPlan(files, detected) {
   const routes = files.filter(f => f.findings.some(x => x.includes('routing'))).map(f => f.path);
   const config = files.filter(f => f.findings.some(x => x.includes('secret/config'))).map(f => f.path);
   const add = ['backend/src/integrations/vexaaccount-sso.js','backend/src/routes/vexaaccount-auth.js','frontend-user/src/integrations/vexaaccount.js','frontend-admin/src/integrations/vexaaccount.js','backend/.env.vexaaccount.example','VEXAACCOUNT_SSO_INTEGRATION.md'];
+  const review = auth.slice(0, 20);
+  const operations = review.map(path => ({ path, action: 'review-and-patch-only', reason: 'Existing authentication/session ownership must be preserved; integration should be mounted through the application\'s existing middleware.' }));
+  if (detected.backend === 'Node.js/Express' || detected.backend === 'Node.js/NestJS') operations.push({ path: 'backend entry/router', action: 'mount-generated-vexaaccount-router', reason: 'Additive route registration; do not replace existing auth middleware.' });
+  if (detected.frontend === 'React/Vite' || detected.frontend === 'Next.js' || detected.frontend === 'Vue' || detected.frontend === 'Svelte') operations.push({ path: 'frontend auth/login entry', action: 'wire-generated-login-adapter', reason: 'Use backend redirect; never expose client secret or application JWT secret.' });
   return {
     strategy: 'additive-first',
     detected,
@@ -70,7 +75,9 @@ function buildPlan(files, detected) {
     routeCandidates: routes.slice(0,30),
     configurationCandidates: config.slice(0,20),
     filesToAdd: add,
-    filesToReviewBeforeReplacement: auth.slice(0,20),
+    filesToReviewBeforeReplacement: review,
+    operations,
+    replacementPolicy: 'No automatic whole-file replacement. A target file may be replaced only after its current contents, hash, and integration anchors are reviewed and the Owner explicitly approves installation.',
     warnings: [
       'Analysis is read-only; no target repository files are changed by this endpoint.',
       'Existing authentication files should be patched only after Owner review because the target application owns its session/JWT model.',
