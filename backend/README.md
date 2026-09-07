@@ -1,57 +1,29 @@
 # VexaAccount Backend
 
-The authoritative VexaAccount API and database service.
+The backend is the authoritative implementation for authentication, account workflows, SSO, owner controls, storage, support/notification persistence and observability.
 
-## Mounted API areas
+## Runtime
 
-The current `src/index.js` mounts the existing workflows for:
+- Node.js + Express
+- MySQL-compatible database via `mysql2/promise`
+- TLS-aware database connection
+- Transactional migration runner: `scripts/migrate.js`
 
-```text
-/api/auth
-/api/auth/super-admin
-/api/sso
-/api/sso-registry
-/api/sso-integration
-/api/account
-/api/account/change
-/api/account/security
-/api/account/security-score
-/api/account/storage
-/api/owner
-/api/owner/users
-/api/owner/platform
-/api/owner/support
-/api/system-c
-```
+## Authentication boundaries
 
-Authentication/session state and security-sensitive account state are database-backed. `/api/auth/session` validates the signed session against the active user and `session_version`; logout increments the server-side session version.
+- User routes use the canonical user-session authentication middleware.
+- Super Admin routes use DB-backed `requireSuperAdmin` authentication.
+- SSO uses registered clients, PKCE, authorization codes, access/refresh tokens and server-side sessions.
+- Sensitive changes invalidate sessions and related SSO credentials as required.
 
-## SSO
+## Database
 
-The provider exposes authorization-code SSO with S256 PKCE, one-time authorization codes, refresh-token lifecycle controls, consent/session containment and protected userinfo. Application registration is controlled through `/api/sso-registry`.
+Migrations are ordered and recorded in `vexa_schema_migrations`. The current baseline includes SSO core/security, owner controls, application lifecycle, account center, passcode, observability and session-version compatibility migrations.
 
-Connected applications keep their Client Secret server-side:
+## Integration rule
 
-```env
-VEXA_ACCOUNT_CLIENT_SECRET=<generated Client Secret>
-VEXA_ACCOUNT_SSO_CONFIG={"url":"https://api-vexaaccount.onrender.com","clientId":"<Client ID>","redirectUri":"https://your-app.example.com/auth/callback","scopes":["openid","profile","email"],"timeoutMs":10000}
-```
+MTP2026 consumes VexaAccount's existing SSO/API contract. MTP changes belong in the MTP2026 repository; this backend must not be modified for ordinary MTP integration work.
 
-Do not put `clientSecret` into browser configuration or `VEXA_ACCOUNT_SSO_CONFIG`.
+## Production verification
 
-## Database migrations
-
-Production startup runs the migration process before starting `src/index.js`. Current migrations include Account Center/change workflows and the `session_version` compatibility/security migration used by server-side session invalidation.
-
-## Health and runtime verification
-
-`GET /api/health` performs a real database query and reports database/server health. The repository also contains static verification and production runtime smoke workflows. A successful source check is not treated as production certification until the deployed API and both deployed frontends serve and execute the current source.
-
-## Start
-
-```bash
-npm run migrate
-npm start
-```
-
-Never put database credentials, Client Secrets or signing secrets in frontend projects.
+A source build or local smoke test is not production certification. Validate deployed API responses, real database persistence, SSO exchange, session lifecycle and authenticated browser behavior when credentials/environment permit.
