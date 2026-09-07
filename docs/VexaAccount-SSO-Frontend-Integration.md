@@ -1,25 +1,46 @@
 # VexaAccount SSO Frontend Integration
 
-The browser is a consumer UI, not the holder of the VexaAccount client secret.
+The browser is a consumer interface. It must not become the holder of VexaAccount client secrets or provider refresh tokens.
 
-## MTP2026 pattern
+## Recommended consumer pattern
 
-The MTP frontend starts login by calling its own backend `/api/auth/login`. The MTP backend creates and stores state/PKCE material, then redirects to VexaAccount. After authorization, the backend consumes the callback, exchanges the code and creates an HTTP-only `mtp_session` cookie.
+```text
+Consumer frontend
+   → consumer backend /api/auth/login
+   → server-side state + PKCE transaction
+   → VexaAccount authorization
+   → consumer backend callback
+   → server-to-server code exchange
+   → VexaAccount userinfo
+   → consumer-owned HTTP-only session
+   → consumer frontend
+```
 
-The frontend checks `/api/auth/session` and uses credentialed requests to MTP APIs. It does not store Vexa access or refresh tokens in localStorage.
+The frontend should call its own backend session endpoint and use credentialed requests. Provider access/refresh tokens remain server-side.
+
+## MTP2026
+
+The MTP frontend starts login through its backend `/api/auth/login`. The MTP backend creates the login transaction and PKCE material, redirects to VexaAccount and consumes the callback. On success it creates the `mtp_session` cookie.
+
+The frontend checks `/api/auth/session` and never treats a browser-stored provider token as proof of identity.
 
 ## Error handling
 
-The frontend must clear callback query parameters after processing, show an actionable authentication error, and return to the sign-in state when the backend reports an expired/invalid session.
+- Remove callback query parameters after processing.
+- Show a clear authentication failure when the backend rejects an expired/invalid session.
+- Return to the sign-in state when a new authorization is required.
+- Do not retry one-time authorization callbacks indefinitely.
 
-## Security rules
+## Security requirements
 
-- Use HTTPS in production.
-- Use credentialed requests for the MTP session cookie.
-- Never expose the Vexa client secret.
-- Never treat a frontend-stored token as proof of identity.
-- Do not bypass the MTP backend session boundary.
+- HTTPS in production.
+- Credentialed requests for the consumer session cookie.
+- HttpOnly/Secure/SameSite settings appropriate to the deployment.
+- No provider client secret in frontend source or bundle.
+- No provider refresh token in localStorage/sessionStorage.
+- No authentication bypass based on frontend state.
+- No copying of third-party cookies or WebApp tokens between devices.
 
-## Integration boundary
+## Boundary
 
-This document describes how a consumer uses the existing VexaAccount provider. Consumer-specific fixes belong in the consumer repository.
+This document describes consumption of the existing VexaAccount provider contract. Consumer-specific fixes belong in the consumer repository.
