@@ -30,6 +30,13 @@ CREATE TABLE IF NOT EXISTS owner_application_infrastructure (
   PRIMARY KEY (id),
   UNIQUE KEY uq_owner_application_infra_client (client_id),
   KEY idx_owner_application_infra_service (service_id),
-  CONSTRAINT fk_owner_application_infra_client FOREIGN KEY (client_id) REFERENCES sso_client_registry(client_id) ON DELETE CASCADE,
-  CONSTRAINT fk_owner_application_infra_provider FOREIGN KEY (provider_connection_id) REFERENCES owner_provider_connections(id) ON DELETE SET NULL
+  KEY idx_owner_application_infra_provider (provider_connection_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Do not add a physical FK from client_id to sso_client_registry here.
+-- Existing production VexaAccount/TiDB installations may have a legacy
+-- client_id definition whose metadata differs even when its logical length
+-- is compatible. The Owner infrastructure layer validates the referenced
+-- application at the service/API boundary instead. Keeping this migration
+-- independent makes startup safe across existing production schemas while
+-- preserving the application-level ownership relationship.
