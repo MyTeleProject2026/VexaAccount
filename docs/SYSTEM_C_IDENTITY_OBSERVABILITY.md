@@ -1,42 +1,24 @@
-# System C — Identity Observability OS
+# System C Identity Observability
 
-System C is an isolated, read-only observability addition. Existing VexaAccount routes, Owner OS files, User frontend files and SSO implementation files are not modified by this addition.
+System C is the authenticated observability surface for VexaAccount identity and platform operations.
 
-## New sources
+## Observed domains
 
-- `backend/src/observatory/system-c-server.js`
-- `frontend-VexaAccount-Super-admin/system-c/index.html`
-- `frontend-VexaAccount-Super-admin/system-c/system-c.css`
-- `frontend-VexaAccount-Super-admin/system-c/system-c.js`
+- authentication and identity activity
+- SSO authorization/token/session activity
+- API request and latency signals
+- security events
+- owner/admin audit events
+- runtime/health indicators
 
-## Runtime
+## Access
 
-Start the isolated service from the backend environment:
+The System C UI requires a live VexaAccount Super Admin session. Frontend visibility is not an authorization mechanism; backend routes enforce owner authorization.
 
-`node src/observatory/system-c-server.js`
+## Integration use
 
-It requires the existing backend environment, including database configuration and `JWT_SECRET`. It uses the existing Super Admin cookie/JWT authorization middleware.
+MTP2026 is observed as an external SSO consumer. Troubleshoot MTP failures from the MTP repository/runtime first, then use provider-side diagnostics to confirm the SSO contract.
 
-Default service port: `5051`.
+## Boundary
 
-The service exposes:
-
-- `GET /health`
-- `GET /api/system-c/snapshot`
-- `GET /api/system-c/stream` (Server-Sent Events)
-
-## What is genuinely live
-
-The snapshot reads current authoritative database state for registered applications, active SSO sessions, active consents, recent SSO security events and Owner audit evidence. The browser animation is driven by those snapshots.
-
-No random transactions or synthetic SSO events are generated.
-
-## Integration constraint
-
-Because the existing `frontend-VexaAccount-Super-admin/src/owner-os.js` is intentionally not modified, System C is provided as an independent frontend entrypoint and is not automatically inserted into the existing System A/System B selector.
-
-Automatically adding a System C button to the existing Owner OS selector requires editing the existing selector runtime. This addition deliberately does not do that, in accordance with the source-preservation requirement.
-
-## Security
-
-System C is read-only. It does not expose database credentials, client secrets, password hashes, arbitrary SQL execution or arbitrary code execution.
+System C documentation describes the current VexaAccount provider. MTP2026 implementation work belongs in MTP2026 and must not alter VexaAccount source code.
