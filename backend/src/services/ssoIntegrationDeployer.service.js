@@ -49,11 +49,40 @@ function normalizeFiles(files, prefix) {
   return normalized;
 }
 
+function assertReviewedFiles(reviewedFiles) {
+  if (!Array.isArray(reviewedFiles) || !reviewedFiles.length || reviewedFiles.length > 30) {
+    throw Object.assign(new Error('reviewedFiles is required. Build a precise source review plan before installation.'), { status: 409 });
+  }
+  const seen = new Set();
+  return reviewedFiles.map(f => {
+    const path = String(f.path || '').replace(/^\/+/, '');
+    const blobSha = String(f.blobSha || '').trim();
+    if (!path || path.includes('..') || path.startsWith('.git/') || !/^[A-Za-z0-9._\/-]{1,240}$/.test(path)) {
+      throw Object.assign(new Error(`Invalid reviewed source path: ${path}`), { status: 400 });
+    }
+    if (!/^[0-9a-f]{40}$/i.test(blobSha)) throw Object.assign(new Error(`Invalid reviewed blob SHA for ${path}`), { status: 400 });
+    if (seen.has(path)) throw Object.assign(new Error(`Duplicate reviewed source path: ${path}`), { status: 400 });
+    seen.add(path);
+    return { path, blobSha };
+  });
+}
+
+async function verifyReviewedFiles(repository, branch, reviewedFiles) {
+  const reviewed = assertReviewedFiles(reviewedFiles);
+  for (const file of reviewed) {
+    const data = await request('GET', `/repos/${repository}/contents/${file.path}?ref=${encodeURIComponent(branch)}`);
+    if (String(data.sha || '').toLowerCase() !== file.blobSha.toLowerCase()) {
+      throw Object.assign(new Error(`Reviewed source changed: ${file.path}. No files were committed; rebuild the precise source plan.`), { status: 409 });
+    }
+  }
+  return reviewed;
+}
+
 async function getBranch(repository, branch) {
   return request('GET', `/repos/${repository}/git/ref/heads/${encodeURIComponent(branch)}`);
 }
 
-async function deploy({ repository, branch = 'main', files, commitMessage = 'feat(auth): install VexaAccount SSO integration', pathPrefix = '', expectedHeadSha }) {
+async function deploy({ repository, branch = 'main', files, commitMessage = 'feat(auth): install VexaAccount SSO integration', pathPrefix = '', expectedHeadSha, reviewedFiles }) {
   const repo = assertConfigured(repository);
   const targetBranch = assertBranch(branch);
   const prefix = String(pathPrefix || '').trim().replace(/^\/+|\/+$/g, '');
@@ -66,6 +95,8 @@ async function deploy({ repository, branch = 'main', files, commitMessage = 'fea
   const parentSha = ref.object?.sha;
   if (!parentSha) throw Object.assign(new Error('Target branch does not resolve to a commit'), { status: 409 });
   if (parentSha.toLowerCase() !== expected.toLowerCase()) throw Object.assign(new Error('Target branch changed after preflight. No files were committed; run preflight again and review the new branch head.'), { status: 409 });
+  await verifyReviewedFiles(repo, targetBranch, reviewedFiles);
+
   const parent = await request('GET', `/repos/${repo}/git/commits/${parentSha}`);
   const baseTree = parent.tree?.sha;
   if (!baseTree) throw Object.assign(new Error('Target branch has no readable base tree'), { status: 409 });
@@ -79,7 +110,7 @@ async function deploy({ repository, branch = 'main', files, commitMessage = 'fea
   const message = String(commitMessage || '').trim().slice(0, 200) || 'feat(auth): install VexaAccount SSO integration';
   const commit = await request('POST', `/repos/${repo}/git/commits`, { message, tree: tree.sha, parents: [parentSha] });
   await request('PATCH', `/repos/${repo}/git/refs/heads/${encodeURIComponent(targetBranch)}`, { sha: commit.sha, force: false });
-  return { repository: repo, branch: targetBranch, parentSha, commitSha: commit.sha, commitUrl: `https://github.com/${repo}/commit/${commit.sha}`, files: treeElements.map(x => x.path) };
+  return { repository: repo, branch: targetBranch, parentSha, commitSha: commit.sha, commitUrl: `https://github.com/${repo}/commit/${commit.sha}`, reviewedFiles: reviewedFiles.map(f => f.path), files: treeElements.map(x => x.path) };
 }
 
 async function status(repository, branch = 'main') {
