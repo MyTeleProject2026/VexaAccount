@@ -1,53 +1,24 @@
 # VexaAccount User Frontend
 
-Canonical standalone static frontend for the VexaAccount User Account Center.
+The user frontend is the account-center client for the VexaAccount identity platform.
 
-## Current runtime entrypoint
+## Current workflows
 
-`index.html` is the production entrypoint. It loads the canonical runtime chain:
+- Sign-in/registration and verification
+- Profile and preferences
+- Security, password/email changes and recovery
+- Passcode controls
+- People/privacy controls
+- SSO application consent and active sessions
+- Notifications and support interactions
+- Authenticated storage/upload workflows
 
-```text
-account-center-fetch-guard.js
-app.js
-auth-session-bridge.js
-account-center-toast-guard.js
-vexa-notify-bridge.js
-functional-runtime-bridge.js
-sso-frontend.js
-account-center-loader.js
-account-workflow-bridge.js
-notification-live-runtime.js
-pwa.js
-```
+The frontend calls the VexaAccount backend and must not invent client-side authorization state.
 
-`account-center-loader.js` loads the Account Center runtime (`account-center-runtime-v2.js`) and its compatibility/theme dependencies. Superseded duplicate Account Center/auth/runtime entrypoints must not be added.
+## MTP2026 relationship
 
-## Real backend connection
+MTP2026 redirects users into the existing VexaAccount SSO authorization experience. After consent, VexaAccount returns an authorization code to the registered consumer callback. No VexaAccount source change is required for the MTP2026 consumer rebuild.
 
-The frontend uses the VexaAccount API at `https://api-vexaaccount.onrender.com`.
+## Security
 
-Authentication is cookie/session based. The session bridge sends credentials and validates `/api/auth/session`; the backend is the security source of truth.
-
-Existing API-backed workflows include Login, registration, email verification/resend, forgot/reset password, profile, password/security changes, 2FA/passcode controls, devices/sessions, connected applications and SSO consent, people/sharing, notifications, support, recovery, deactivation and deletion.
-
-The frontend must never contain database credentials, SMTP credentials, SSO client secrets or JWT signing keys.
-
-## SSO browser workflow
-
-External applications start at the canonical browser bridge:
-
-```text
-/#/sso/authorize
-```
-
-The bridge preserves the pending authorization request while VexaAccount performs the existing Login/Register/recovery/verification/2FA flow. After authentication it resumes authorization and calls the protected provider API.
-
-Direct unauthenticated calls to `/api/sso/authorize` are expected to return `401 Authentication required`; the browser bridge is the authentication layer.
-
-## Production verification
-
-Repository verification checks the current canonical source entrypoint and API bridge contracts. Production runtime smoke checks the deployed HTML and every required runtime asset.
-
-A green source/CI check does **not** certify a stale deployment. The deployed User frontend must actually serve the current `index.html` and referenced runtime assets before production certification is complete.
-
-Authenticated production E2E credentials, when configured, must be dedicated test credentials and must never be committed.
+Do not store provider client secrets or refresh tokens in browser storage. Sensitive account changes must use the backend's verified workflow and session invalidation rules.
