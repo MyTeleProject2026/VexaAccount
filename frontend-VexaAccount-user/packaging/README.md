@@ -1,30 +1,39 @@
-# VexaAccount application packaging
+# VexaAccount Application Packaging
 
-The web application is the canonical VexaAccount client. The production PWA layer supports browser installation on Android, iOS/iPadOS, Windows and desktop Chromium browsers.
+The VexaAccount web application is the canonical client. Packaging wraps that deployed web experience without moving identity authority into the client shell.
+
+## PWA
+
+The production PWA supports installation on Android, iOS/iPadOS, Windows and desktop Chromium browsers through the web manifest/service-worker layer.
+
+Authentication, account state, SSO consent and security operations remain server-authoritative.
 
 ## Android
 
-`android/twa-manifest.json` is the Bubblewrap/TWA source configuration. Generate the Android project with the current GoogleChromeLabs Bubblewrap tooling, then build a signed APK/AAB with the production keystore. Store keystore files and passwords only in CI secrets; never commit them.
+`packaging/android/twa-manifest.json` is the TWA source configuration. Generate/build the Android project with current Bubblewrap tooling and sign the release APK/AAB using the production keystore.
 
-Required production values:
+Production identifiers currently include:
+
 - package ID: `com.vexaaccount.app`
 - host: `vexaaccount-management.onrender.com`
 - HTTPS origin
-- 192x192 and 512x512 PNG icons
-- Digital Asset Links for the TWA release signing fingerprint
+- 192x192 and 512x512 icons
+- Digital Asset Links for the release signing fingerprint
+
+Keystores and signing passwords must exist only in protected build/CI secrets.
 
 ## iOS / iPadOS
 
-The PWA itself installs directly from Safari using **Share → Add to Home Screen**. `src/pwa.js` provides the install guidance because iOS does not expose Chromium's `beforeinstallprompt` API.
+Safari can install the PWA through **Share → Add to Home Screen**. The web client provides installation guidance because iOS does not expose Chromium's `beforeinstallprompt` API.
 
-For an App Store binary, use PWABuilder's current iOS package to generate an Xcode project, then build/sign/archive it on macOS with Xcode and the Apple Developer account. A signed IPA cannot be produced by the Linux Render service and must not be fabricated in CI.
+An App Store package requires a real Xcode/PWABuilder workflow on macOS. A signed IPA must not be fabricated by a Linux service.
 
 ## Windows
 
-Edge/Chromium can install the PWA directly as a Windows app from the manifest. For Microsoft Store distribution, generate the current MSIX package through PWABuilder, then sign/submit it according to Microsoft Store requirements.
+Edge/Chromium can install the PWA directly. Microsoft Store distribution requires a properly generated and signed MSIX package and the normal Store submission process.
 
-## CI
+## CI and release verification
 
-`.github/workflows/pwa-packages.yml` validates the production manifest and required icons on every `master` push. If a generated Android Gradle project is added under `packaging/android`, the same workflow automatically builds release APK/AAB artifacts.
+`.github/workflows/pwa-packages.yml` validates the web manifest and required icons. If a generated Android Gradle project is present, CI can build the release artifacts according to the workflow configuration.
 
-Store signing credentials are intentionally external to the repository.
+Packaging success is not identity-flow certification. Before release, verify the deployed frontend/API, authenticated account flow and SSO behavior separately.
