@@ -1,23 +1,36 @@
 # SSO Owner Integration Diagnostics
 
-Use this sequence when an SSO consumer cannot log in.
+Use this sequence when a registered SSO consumer cannot complete login.
+
+## Provider-side diagnostic chain
 
 1. Confirm the Super Admin session is live.
-2. Inspect the registered client ID and active status.
-3. Compare the consumer redirect URI with the registered URI byte-for-byte after canonical URL normalization.
-4. Confirm requested scopes are allowed.
-5. Confirm the consumer sends the registered client secret only server-side.
-6. Confirm PKCE method is S256 and the verifier matches the original challenge.
-7. Confirm authorization state is fresh and has not already been consumed.
-8. Confirm token exchange returns an access token and expected refresh-token lifecycle.
-9. Confirm userinfo returns a stable `sub`.
-10. Confirm downstream consumer session creation succeeds.
-11. For logout/consent problems, inspect both local consumer session state and VexaAccount SSO session/refresh-token state.
+2. Confirm the registered client exists and is active.
+3. Confirm the client ID used by the consumer matches the registry.
+4. Compare the redirect URI exactly with the registered HTTPS URI.
+5. Confirm every requested scope is allowed.
+6. Confirm the client secret is supplied only by the consumer backend.
+7. Confirm PKCE uses S256 and the callback verifier matches the original challenge.
+8. Confirm authorization state is fresh and consumed only once.
+9. Confirm the authorization code is exchanged before expiry and cannot be replayed.
+10. Confirm token response and refresh lifecycle are valid.
+11. Confirm userinfo returns the expected stable `sub`.
+12. Confirm the consumer creates its own authenticated session.
+13. For logout, inspect consumer session removal and provider-side revocation.
+14. For consent removal, verify the related provider SSO session and refresh tokens are revoked.
 
-### MTP2026
+## MTP2026 troubleshooting order
 
-Check the MTP backend first. MTP owns its state table, session table, encryption key and cookie. VexaAccount remains the provider. Do not patch VexaAccount merely because an MTP consumer-side error appears.
+Start with the MTP backend. MTP owns its login transaction, PKCE verifier/state, token encryption and `mtp_session`. Verify MTP deployment, environment, database tables and callback handling before changing provider code.
 
-### Security
+Only change VexaAccount when the provider contract itself is demonstrably incorrect or a separately authorized VexaAccount defect is identified.
 
-Never request or log raw client secrets, refresh tokens, authorization codes or PKCE verifiers during diagnosis.
+## Do not collect secrets
+
+Never request, print or log raw client secrets, refresh tokens, access tokens, authorization codes, PKCE verifiers or encryption keys while diagnosing an integration.
+
+Use IDs, status codes, timestamps, non-secret hashes and sanitized event metadata instead.
+
+## Integration Kit diagnostics
+
+If Owner GitHub installation fails, inspect the signed plan expiry, repository/branch binding, reviewed source blob SHA, current branch head, generated manifest, generated file SHA-256/size and Owner approval state. Any mismatch should produce a fail-closed result and require a new read-only plan rather than forcing a write.
