@@ -2,23 +2,40 @@
 
 System C is the authenticated observability surface for VexaAccount identity and platform operations.
 
-## Observed domains
+## Observability domains
 
-- authentication and identity activity
-- SSO authorization/token/session activity
-- API request and latency signals
-- security events
-- owner/admin audit events
-- runtime/health indicators
+- authentication and identity activity;
+- SSO authorization, token and session activity;
+- API request and latency signals;
+- security events;
+- Owner/Super Admin audit events; and
+- runtime and health indicators.
 
-## Access
+## Access control
 
-The System C UI requires a live VexaAccount Super Admin session. Frontend visibility is not an authorization mechanism; backend routes enforce owner authorization.
+The System C frontend is available only to a live authenticated Super Admin session. This is a usability gate, not the security boundary. Backend System C routes independently enforce Super Admin authorization.
 
-## Integration use
+## Operational model
 
-MTP2026 is observed as an external SSO consumer. Troubleshoot MTP failures from the MTP repository/runtime first, then use provider-side diagnostics to confirm the SSO contract.
+```text
+Protected request
+  → telemetry middleware / route instrumentation
+  → persisted or aggregated observability data
+  → System C backend endpoint
+  → Super Admin authorization
+  → System C UI
+```
 
-## Boundary
+Observability must not expose credentials, access tokens, refresh tokens, authorization codes or PKCE verifiers.
 
-System C documentation describes the current VexaAccount provider. MTP2026 implementation work belongs in MTP2026 and must not alter VexaAccount source code.
+## MTP2026
+
+MTP2026 is observed as an external SSO consumer. When MTP login fails, troubleshoot the MTP runtime first and then use provider-side System C/diagnostic signals to confirm whether the provider contract was reached and where the failure occurred.
+
+## Security events
+
+Sensitive owner/account actions can produce audit/security signals and invalidate affected sessions. These signals are intended to support operational verification without exposing secret material.
+
+## Verification boundary
+
+System C visibility does not prove that an operation succeeded end-to-end. For important changes, correlate the request with the API result, database state, session/token state and downstream application behavior.
