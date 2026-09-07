@@ -31,7 +31,8 @@ router.post('/deploy', auditAdminAction('sso.integration.github.deploy','sso_int
       pathPrefix: req.body.pathPrefix,
       expectedHeadSha: req.body.expectedHeadSha,
       reviewedFiles: req.body.reviewedFiles,
-      planToken: req.body.planToken
+      planToken: req.body.planToken,
+      generatedManifestToken: req.body.generatedManifestToken
     });
     res.status(201).json({ success: true, message: 'SSO integration committed to target repository', deployment: result });
   } catch (e) { next(e); }
