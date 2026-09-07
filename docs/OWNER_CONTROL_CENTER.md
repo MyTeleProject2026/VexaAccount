@@ -1,25 +1,59 @@
-# Owner Control Center Workflow
+# Owner Control Center — End-to-End Workflow
 
-## Authentication
+## 1. Authentication
 
-Owner operations begin with the live DB-backed Super Admin session. Frontend state alone is never sufficient authorization.
+Owner operations begin with a live DB-backed Super Admin session. The frontend cannot grant itself permission. Every privileged route validates the authenticated Super Admin on the backend.
 
-## User operations
+## 2. User management
 
-Owner user actions call protected backend routes, validate the target user, perform the requested mutation, write audit/security information where applicable, and invalidate affected sessions for security-sensitive changes.
+The Owner can search and inspect users and use supported status/security/account operations. Sensitive mutations invalidate affected sessions and record security/audit information where applicable.
 
-## SSO operations
+Typical chain:
 
-The owner registers an application with exact HTTPS redirect URI(s) and allowed scopes. The lifecycle supports create, inspect, update, enable/disable, rotate credentials and revoke application sessions. MTP2026 uses this registry as an SSO consumer.
+```text
+Owner UI
+  → authenticated API request
+  → requireSuperAdmin
+  → owner route
+  → database mutation
+  → session/token invalidation when required
+  → audit/security event
+  → API response
+  → Owner UI refresh
+```
 
-## Platform and support
+## 3. SSO registry
 
-Platform settings and support actions are server-authorized and persisted. Frontend controls are only controls for the corresponding backend routes; they are not mock UI state.
+The Owner registers consuming applications, configures exact HTTPS redirect URIs and scopes, controls application lifecycle, rotates/revokes credentials and can revoke application sessions.
 
-## System C
+The registry is the source of truth for the provider-side SSO client contract.
 
-System C provides authenticated observability over identity, SSO/session, API, latency, security and audit activity. It requires a live Super Admin session.
+## 4. SSO Application Kit
 
-## Integration boundary
+The Owner can analyze an allowlisted GitHub repository in read-only mode, review relevant source files, create a signed source plan, generate supported integration files and optionally install those files.
 
-Do not add MTP-specific logic to the VexaAccount owner panel. MTP2026 owns its own integration, deployment and runtime session behavior.
+Installation is fail-closed unless all integrity checks pass:
+
+- signed plan is valid and unexpired;
+- repository/branch match the plan;
+- every reviewed source blob still matches;
+- branch head still matches the Owner's expected head;
+- signed generated manifest matches the submitted generated files exactly;
+- every generated file's SHA-256 and byte size match; and
+- the Owner explicitly confirms installation.
+
+## 5. Support and platform
+
+Support replies, platform settings and account-center controls are backed by protected routes and persisted state. Frontend controls do not act as a substitute for backend persistence.
+
+## 6. System C
+
+System C exposes authenticated identity, SSO/session, API/latency, security, audit and runtime/health observability. Backend authorization remains active even if the UI is manually opened.
+
+## 7. MTP2026 boundary
+
+MTP2026 consumes VexaAccount. Its own login transaction, PKCE state, encrypted provider tokens and session cookie belong to MTP2026. Provider-side Owner controls should not be changed for ordinary MTP consumer-side defects.
+
+## 8. Operational rule
+
+For every high-impact action, verify more than the button result: inspect the API response, persisted database state, affected session/token state and downstream behavior.
