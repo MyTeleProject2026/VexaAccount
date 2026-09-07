@@ -1,0 +1,10 @@
+const express = require('express');
+const { requireSuperAdmin } = require('../middleware/superAdminAuth');
+const { auditAdminAction } = require('../middleware/adminAudit');
+const { analyze } = require('../services/ssoApplicationAnalyzer.service');
+
+const router = express.Router();
+router.use(requireSuperAdmin);
+router.get('/catalog', auditAdminAction('sso.application_analyzer.catalog','sso_application_analyzer'), (req,res) => res.json({ success:true, mode:'read-only', maxFiles:120, maxFileBytes:400000, supports:['private-repositories-via-server-side-GitHub-token','framework-detection','authentication-file-detection','route-detection','integration-plan'] }));
+router.post('/analyze', auditAdminAction('sso.application_analyzer.analyze','sso_application_analyzer'), async (req,res,next) => { try { res.json(await analyze(req.body || {})); } catch (e) { next(e); } });
+module.exports = router;
