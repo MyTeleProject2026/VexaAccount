@@ -10,7 +10,7 @@ VexaAccount now has a reusable Owner-only application integration kit alongside 
 4. Enter its GitHub repository and branch when source analysis is needed.
 5. Enter its backend web-service URL, user frontend static-site URL, and admin frontend static-site URL.
 6. Run **Analyze target source**. Analysis is read-only and identifies likely frontend/backend stacks, authentication/JWT/OAuth candidates, routing candidates, configuration candidates, and files that should be reviewed before any replacement.
-7. Review the generated integration plan. The analyzer does not modify the target repository.
+7. Review the integration plan and the proposed operations. The analyzer does not modify the target repository.
 8. Generate the backend, frontend-user, frontend-admin, environment and documentation files using the detected stack/language metadata.
 9. Review or download the generated files. Existing target authentication files are not automatically overwritten.
 10. Register the application and exact HTTPS redirect URI in the existing SSO Application Registry.
@@ -19,7 +19,9 @@ VexaAccount now has a reusable Owner-only application integration kit alongside 
 
 ## Source analyzer
 
-The Owner analyzer uses the server-side GitHub deployment credential, so private repositories can be analyzed without exposing the GitHub token to the browser. It is deliberately bounded and read-only:
+The Owner analyzer uses a **dedicated read-only analysis credential** when `GITHUB_SSO_ANALYZE_TOKEN` is configured. It falls back to `GITHUB_SSO_DEPLOY_TOKEN` for backward compatibility. Keep both credentials server-side. Private repositories can therefore be analyzed without exposing a GitHub token to the browser.
+
+The analyzer is deliberately bounded and read-only:
 
 - Maximum 120 source files inspected per analysis.
 - Files larger than 400 KB are skipped.
@@ -27,7 +29,25 @@ The Owner analyzer uses the server-side GitHub deployment credential, so private
 - The analyzer returns file paths, sizes, classifications and an integration plan rather than returning source contents to the Owner UI.
 - Target repository changes are never made by the analyzer endpoint.
 
-`GITHUB_SSO_DEPLOY_TOKEN` and `GITHUB_SSO_ALLOWED_REPOSITORIES` therefore control both the existing reviewed deployment flow and source-analysis access. Keep both server-side.
+Recommended deployment configuration:
+
+- `GITHUB_SSO_ANALYZE_TOKEN` — GitHub credential with only the repository read access required for source analysis.
+- `GITHUB_SSO_DEPLOY_TOKEN` — separate credential for the existing explicit deployment flow.
+- `GITHUB_SSO_ALLOWED_REPOSITORIES` — comma-separated repository allowlist.
+
+## Integration planning and replacement safety
+
+The analyzer produces an **additive-first** plan. Authentication/session files are classified as review candidates, not automatic replacement targets. For supported stacks, the plan can identify backend route/entry anchors and frontend authentication/login anchors where the generated adapter should be connected.
+
+A complete target-file replacement is intentionally **not automatic**. Before any future replacement/deployment operation, Owner review must establish:
+
+1. the current target file contents;
+2. the current target file/blob hash;
+3. the relevant integration anchors and existing auth/session behavior;
+4. the generated replacement and its preservation of required application behavior; and
+5. explicit Owner approval for the selected files.
+
+This prevents the VexaAccount integration system from silently destroying an application's existing authentication or business logic.
 
 ## Generated package
 
@@ -50,6 +70,6 @@ Do not copy Telegram, browser, WebApp, or other third-party cookies/tokens betwe
 
 ## GitHub deployment
 
-The existing Owner GitHub deployer can commit reviewed generated files to an allowlisted repository. Keep `GITHUB_SSO_DEPLOY_TOKEN` and the repository allowlist on the VexaAccount backend; never place the token in Owner frontend code.
+The existing Owner GitHub deployer can commit reviewed generated files to an allowlisted repository. Keep GitHub credentials on the VexaAccount backend; never place a GitHub token in Owner frontend code.
 
 Deployment remains a separate explicit action after generation/review. The analyzer itself has no write capability.
