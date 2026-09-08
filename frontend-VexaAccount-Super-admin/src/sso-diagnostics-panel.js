@@ -34,12 +34,12 @@
     return data;
   }
 
-  function host(){ return document.querySelector('#owner-control-center'); }
+  // The canonical Super Admin runtime is Owner OS. Older Owner Control Center\n  // shells may not exist, so diagnostics must attach to the active Owner surface\n  // instead of silently doing nothing.\n  function host(){ return document.querySelector('#owner-control-center') || document.querySelector('.os-content') || document.querySelector('#app') || document.body; }
 
   function closeExisting(){
     const root = host();
     if(root){
-      const old = root.querySelector('.vexa-sso-diagnostics');
+      const old = document.querySelector('.vexa-sso-diagnostics');
       if(old) old.remove();
     }
   }
