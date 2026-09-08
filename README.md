@@ -1,114 +1,52 @@
 # VexaAccount
 
-VexaAccount is the identity, account-management and SSO provider used by consuming applications such as MTP2026.
+## Current implementation guide
 
-## Repository baseline
+This README documents the current repository implementation. It is intentionally based on source that exists in `master`, rather than obsolete/planned behavior.
 
-- Default branch: `master`
-- Documentation update: September 7, 2026
-- Current source baseline: `2911480811a16b71b8379a122bd46db2f8504681`
-- Runtime stack: Node.js + Express + MySQL-compatible storage
-- User client: `frontend-VexaAccount-user`
-- Owner client: `frontend-VexaAccount-Super-admin`
+### Runtime components
 
-This README describes the implementation that exists in the repository. It does not replace source-code behavior or claim production certification that has not been exercised.
+- `backend/` — Express API, authentication, SSO registry, Owner controls, infrastructure integration, and System C observability.
+- `frontend-VexaAccount-Super-admin/` — authenticated Owner/Super Admin Control Center and System C UI.
+- `frontend-VexaAccount-user/` — VexaAccount user-facing runtime.
+- Production API: `https://api-vexaaccount.onrender.com`
+- Super Admin UI: `https://super-admin-vexaaccount.onrender.com`
+- User UI: `https://vexaaccount-management.onrender.com`
 
-## Architecture
+## Owner authentication
 
-```text
-Browser
-  ├── VexaAccount User Frontend
-  └── VexaAccount Super Admin Frontend
-          │
-          ▼
-     VexaAccount Backend
-          ├── canonical user authentication/session
-          ├── DB-backed Super Admin authentication
-          ├── account/profile/security/recovery workflows
-          ├── SSO authorization/token/session lifecycle
-          ├── owner user/application/platform/support controls
-          ├── authenticated storage
-          └── System C observability
-                    │
-                    ▼
-             MySQL-compatible DB
-```
-
-## Authentication and account workflows
-
-The user account system covers registration/sign-in, verification, profile and preferences, security controls, password/email changes, recovery, passcode controls, people/privacy controls, SSO application consent, active SSO sessions, notifications, support interactions and authenticated storage.
-
-Sensitive account and owner security changes invalidate affected sessions. Session-version changes provide an additional server-side invalidation boundary.
-
-## SSO provider workflow
-
-1. A consuming application is registered in the SSO registry.
-2. The consumer uses an exact HTTPS redirect URI and allowed scopes.
-3. The consumer creates fresh state and an S256 PKCE verifier/challenge.
-4. The browser enters the VexaAccount authorization flow.
-5. VexaAccount validates the client, redirect URI, state-related request data and scopes.
-6. User authorization produces a one-time authorization code.
-7. The consumer backend exchanges the code server-to-server with the PKCE verifier and client authentication.
-8. The consumer obtains userinfo and creates its own application session.
-9. VexaAccount maintains the provider-side SSO session and refresh-token lifecycle.
-10. Consent removal, credential revocation or security changes revoke applicable provider-side sessions/tokens.
-
-Provider client secrets and refresh tokens remain server-side. A consumer must never use browser storage as its identity authority.
+The Owner runtime verifies the Super Admin session before loading protected Owner data. Core endpoints are `POST /api/auth/super-admin/login` and `GET /api/auth/super-admin/session`. Owner APIs are protected by `requireSuperAdmin`; browser recovery logic avoids duplicate concurrent session checks.
 
 ## Owner Control Center
 
-The Super Admin application is a real operating console backed by protected backend routes. It provides user administration, security/status controls, session revocation, SSO application registration and lifecycle management, redirect URI/scope management, credential rotation/revocation, support, platform controls and System C observability.
+The Owner gateway exposes System A (VexaAccount SSO Full Controlling System), System B (Owner Control Center), and System C (Live Integration & Runtime Observatory). The controls call authenticated backend APIs.
 
-Frontend visibility is never the authorization boundary. Backend middleware performs the actual authorization.
+## SSO application lifecycle
 
-## SSO Application Integration Kit
+The implemented registry flow is: Owner creates an application; backend validates metadata, redirect URIs and scopes; client ID and secret are generated; the secret is stored server-side as a hash; application state is persisted in `sso_clients` and `sso_client_registry`; Owner can inspect configuration/diagnostics; Owner can update redirect URIs, scopes and lifecycle status; disable/revoke deactivates the client and revokes associated sessions/tokens; rotation replaces the client credential; removal revokes dependent authentication state before deleting records.
 
-The Owner-only kit provides a read-only target source analyzer, precise source planner, generated integration files and an explicit GitHub installation flow.
+Current default scopes: `openid`, `profile`, `email`, `account`, `session`, `applications`, `notifications`.
 
-The current generated implementation is intentionally Node.js/Express-oriented. Unsupported backend stacks are rejected rather than receiving incompatible generated code.
+## Infrastructure and deployment
 
-The installation boundary is protected by:
-
-- signed source-plan token;
-- current reviewed source blob SHA verification;
-- current target branch-head SHA verification;
-- signed generated-file manifest containing exact file SHA-256 and byte size;
-- exact generated-file-set verification; and
-- explicit Owner approval before repository installation.
-
-The analyzer never writes to a target repository. Existing authentication files are not silently replaced.
+Owner infrastructure controls can connect to Render, list services, manage application environment variables, trigger deployments, and bind a Render service to an SSO application. MTP2026 provisioning can create/reuse `mtp2026-app-launcher`, configure its SSO settings, write the generated configuration/credential to the selected Render service environment, persist the infrastructure binding, and trigger deployment.
 
 ## System C
 
-System C is an authenticated observability surface for identity, SSO/session activity, API/latency signals, security events, audit events and runtime health. Its UI requires a live Super Admin session and its backend routes remain protected independently.
+System C exposes `GET /api/system-c/health`, `GET /api/system-c/snapshot`, and `GET /api/system-c/stream`. The stream uses SSE with periodic snapshots, heartbeats and disconnect cleanup. Snapshot data covers database status, SSO applications, security/administrative/observability events, active sessions/consents and API metrics. The frontend reads database connection/running/question values from `snapshot.databaseStatus`.
 
-## Migrations
+## Platform settings
 
-`backend/scripts/migrate.js` applies ordered SQL migrations and records them in `vexa_schema_migrations`. The current migration set covers SSO core/security, owner controls, application lifecycle, account center, passcode, observability and session-version compatibility.
+Platform settings require Super Admin authentication. Mutations also pass through the centralized Owner audit middleware before persistence in `vexa_platform_settings`, with the authenticated Owner recorded as `updated_by`.
 
-## Production verification boundary
+## End-to-end control model
 
-Source/build verification, API health and smoke tests are useful but are not equivalent to production certification. A true production certification requires the deployed services, real database, registered SSO client, configured secrets and authenticated end-to-end browser flow to be exercised.
+**Owner UI action → frontend handler → authenticated API request → `requireSuperAdmin` → route validation → service/database/provider operation → audit where required → JSON response → UI state refresh.**
 
-The repository deliberately uses precise wording: source/build verified when only source-level checks passed; production verified only after the deployed integration path has actually succeeded.
+## Certification policy
 
-## Consumer boundary: MTP2026
+A feature is implemented when its source route/handler and backend contract exist. It is runtime-certified only after the relevant GitHub Actions and production smoke checks finish successfully. Queued or in-progress workflows are not certification.
 
-MTP2026 is a consuming SSO application. Its own backend owns its login transaction, PKCE verifier, encrypted provider token storage and `mtp_session` cookie. Consumer-specific fixes belong in `MyTeleProject2026/MTP2026-App-Launcher`; VexaAccount should not be changed merely to compensate for an MTP-side implementation problem.
+## Documentation maintenance
 
-## Security rules
-
-- HTTPS in production.
-- Exact redirect URI matching.
-- Authorization Code + S256 PKCE.
-- One-time authorization codes and state.
-- Server-side consumer sessions.
-- HttpOnly/Secure session cookies where applicable.
-- No provider client secrets in browser bundles.
-- No refresh tokens in browser storage.
-- No copying of third-party browser/WebApp cookies between devices.
-- Audit and session invalidation for sensitive owner/account operations.
-
-## Related documentation
-
-See `docs/` for SSO, Owner Control Center, System C, diagnostics, production E2E and current implementation details. Packaging and integration-specific READMEs describe their respective boundaries.
+Keep this README synchronized with actual source. Remove obsolete claims, document only traceable behavior, distinguish implementation from runtime certification, and verify the full frontend → API → middleware → service/database/provider → response chain after material changes.
