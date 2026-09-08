@@ -1,0 +1,1 @@
+(()=>{'use strict';if(!('serviceWorker' in navigator))return;navigator.serviceWorker.getRegistrations().then(regs=>Promise.all(regs.map(reg=>reg.unregister()))).catch(()=>{});if(window.caches){caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('vexaaccount-admin-shell-')).map(k=>caches.delete(k)))).catch(()=>{});}})();
