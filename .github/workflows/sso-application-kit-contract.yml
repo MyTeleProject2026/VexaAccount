@@ -1,0 +1,76 @@
+name: SSO Application Kit contract
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  sso-application-kit-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check SSO application kit source syntax
+        run: |
+          node --check backend/src/routes/sso-application-analyzer.js
+          node --check backend/src/routes/sso-application-kit.js
+          node --check backend/src/routes/sso-integration-deployer.js
+          node --check backend/src/services/ssoApplicationAnalyzer.service.js
+          node --check backend/src/services/ssoApplicationIntegrationPlanner.service.js
+          node --check backend/src/services/ssoIntegrationDeployer.service.js
+          node --check frontend-VexaAccount-Super-admin/src/sso-application-kit-ui.js
+          node --check frontend-VexaAccount-Super-admin/src/sso-application-planner-ui.js
+          node --check frontend-VexaAccount-Super-admin/src/owner-application-kit-actions.js
+          node --check frontend-VexaAccount-Super-admin/src/sso-application-integration-builder.js
+          node --check frontend-VexaAccount-Super-admin/src/sso-application-builder-launcher.js
+          node --check frontend-VexaAccount-Super-admin/src/sso-github-deployer.js
+          node --check frontend-VexaAccount-Super-admin/src/owner-runtime-loader.js
+      - name: Verify backend SSO application kit route chain
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const index=fs.readFileSync('backend/src/index.js','utf8');
+          const analyzer=fs.readFileSync('backend/src/routes/sso-application-analyzer.js','utf8');
+          const kit=fs.readFileSync('backend/src/routes/sso-application-kit.js','utf8');
+          const deployer=fs.readFileSync('backend/src/routes/sso-integration-deployer.js','utf8');
+          const analyzerService=fs.readFileSync('backend/src/services/ssoApplicationAnalyzer.service.js','utf8');
+          const plannerService=fs.readFileSync('backend/src/services/ssoApplicationIntegrationPlanner.service.js','utf8');
+          const deployService=fs.readFileSync('backend/src/services/ssoIntegrationDeployer.service.js','utf8');
+          for(const x of [
+            "app.use('/api/sso-application-analyzer', ssoApplicationAnalyzerRoutes)",
+            "app.use('/api/sso-application-kit', ssoApplicationKitRoutes)",
+            "app.use('/api/sso-integration', ssoIntegrationDeployerRoutes)"]){if(!index.includes(x))throw Error('Missing backend mount: '+x)}
+          for(const x of ["router.post('/analyze'","router.post('/plan'",'requireSuperAdmin','auditAdminAction'])if(!analyzer.includes(x))throw Error('Analyzer route contract missing: '+x)
+          for(const x of ["router.post('/generate'","router.post('/generate-target-replacements'",'verifyPlanToken','createPlanToken','requireSuperAdmin'])if(!kit.includes(x))throw Error('Application kit route contract missing: '+x)
+          for(const x of ["router.post('/preflight'","router.post('/deploy'",'expectedHeadSha','reviewedFiles','planToken','generatedManifestToken'])if(!deployer.includes(x))throw Error('Deployment route contract missing: '+x)
+          for(const x of ['GITHUB_SSO_ANALYZE_TOKEN','GITHUB_SSO_DEPLOY_TOKEN','GITHUB_SSO_ALLOWED_REPOSITORIES','MAX_FILES','MAX_FILE_BYTES','Analysis is read-only'])if(!analyzerService.includes(x))throw Error('Analyzer service safety contract missing: '+x)
+          for(const x of ['sourceSha256','blobSha','createPlanToken','No automatic whole-file replacement','15 minutes'])if(!plannerService.includes(x))throw Error('Planner safety contract missing: '+x)
+          for(const x of ['verifySignedPlan','verifyGeneratedManifest','verifyReviewedFiles','expectedHeadSha','force:false','GITHUB_SSO_ALLOWED_REPOSITORIES'])if(!deployService.includes(x))throw Error('Deployment safety contract missing: '+x)
+          if(kit.includes('/repair-status')||deployer.includes('/repair-status')||analyzerService.includes('/repair-status')||plannerService.includes('/repair-status'))throw Error('Deprecated repair-status endpoint remains in SSO application kit chain')
+          NODE
+      - name: Verify Owner UI uses the canonical backend chain
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const html=fs.readFileSync('frontend-VexaAccount-Super-admin/index.html','utf8');
+          const kit=fs.readFileSync('frontend-VexaAccount-Super-admin/src/sso-application-kit-ui.js','utf8');
+          const planner=fs.readFileSync('frontend-VexaAccount-Super-admin/src/sso-application-planner-ui.js','utf8');
+          const actions=fs.readFileSync('frontend-VexaAccount-Super-admin/src/owner-application-kit-actions.js','utf8');
+          const builder=fs.readFileSync('frontend-VexaAccount-Super-admin/src/sso-application-integration-builder.js','utf8');
+          const launcher=fs.readFileSync('frontend-VexaAccount-Super-admin/src/sso-application-builder-launcher.js','utf8');
+          const deployer=fs.readFileSync('frontend-VexaAccount-Super-admin/src/sso-github-deployer.js','utf8');
+          const loader=fs.readFileSync('frontend-VexaAccount-Super-admin/src/owner-runtime-loader.js','utf8');
+          for(const x of ['sso-application-kit-ui.js','owner-application-kit-actions.js','sso-application-planner-ui.js','sso-application-integration-builder.js','sso-application-builder-launcher.js','sso-diagnostics-panel.js','sso-github-deployer.js','owner-runtime-loader.js'])if(!html.includes(x))throw Error('Owner index missing canonical SSO asset: '+x)
+          for(const x of ['/api/sso-application-analyzer/analyze','/api/sso-application-analyzer/plan','/api/sso-application-kit/generate','/api/sso-application-kit/generate-target-replacements'])if(!kit.includes(x))throw Error('Kit UI missing backend endpoint: '+x)
+          for(const x of ['/api/sso-application-analyzer/analyze','/api/sso-application-analyzer/plan'])if(!planner.includes(x))throw Error('Planner UI missing backend endpoint: '+x)
+          for(const x of ['data-kit-launch','sso-application-kit','/api/sso-registry/applications/'])if(!actions.includes(x))throw Error('Owner application actions missing existing registry/kit bridge: '+x)
+          for(const x of ['VexaSsoApplicationIntegrationBuilder','open'])if(!builder.includes(x))throw Error('Existing SSO builder API bridge missing: '+x)
+          if(!launcher.includes('VexaSsoApplicationIntegrationBuilder.open'))throw Error('Builder launcher is not connected to the existing builder')
+          for(const x of ['/api/sso-integration/status','/api/sso-integration/preflight','/api/sso-integration/deploy'])if(!deployer.includes(x))throw Error('GitHub deployer missing backend endpoint: '+x)
+          for(const x of ['SOURCE REVIEW','SOURCE ANALYSIS','INTEGRATION GENERATION','DEPLOYMENT VERIFICATION','RUNNING','SUCCESS','FAILED','elapsed'])if(!loader.includes(x))throw Error('Live Owner operation telemetry contract missing: '+x)
+          if(kit.includes('/repair-status')||planner.includes('/repair-status')||actions.includes('/repair-status')||deployer.includes('/repair-status'))throw Error('Deprecated repair-status endpoint remains in Owner SSO UI')
+          NODE
