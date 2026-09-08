@@ -7,7 +7,9 @@ const { buildSnapshot } = require('../services/systemCObservatory.service');
 
 const app = express();
 const PORT = Number(process.env.VEXA_SYSTEM_C_PORT || 5051);
-const INTERVAL = Math.max(1500, Number(process.env.VEXA_SYSTEM_C_INTERVAL_MS || 3000));
+const INTERVAL = Math.max(3000, Number(process.env.VEXA_SYSTEM_C_INTERVAL_MS || 5000));
+const HEARTBEAT_INTERVAL = Math.max(5000, Number(process.env.VEXA_SYSTEM_C_HEARTBEAT_MS || 10000));
+const SSE_RETRY_MS = Math.max(1000, Number(process.env.VEXA_SYSTEM_C_SSE_RETRY_MS || 5000));
 const origins = String(process.env.VEXA_SYSTEM_C_ALLOWED_ORIGINS || process.env.FRONTEND_ADMIN_URL || '')
   .split(',').map((value) => value.trim()).filter(Boolean);
 
@@ -50,20 +52,18 @@ app.get('/api/system-c/snapshot', async (req, res, next) => {
 app.get('/api/system-c/stream', async (req, res) => {
   res.status(200).set({
     'Content-Type': 'text/event-stream; charset=utf-8',
-    'Cache-Control': 'no-cache, no-transform',
+    'Cache-Control': 'no-cache, no-transform, private',
     Connection: 'keep-alive',
     'X-Accel-Buffering': 'no',
+    'X-Content-Type-Options': 'nosniff',
   });
   res.flushHeaders?.();
-  // Prime the stream immediately so reverse proxies recognize this as an active SSE response.
-  res.write('retry: 3000\n\n');
+  req.socket?.setKeepAlive?.(true, 15000);
+  res.write(`retry: ${SSE_RETRY_MS}\n\n`);
+  res.write(`event: connected\ndata: ${JSON.stringify({ success: true, connectedAt: new Date().toISOString() })}\n\n`);
   res.flush?.();
 
-  let timer = null;
-  let heartbeatTimer = null;
-  let closed = false;
-  let busy = false;
-
+  let timer = null, heartbeatTimer = null, closed = false, busy = false;
   const close = () => {
     if (closed) return;
     closed = true;
@@ -71,25 +71,34 @@ app.get('/api/system-c/stream', async (req, res) => {
     if (heartbeatTimer) clearInterval(heartbeatTimer);
   };
   const write = (event, data) => {
-    if (!closed) { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); res.flush?.(); }
+    if (closed || res.writableEnded || res.destroyed) return false;
+    try {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      res.flush?.();
+      return true;
+    } catch {
+      close();
+      return false;
+    }
   };
   const send = async () => {
     if (closed || busy) return;
     busy = true;
-    try {
-      write('snapshot', await buildSnapshot());
-    } catch (error) {
-      write('observatory-error', { success: false, message: 'Observatory snapshot failed' });
-    } finally {
-      busy = false;
-    }
+    try { write('snapshot', await buildSnapshot()); }
+    catch { write('observatory-error', { success: false, message: 'Observatory snapshot failed', timestamp: new Date().toISOString() }); }
+    finally { busy = false; }
   };
 
-  req.on('close', close);
-  req.on('aborted', close);
-  heartbeatTimer = setInterval(() => { if (!closed) { res.write(': heartbeat\n\n'); res.flush?.(); } }, 15000);
-  await send();
-  if (!closed) timer = setInterval(send, INTERVAL);
+  req.once('close', close);
+  req.once('aborted', close);
+  res.once('close', close);
+  res.once('error', close);
+  heartbeatTimer = setInterval(() => {
+    if (closed || res.writableEnded || res.destroyed) return close();
+    try { res.write(`: heartbeat ${Date.now()}\n\n`); res.flush?.(); } catch { close(); }
+  }, HEARTBEAT_INTERVAL);
+  send();
+  timer = setInterval(send, INTERVAL);
 });
 
 app.use((error, req, res, next) => {
