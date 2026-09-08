@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool } = require('../config/database');
 const { requireSuperAdmin } = require('../middleware/superAdminAuth');
+const { auditAdminAction } = require('../middleware/adminAudit');
 
 const router = express.Router();
 const DEFAULT_SCOPES = ['openid', 'profile', 'email', 'account', 'session', 'applications', 'notifications'];
@@ -19,7 +20,7 @@ router.get('/settings', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.put('/settings/:key', async (req, res, next) => {
+router.put('/settings/:key', auditAdminAction('owner.platform.setting.update', 'platform_setting'), async (req, res, next) => {
   try {
     const key = String(req.params.key || '').trim();
     if (!/^[a-zA-Z0-9._-]{1,128}$/.test(key)) return res.status(400).json({ success: false, message: 'Invalid setting key' });
