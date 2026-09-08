@@ -1,4 +1,15 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#050711"><meta name="description" content="VexaAccount Owner OS — SSO Control System and Owner Control Center"><meta name="color-scheme" content="dark"><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icons/icon-192.png" type="image/png"><link rel="apple-touch-icon" href="/icons/icon-192.png"><title>VexaAccount — Owner OS</title><link rel="stylesheet" href="/src/styles.css?v=20260904-03"><link rel="stylesheet" href="/src/glass-premium.css?v=20260904-03"><link rel="stylesheet" href="/src/responsive-premium.css?v=20260904-01"><link rel="stylesheet" href="/src/owner-os.css?v=20260904-01"><link rel="stylesheet" href="/src/sso-application-kit.css?v=20260907-02"><link rel="stylesheet" href="/src/owner-infrastructure-control.css?v=20260908-01"><link rel="stylesheet" href="/src/owner-control-system-premium.css?v=20260908-02"></head><body><div id="app"><div class="os-app os-login"><section class="os-login-card"><span class="os-mark">V</span><p class="os-eyebrow">VEXAACCOUNT ECOSYSTEM</p><h1>Loading Owner OS…</h1><p class="os-muted">Verifying secure Owner session.</p></section></div></div><script>window.VEXA_ACCOUNT_ADMIN_API_BASE=window.VEXA_ACCOUNT_ADMIN_API_BASE||'https://api-vexaaccount.onrender.com';</script><script src="/src/owner-login-resilience.js?v=20260908-03" defer></script><script src="/src/owner-os-runtime-guard.js?v=20260908-03" defer></script><script src="/src/owner-os.js?v=20260908-06" defer></script><script src="/src/owner-os-bootstrap-failsafe.js?v=20260908-03" defer></script><script>
+(()=>{
+  const assets=['sso-integration-generator.js','sso-runtime-sync.js','sso-status-sync.js','sso-integration-factory-v4.js','sso-github-deployer.js'];
+  const loaded=new Set();
+  const load=()=>{
+    if(window.__VEXA_OWNER_BOOT_STATE__!=='ready')return;
+    for(const file of assets){if(loaded.has(file)||document.querySelector(`script[data-owner-deferred="${file}"]`))continue;loaded.add(file);const s=document.createElement('script');s.src='/src/'+file+'?owner_deferred=20260908-01';s.defer=true;s.dataset.ownerDeferred=file;document.head.appendChild(s)}
+  };
+  const timer=setInterval(()=>{load();if(window.__VEXA_OWNER_BOOT_STATE__==='ready')clearInterval(timer)},250);
+  setTimeout(()=>clearInterval(timer),30000);
+})();
+</script><script>
 if('serviceWorker' in navigator){
   navigator.serviceWorker.getRegistrations().then(regs=>Promise.all(regs.map(reg=>reg.unregister()))).catch(()=>{});
   if(window.caches){caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('vexaaccount-admin-shell-')).map(k=>caches.delete(k)))).catch(()=>{});}
