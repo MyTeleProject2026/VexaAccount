@@ -41,7 +41,7 @@ jobs:
           const analyzerService=fs.readFileSync('backend/src/services/ssoApplicationAnalyzer.service.js','utf8');
           const plannerService=fs.readFileSync('backend/src/services/ssoApplicationIntegrationPlanner.service.js','utf8');
           const deployService=fs.readFileSync('backend/src/services/ssoIntegrationDeployer.service.js','utf8');
-          for(const x of ["app.use('/api/sso-application-analyzer',ssoApplicationAnalyzerRoutes)","app.use('/api/sso-application-kit',ssoApplicationKitRoutes)","app.use('/api/sso-integration',ssoIntegrationDeployerRoutes)]){if(!index.includes(x))throw Error('Missing backend mount: '+x)}
+          for(const x of ["app.use('/api/sso-application-analyzer',ssoApplicationAnalyzerRoutes)","app.use('/api/sso-application-kit',ssoApplicationKitRoutes)","app.use('/api/sso-integration',ssoIntegrationDeployerRoutes)"]){if(!index.includes(x))throw Error('Missing backend mount: '+x)}
           for(const x of ["router.post('/analyze'","router.post('/plan'",'requireSuperAdmin','auditAdminAction'])if(!analyzer.includes(x))throw Error('Analyzer route contract missing: '+x)
           for(const x of ["router.post('/generate'","router.post('/generate-target-replacements'",'verifyPlanToken','createPlanToken','requireSuperAdmin'])if(!kit.includes(x))throw Error('Application kit route contract missing: '+x)
           for(const x of ["router.post('/preflight'","router.post('/deploy'",'expectedHeadSha','reviewedFiles','planToken','generatedManifestToken'])if(!deployer.includes(x))throw Error('Deployment route contract missing: '+x)
