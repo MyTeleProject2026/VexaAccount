@@ -43,6 +43,9 @@ router.get('/stream', async (req, res) => {
     'X-Accel-Buffering': 'no',
   });
   res.flushHeaders?.();
+  // Prime the stream immediately so reverse proxies recognize this as an active SSE response.
+  res.write('retry: 3000\n\n');
+  res.flush?.();
 
   let timer = null;
   let heartbeatTimer = null;
@@ -57,7 +60,7 @@ router.get('/stream', async (req, res) => {
   };
 
   const write = (event, data) => {
-    if (!closed) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    if (!closed) { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); res.flush?.(); }
   };
 
   const send = async () => {
@@ -78,7 +81,7 @@ router.get('/stream', async (req, res) => {
   req.on('close', close);
   req.on('aborted', close);
   heartbeatTimer = setInterval(() => {
-    if (!closed) res.write(': heartbeat\n\n');
+    if (!closed) { res.write(': heartbeat\n\n'); res.flush?.(); }
   }, 15000);
 
   await send();
