@@ -21,6 +21,7 @@ jobs:
           node --check backend/src/routes/sso-integration-deployer.js
           node --check backend/src/services/ssoApplicationAnalyzer.service.js
           node --check backend/src/services/ssoApplicationIntegrationPlanner.service.js
+          node --check backend/src/services/ssoApplicationKit.service.js
           node --check backend/src/services/ssoIntegrationDeployer.service.js
           node --check frontend-VexaAccount-Super-admin/src/sso-application-kit-ui.js
           node --check frontend-VexaAccount-Super-admin/src/sso-application-planner-ui.js
@@ -30,6 +31,23 @@ jobs:
           node --check frontend-VexaAccount-Super-admin/src/sso-github-deployer.js
           node --check frontend-VexaAccount-Super-admin/src/owner-runtime-loader.js
           node --check frontend-VexaAccount-Super-admin/src/sso-application-kit-replacements-ui.js
+      - name: Verify optional Admin Frontend generator contract
+        run: |
+          node <<'NODE'
+          const {validateInput,generate}=require('./backend/src/services/ssoApplicationKit.service');
+          const base={applicationKey:'mtp2026-app-launcher',displayName:'MTP2026 Apps Launcher',backendUrl:'https://mtp2026-app-launcher-backend.onrender.com',frontendUserUrl:'https://mtp2026-app-launcher.onrender.com',framework:'Node.js/Express',language:'javascript'};
+          const noAdmin=validateInput({...base,hasAdminFrontend:false,frontendAdminUrl:null});
+          if(noAdmin.hasAdminFrontend!==false||noAdmin.frontendAdminUrl!==null)throw Error('No-admin topology was not normalized correctly');
+          const generated=generate({...base,hasAdminFrontend:false,frontendAdminUrl:null});
+          const paths=generated.files.map(f=>f.path);
+          if(paths.includes('frontend-admin/src/integrations/vexaaccount.js'))throw Error('Admin frontend source was generated for no-admin topology');
+          if(paths.length!==5)throw Error(`Expected 5 files for backend+user topology, received ${paths.length}`);
+          if(!generated.manifest.topology||generated.manifest.topology.frontendAdmin!==false)throw Error('Generated manifest does not record frontendAdmin=false');
+          let rejected=false;
+          try{validateInput({...base,hasAdminFrontend:true,frontendAdminUrl:''});}catch(e){rejected=/frontendAdminUrl/.test(e.message);}
+          if(!rejected)throw Error('Admin-enabled topology accepted a missing HTTPS admin URL');
+          console.log('Optional Admin Frontend topology contract passed');
+          NODE
       - name: Verify backend SSO application kit route chain
         run: |
           node <<'NODE'
@@ -40,13 +58,15 @@ jobs:
           const deployer=fs.readFileSync('backend/src/routes/sso-integration-deployer.js','utf8');
           const analyzerService=fs.readFileSync('backend/src/services/ssoApplicationAnalyzer.service.js','utf8');
           const plannerService=fs.readFileSync('backend/src/services/ssoApplicationIntegrationPlanner.service.js','utf8');
+          const kitService=fs.readFileSync('backend/src/services/ssoApplicationKit.service.js','utf8');
           const deployService=fs.readFileSync('backend/src/services/ssoIntegrationDeployer.service.js','utf8');
           for(const x of ["app.use('/api/sso-application-analyzer',ssoApplicationAnalyzerRoutes)","app.use('/api/sso-application-kit',ssoApplicationKitRoutes)","app.use('/api/sso-integration',ssoIntegrationDeployerRoutes)"]){if(!index.includes(x))throw Error('Missing backend mount: '+x)}
           for(const x of ["router.post('/analyze'","router.post('/plan'",'requireSuperAdmin','auditAdminAction'])if(!analyzer.includes(x))throw Error('Analyzer route contract missing: '+x)
-          for(const x of ["router.post('/generate'","router.post('/generate-target-replacements'",'verifyPlanToken','createPlanToken','requireSuperAdmin'])if(!kit.includes(x))throw Error('Application kit route contract missing: '+x)
+          for(const x of ["router.post('/generate'","router.post('/generate-target-replacements'",'verifyPlanToken','createPlanToken','requireSuperAdmin','topology'])if(!kit.includes(x))throw Error('Application kit route contract missing: '+x)
           for(const x of ["router.post('/preflight'","router.post('/deploy'",'expectedHeadSha','reviewedFiles','planToken','generatedManifestToken'])if(!deployer.includes(x))throw Error('Deployment route contract missing: '+x)
           for(const x of ['GITHUB_SSO_ANALYZE_TOKEN','GITHUB_SSO_DEPLOY_TOKEN','GITHUB_SSO_ALLOWED_REPOSITORIES','MAX_FILES','MAX_FILE_BYTES','Analysis is read-only'])if(!analyzerService.includes(x))throw Error('Analyzer service safety contract missing: '+x)
-          for(const x of ['sourceSha256','blobSha','createPlanToken','No automatic whole-file replacement','15 minutes'])if(!plannerService.includes(x))throw Error('Planner safety contract missing: '+x)
+          for(const x of ['sourceSha256','blobSha','createPlanToken','No automatic whole-file replacement','15 minutes','hasAdminFrontend','frontendAdmin'])if(!plannerService.includes(x))throw Error('Planner safety/topology contract missing: '+x)
+          for(const x of ['hasAdminFrontend','frontendAdminUrl','topology','frontend-admin/src/integrations/vexaaccount.js'])if(!kitService.includes(x))throw Error('Kit builder topology contract missing: '+x)
           for(const x of ['verifySignedPlan','verifyGeneratedManifest','verifyReviewedFiles','expectedHeadSha','force:false','GITHUB_SSO_ALLOWED_REPOSITORIES'])if(!deployService.includes(x))throw Error('Deployment safety contract missing: '+x)
           if(kit.includes('/repair-status')||deployer.includes('/repair-status')||analyzerService.includes('/repair-status')||plannerService.includes('/repair-status'))throw Error('Deprecated repair-status endpoint remains in SSO application kit chain')
           NODE
@@ -64,7 +84,7 @@ jobs:
           const deployer=fs.readFileSync('frontend-VexaAccount-Super-admin/src/sso-github-deployer.js','utf8');
           const loader=fs.readFileSync('frontend-VexaAccount-Super-admin/src/owner-runtime-loader.js','utf8');
           for(const x of ['sso-application-kit-ui.js','sso-application-kit-replacements-ui.js','owner-application-kit-actions.js','sso-application-planner-ui.js','sso-application-integration-builder.js','sso-application-builder-launcher.js','sso-diagnostics-panel.js','sso-github-deployer.js','owner-runtime-loader.js'])if(!html.includes(x))throw Error('Owner index missing canonical SSO asset: '+x)
-          for(const x of ['/api/sso-application-analyzer/analyze','/api/sso-application-analyzer/plan','/api/sso-application-kit/generate'])if(!kit.includes(x))throw Error('Kit UI missing backend endpoint: '+x)
+          for(const x of ['/api/sso-application-analyzer/analyze','/api/sso-application-analyzer/plan','/api/sso-application-kit/generate','kit-admin-mode','No Admin Frontend','hasAdminFrontend'])if(!kit.includes(x))throw Error('Kit UI missing optional-admin topology contract: '+x)
           if(!replacements.includes('/api/sso-application-kit/generate-target-replacements'))throw Error('Target replacement UI missing canonical backend endpoint')
           for(const x of ['__VEXA_LAST_SOURCE_PLAN__','replacementManifestToken','No target files are modified'])if(!replacements.includes(x))throw Error('Target replacement UI safety bridge missing: '+x)
           for(const x of ['/api/sso-application-analyzer/analyze','/api/sso-application-analyzer/plan'])if(!planner.includes(x))throw Error('Planner UI missing backend endpoint: '+x)
