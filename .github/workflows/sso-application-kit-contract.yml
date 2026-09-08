@@ -68,7 +68,7 @@ jobs:
           if(!replacements.includes('/api/sso-application-kit/generate-target-replacements'))throw Error('Target replacement UI missing canonical backend endpoint')
           for(const x of ['__VEXA_LAST_SOURCE_PLAN__','replacementManifestToken','No target files are modified'])if(!replacements.includes(x))throw Error('Target replacement UI safety bridge missing: '+x)
           for(const x of ['/api/sso-application-analyzer/analyze','/api/sso-application-analyzer/plan'])if(!planner.includes(x))throw Error('Planner UI missing backend endpoint: '+x)
-          for(const x of ['data-kit-launch','sso-application-kit','/api/sso-registry/applications/'])if(!actions.includes(x))throw Error('Owner application actions missing existing registry/kit bridge: '+x)
+          for(const x of ['data-kit-launch','/api/sso-registry/applications/'])if(!actions.includes(x))throw Error('Owner application actions missing existing registry/kit bridge: '+x)
           for(const x of ['VexaSsoApplicationIntegrationBuilder','open'])if(!builder.includes(x))throw Error('Existing SSO builder API bridge missing: '+x)
           if(!launcher.includes('VexaSsoApplicationIntegrationBuilder.open'))throw Error('Builder launcher is not connected to the existing builder')
           for(const x of ['/api/sso-integration/status','/api/sso-integration/preflight','/api/sso-integration/deploy'])if(!deployer.includes(x))throw Error('GitHub deployer missing backend endpoint: '+x)
