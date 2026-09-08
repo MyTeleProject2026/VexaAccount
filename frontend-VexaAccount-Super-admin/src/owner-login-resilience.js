@@ -2,8 +2,17 @@
 if(window.__VEXA_OWNER_LOGIN_RESILIENCE__)return;window.__VEXA_OWNER_LOGIN_RESILIENCE__=true;
 const originalFetch=window.fetch.bind(window);
 const API=(window.VEXA_ACCOUNT_ADMIN_API_BASE||'https://api-vexaaccount.onrender.com').replace(/\/$/,'');
+const AUTH_PATHS=new Set(['/api/auth/super-admin/login','/api/auth/super-admin/session']);
 const isBootstrapUsersRequest=input=>{try{const u=typeof input==='string'?new URL(input,location.href):new URL(input.url);return u.origin===API&&u.pathname==='/api/owner/users'&&u.searchParams.get('limit')==='200'}catch{return false}};
+const isAuthRequest=input=>{try{const u=typeof input==='string'?new URL(input,location.href):new URL(input.url);return u.origin===API&&AUTH_PATHS.has(u.pathname)}catch{return false}};
 window.fetch=async function(input,init={}){
+ if(isAuthRequest(input)){
+  const headers=new Headers(init.headers||{});
+  headers.set('Cache-Control','no-cache');
+  headers.set('Pragma','no-cache');
+  const method=String(init.method||'GET').toUpperCase();
+  return originalFetch(input,{...init,credentials:'include',cache:'no-store',headers});
+ }
  if(!isBootstrapUsersRequest(input))return originalFetch(input,init);
  const u=typeof input==='string'?new URL(input,location.href):new URL(input.url);
  // The initial Owner gateway does not need 200 records. Use the same authenticated,
@@ -16,7 +25,7 @@ window.fetch=async function(input,init={}){
  const abort=()=>controller.abort(externalSignal?.reason||new DOMException('Request cancelled','AbortError'));
  if(externalSignal?.aborted)abort();else externalSignal?.addEventListener('abort',abort,{once:true});
  const timer=setTimeout(()=>controller.abort(new DOMException('Owner user bootstrap timeout','TimeoutError')),10000);
- try{return await originalFetch(u.toString(),{...init,signal:controller.signal});}
+ try{return await originalFetch(u.toString(),{...init,credentials:'include',cache:'no-store',signal:controller.signal});}
  finally{clearTimeout(timer);externalSignal?.removeEventListener('abort',abort)}
 };
 })();
