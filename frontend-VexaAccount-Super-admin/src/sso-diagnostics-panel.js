@@ -34,7 +34,15 @@
     return data;
   }
 
-  // The canonical Super Admin runtime is Owner OS. Older Owner Control Center\n  // shells may not exist, so diagnostics must attach to the active Owner surface\n  // instead of silently doing nothing.\n  function host(){ return document.querySelector('#owner-control-center') || document.querySelector('.os-content') || document.querySelector('#app') || document.body; }
+  // The canonical Super Admin runtime is Owner OS. Older Owner Control Center
+  // shells may not exist, so diagnostics must attach to the active Owner surface
+  // instead of silently doing nothing.
+  function host(){
+    return document.querySelector('#owner-control-center') ||
+      document.querySelector('.os-content') ||
+      document.querySelector('#app') ||
+      document.body;
+  }
 
   function closeExisting(){
     const root = host();
@@ -101,7 +109,10 @@
 
       modal.querySelector('[data-diagnostic-repair]').onclick = async function(){
         try{
-          const result = await api('/api/sso-registry/applications/' + encodeURIComponent(clientId) + '/repair-status', {method:'POST', body:'{}'});
+          const current = await api('/api/sso-registry/applications/' + encodeURIComponent(clientId));
+          const status = current.application && current.application.status;
+          if(!status) throw new Error('Unable to determine current application status');
+          const result = await api('/api/sso-registry/applications/' + encodeURIComponent(clientId) + '/status', {method:'PATCH', body:JSON.stringify({status})});
           window.alert(result.message || 'SSO client status synchronized.');
           modal.remove();
           show(clientId);
