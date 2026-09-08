@@ -9,13 +9,7 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const COOKIE_SECURE = String(process.env.COOKIE_SECURE || '').toLowerCase() === 'true' || IS_PRODUCTION;
-// Super Admin UI and API are hosted on different origins in production. A
-// cross-origin credentialed request requires SameSite=None; Secure. Keep the
-// configurable value for local/non-production environments, but never allow a
-// production override to silently downgrade the Owner session cookie to lax.
-const COOKIE_SAME_SITE = IS_PRODUCTION
-  ? 'none'
-  : String(process.env.COOKIE_SAME_SITE || 'lax').toLowerCase();
+const COOKIE_SAME_SITE = IS_PRODUCTION ? 'none' : String(process.env.COOKIE_SAME_SITE || 'lax').toLowerCase();
 const COOKIE_DOMAIN = String(process.env.COOKIE_DOMAIN || '').trim() || undefined;
 
 function envFirst(...names) {
@@ -55,6 +49,11 @@ function preventSessionCaching(res) {
   res.set('Expires', '0');
 }
 
+function bearerToken(req) {
+  const header = String(req.get('authorization') || '');
+  return /^Bearer\s+/i.test(header) ? header.replace(/^Bearer\s+/i, '').trim() : null;
+}
+
 async function provisionAdmin(email, displayName) {
   const [users] = await pool.query('SELECT id,email,name,is_verified,is_active FROM store_users WHERE email=? LIMIT 1', [email]);
   let user = users[0];
@@ -91,7 +90,7 @@ router.post('/login', async (req, res, next) => {
     const user = await provisionAdmin(email, configured.name);
     const token = jwt.sign({ id: user.id, sub: user.id, email: user.email, role: 'super_admin', admin: true }, JWT_SECRET, { expiresIn: '8h' });
     setSessionCookie(res, token);
-    res.json({ success: true, user: { id: user.id, email: user.email, name: user.name, role: 'super_admin' } });
+    res.json({ success: true, token, user: { id: user.id, email: user.email, name: user.name, role: 'super_admin' } });
   } catch (error) { next(error); }
 });
 
@@ -99,7 +98,7 @@ router.get('/session', async (req, res) => {
   preventSessionCaching(res);
   try {
     if (!JWT_SECRET) return res.status(503).json({ success: false, message: 'Authentication is not configured' });
-    const token = req.cookies?.vexaccount_session;
+    const token = req.cookies?.vexaccount_session || bearerToken(req);
     if (!token) return res.json({ success: false, message: 'No Super Admin session' });
     const claims = jwt.verify(token, JWT_SECRET);
     if (claims.role !== 'super_admin' || claims.admin !== true) return res.json({ success: false, message: 'Super Admin session required' });
