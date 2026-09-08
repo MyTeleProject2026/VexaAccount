@@ -3,7 +3,9 @@ const { requireSuperAdmin } = require('../middleware/superAdminAuth');
 const { buildSnapshot, WINDOW_MINUTES } = require('../services/systemCObservatory.service');
 
 const router = express.Router();
-const INTERVAL = Math.max(1500, Number(process.env.VEXA_SYSTEM_C_INTERVAL_MS || 3000));
+const INTERVAL = Math.max(3000, Number(process.env.VEXA_SYSTEM_C_INTERVAL_MS || 5000));
+const HEARTBEAT_INTERVAL = Math.max(5000, Number(process.env.VEXA_SYSTEM_C_HEARTBEAT_MS || 10000));
+const SSE_RETRY_MS = Math.max(1000, Number(process.env.VEXA_SYSTEM_C_SSE_RETRY_MS || 5000));
 
 router.use(requireSuperAdmin);
 
@@ -36,15 +38,20 @@ router.get('/snapshot', async (req, res, next) => {
 });
 
 router.get('/stream', async (req, res) => {
+  // This endpoint is intentionally long-lived. Keep it independent from normal
+  // request deadlines and send bytes immediately so hosting proxies do not treat
+  // an authenticated-but-idle connection as a stalled HTTP request.
   res.status(200).set({
     'Content-Type': 'text/event-stream; charset=utf-8',
-    'Cache-Control': 'no-cache, no-transform',
+    'Cache-Control': 'no-cache, no-transform, private',
     Connection: 'keep-alive',
     'X-Accel-Buffering': 'no',
+    'X-Content-Type-Options': 'nosniff',
   });
   res.flushHeaders?.();
-  // Prime the stream immediately so reverse proxies recognize this as an active SSE response.
-  res.write('retry: 3000\n\n');
+  req.socket?.setKeepAlive?.(true, 15000);
+  res.write(`retry: ${SSE_RETRY_MS}\n\n`);
+  res.write(`event: connected\ndata: ${JSON.stringify({ success: true, connectedAt: new Date().toISOString() })}\n\n`);
   res.flush?.();
 
   let timer = null;
@@ -60,7 +67,15 @@ router.get('/stream', async (req, res) => {
   };
 
   const write = (event, data) => {
-    if (!closed) { res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`); res.flush?.(); }
+    if (closed || res.writableEnded || res.destroyed) return false;
+    try {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      res.flush?.();
+      return true;
+    } catch {
+      close();
+      return false;
+    }
   };
 
   const send = async () => {
@@ -72,20 +87,31 @@ router.get('/stream', async (req, res) => {
       write('observatory-error', {
         success: false,
         message: 'Observatory snapshot failed',
+        timestamp: new Date().toISOString(),
       });
     } finally {
       busy = false;
     }
   };
 
-  req.on('close', close);
-  req.on('aborted', close);
-  heartbeatTimer = setInterval(() => {
-    if (!closed) { res.write(': heartbeat\n\n'); res.flush?.(); }
-  }, 15000);
+  req.once('close', close);
+  req.once('aborted', close);
+  res.once('close', close);
+  res.once('error', close);
 
-  await send();
-  if (!closed) timer = setInterval(send, INTERVAL);
+  heartbeatTimer = setInterval(() => {
+    if (closed || res.writableEnded || res.destroyed) return close();
+    try {
+      res.write(`: heartbeat ${Date.now()}\n\n`);
+      res.flush?.();
+    } catch {
+      close();
+    }
+  }, HEARTBEAT_INTERVAL);
+
+  // Send one real payload immediately, then refresh at a bounded cadence.
+  send();
+  timer = setInterval(send, INTERVAL);
 });
 
 router.use((error, req, res, next) => {
