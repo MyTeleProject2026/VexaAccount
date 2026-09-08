@@ -2,6 +2,8 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/database');
+const { withDeadline } = require('../utils/requestDeadline');
+const SESSION_DB_TIMEOUT_MS = 8000;
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -102,10 +104,19 @@ router.get('/session', async (req, res) => {
     const claims = jwt.verify(token, JWT_SECRET);
     if (claims.role !== 'super_admin' || claims.admin !== true) return res.json({ success: false, message: 'Super Admin session required' });
     const userId = claims.sub || claims.id;
-    const [rows] = await pool.query(`SELECT u.id,u.email,u.name,sa.role,sa.is_active FROM store_users u JOIN vexa_super_admins sa ON sa.user_id=u.id WHERE u.id=? AND u.is_active=1 AND sa.is_active=1 LIMIT 1`, [userId]);
+    const [rows] = await withDeadline(pool.query({
+      sql: `SELECT u.id,u.email,u.name,sa.role,sa.is_active FROM store_users u JOIN vexa_super_admins sa ON sa.user_id=u.id WHERE u.id=? AND u.is_active=1 AND sa.is_active=1 LIMIT 1`,
+      values: [userId],
+      timeout: SESSION_DB_TIMEOUT_MS
+    }), SESSION_DB_TIMEOUT_MS, 'Super Admin session lookup timed out');
     if (!rows.length || rows[0].role !== 'owner') return res.json({ success: false, message: 'Super Admin session required' });
     res.json({ success: true, user: { ...rows[0], role: rows[0].role } });
-  } catch { res.json({ success: false, message: 'Invalid Super Admin session' }); }
+  } catch (error) {
+    if (error?.code === 'VEXA_REQUEST_TIMEOUT' || error?.code === 'PROTOCOL_SEQUENCE_TIMEOUT' || /timeout/i.test(String(error?.message || ''))) {
+      return res.status(503).json({ success: false, message: 'Super Admin session lookup timed out. Please retry.' });
+    }
+    res.json({ success: false, message: 'Invalid Super Admin session' });
+  }
 });
 
 module.exports = router;
