@@ -41,6 +41,12 @@ function setSessionCookie(res, token) {
   res.cookie('vexaccount_session', token, sessionCookieOptions());
 }
 
+function preventSessionCaching(res) {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.set('Pragma', 'no-cache');
+  res.set('Expires', '0');
+}
+
 async function provisionAdmin(email, displayName) {
   const [users] = await pool.query('SELECT id,email,name,is_verified,is_active FROM store_users WHERE email=? LIMIT 1', [email]);
   let user = users[0];
@@ -66,6 +72,7 @@ function cryptoRandom() {
 }
 
 router.post('/login', async (req, res, next) => {
+  preventSessionCaching(res);
   try {
     if (!JWT_SECRET) return res.status(503).json({ success: false, message: 'Authentication is not configured' });
     const configured = configuredCredentials();
@@ -81,14 +88,16 @@ router.post('/login', async (req, res, next) => {
 });
 
 router.get('/session', async (req, res) => {
+  preventSessionCaching(res);
   try {
     if (!JWT_SECRET) return res.status(503).json({ success: false, message: 'Authentication is not configured' });
     const token = req.cookies?.vexaccount_session;
     if (!token) return res.json({ success: false, message: 'No Super Admin session' });
     const claims = jwt.verify(token, JWT_SECRET);
+    if (claims.role !== 'super_admin' || claims.admin !== true) return res.json({ success: false, message: 'Super Admin session required' });
     const userId = claims.sub || claims.id;
     const [rows] = await pool.query(`SELECT u.id,u.email,u.name,sa.role,sa.is_active FROM store_users u JOIN vexa_super_admins sa ON sa.user_id=u.id WHERE u.id=? AND u.is_active=1 AND sa.is_active=1 LIMIT 1`, [userId]);
-    if (!rows.length) return res.json({ success: false, message: 'Super Admin session required' });
+    if (!rows.length || rows[0].role !== 'owner') return res.json({ success: false, message: 'Super Admin session required' });
     res.json({ success: true, user: { ...rows[0], role: rows[0].role } });
   } catch { res.json({ success: false, message: 'Invalid Super Admin session' }); }
 });
