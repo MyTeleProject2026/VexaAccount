@@ -29,38 +29,45 @@ function ticketPage(t){return `<section class="os-page-head"><div>${A('‹ Suppo
 function platformPage(){return `<section class="os-page-head"><div><p class="os-eyebrow">PLATFORM OPERATIONS</p><h2>Platform & Security</h2><p class="os-muted">Health, supported scopes and server-side settings.</p></div>${A('Refresh','platform-refresh')}</section><div id="platform-body"><div class="os-panel">Loading platform state…</div></div>`}
 async function loadPlatform(){try{const [h,s,sc]=await Promise.all([api('/api/owner/platform/health'),api('/api/owner/platform/settings'),api('/api/owner/platform/scopes')]);const rows=Object.entries(s.settings||{}).filter(([k])=>!k.startsWith('audit.last.'));$('#platform-body').innerHTML=`<section class="os-grid"><article class="os-metric"><small>Database</small><strong>${h.database?'OK':'FAIL'}</strong><span>Live check</span></article><article class="os-metric"><small>Users</small><strong>${esc(h.users)}</strong><span>Database count</span></article><article class="os-metric"><small>Applications</small><strong>${esc(h.applications)}</strong><span>Registry count</span></article><article class="os-metric"><small>Scopes</small><strong>${(sc.scopes||[]).length}</strong><span>Supported</span></article></section><section class="os-panel"><h3>Platform settings</h3><div class="os-list">${rows.map(([k,v])=>`<div class="os-row"><label class="os-field" style="flex:1">${esc(k)}<input data-setting="${esc(k)}" value="${esc(typeof v==='object'?JSON.stringify(v):String(v))}"></label>${A('Save','setting:',k)}</div>`).join('')||'<p class="os-muted">No settings configured.</p>'}</div></section>`;bind()}catch(e){$('#platform-body').innerHTML=`<div class="os-panel os-error">${esc(e.message)}</div>`}}
 async function boot(){
+  if(window.__VEXA_OWNER_BOOTING__)return;
+  window.__VEXA_OWNER_BOOTING__=true;
+  window.__VEXA_OWNER_BOOT_STATE__='starting';
   try{
     const session=await api('/api/auth/super-admin/session');
-    if(!session.success){S.user=null;return login();}
+    if(!session.success){S.user=null;window.__VEXA_OWNER_BOOT_STATE__='unauthenticated';return login();}
     S.user=session.user;
+    window.__VEXA_OWNER_BOOT_STATE__='authenticated';
+    render();
+    window.__VEXA_OWNER_BOOT_STATE__='rendered-gateway';
+
+    // The authenticated Owner gateway is rendered immediately. Slow operational
+    // data must update the UI later and must never hold the whole page on its
+    // loading screen.
+    const results=await Promise.allSettled([
+      api('/api/sso-registry/applications'),
+      api('/api/sso-registry/audit?limit=100'),
+      api('/api/owner/users?limit=200')
+    ]);
+    const [appsResult,auditResult,usersResult]=results;
+    if(appsResult.status==='fulfilled')S.apps=appsResult.value.applications||[];
+    if(auditResult.status==='fulfilled')S.audit=auditResult.value.events||[];
+    if(usersResult.status==='fulfilled')S.users=usersResult.value.users||[];
+    render();
+    window.__VEXA_OWNER_BOOT_STATE__='ready';
+    const unavailable=[
+      appsResult.status==='rejected'?'SSO application registry':null,
+      auditResult.status==='rejected'?'SSO audit':null,
+      usersResult.status==='rejected'?'Owner users':null
+    ].filter(Boolean);
+    if(unavailable.length)toast(unavailable.join(', ')+' temporarily unavailable. Your Owner session remains authenticated.',true);
   }catch(e){
-    S.user=null;
-    return login(e.message);
+    console.error('Owner OS bootstrap failed',e);
+    window.__VEXA_OWNER_BOOT_STATE__='failed';
+    if(!S.user){S.user=null;login(e?.message||'Owner OS bootstrap failed');}
+    else toast(e?.message||'Owner OS operational data failed to load',true);
+  }finally{
+    window.__VEXA_OWNER_BOOTING__=false;
   }
-
-  // Authentication is authoritative. Registry, audit and user bootstrap data are
-  // independent operational subsystems and must never invalidate a valid Owner session.
-  const results=await Promise.allSettled([
-    api('/api/sso-registry/applications'),
-    api('/api/sso-registry/audit?limit=100'),
-    api('/api/owner/users?limit=200')
-  ]);
-
-  const [appsResult,auditResult,usersResult]=results;
-  if(appsResult.status==='fulfilled')S.apps=appsResult.value.applications||[];
-  if(auditResult.status==='fulfilled')S.audit=auditResult.value.events||[];
-  if(usersResult.status==='fulfilled')S.users=usersResult.value.users||[];
-
-  S.system='gateway';
-  S.page='home';
-  render();
-
-  const unavailable=[
-    appsResult.status==='rejected'?'SSO application registry':null,
-    auditResult.status==='rejected'?'SSO audit':null,
-    usersResult.status==='rejected'?'Owner users':null
-  ].filter(Boolean);
-  if(unavailable.length)toast(unavailable.join(', ')+' temporarily unavailable. Your Owner session remains authenticated.',true);
 }
 async function refreshSso(){
   const [a,e]=await Promise.allSettled([
@@ -105,5 +112,5 @@ async function bindAction(v){try{if(v==='gateway'){S.system='gateway';S.page='ho
 function bind(){document.querySelectorAll('[data-os-action]').forEach(b=>{if(b.dataset.bound)return;b.dataset.bound='1';b.onclick=()=>bindAction(b.dataset.osAction)});document.querySelectorAll('[data-nav]').forEach(b=>{if(b.dataset.bound)return;b.dataset.bound='1';b.onclick=()=>{S.page=b.dataset.nav;render()}});$('#sso-q')?.addEventListener('input',e=>{const q=e.target.value.toLowerCase();$('#sso-list').innerHTML=S.apps.filter(a=>JSON.stringify(a).toLowerCase().includes(q)).map(ssoCard).join('')||'<div class="os-panel"><p class="os-muted">No matching applications.</p></div>';bind()});$('#support-filter')?.addEventListener('change',loadTickets)}
 function render(){if(!S.user)return login();if(S.system==='gateway')return gateway();if(S.system==='sso'){if(S.page==='app:'+S.currentApp?.client_id&&S.currentApp)return shell('sso','Application Detail','Authoritative SSO integration',[['home','Overview'],['apps','Applications'],['security','Security'],['audit','Audit']],ssoDetail(S.currentApp));const body=S.page==='home'?ssoHome():S.page==='apps'?ssoApps():S.page==='security'?ssoSecurity():auditPage();return shell('sso',S.page==='apps'?'Applications':S.page==='audit'?'SSO Audit':S.page==='security'?'Security':'SSO Control Center','VexaAccount identity infrastructure',[['home','Overview'],['apps','Applications'],['security','Security'],['audit','Audit']],body)}if(S.page.startsWith('user:')&&S.currentUser)return openUser(S.currentUser.id);if(S.page.startsWith('ticket:')&&S.ticket)return shell('owner','Support Thread','Customer operations',[['home','Overview'],['users','Users'],['support','Support'],['platform','Platform']],ticketPage(S.ticket));const body=S.page==='home'?ownerHome():S.page==='users'?usersPage():S.page==='support'?supportPage():platformPage();shell('owner',S.page==='users'?'Users':S.page==='support'?'Support':S.page==='platform'?'Platform & Security':'Owner Control Center','Authoritative platform operations',[['home','Overview'],['users','Users'],['support','Support'],['platform','Platform']],body);if(S.page==='support')loadTickets();if(S.page==='platform')loadPlatform()}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
-window.vexaOwnerOS={reload:boot};
+window.vexaOwnerOS={reload:()=>{window.__VEXA_OWNER_BOOTING__=false;return boot();},getState:()=>window.__VEXA_OWNER_BOOT_STATE__};
 })();
