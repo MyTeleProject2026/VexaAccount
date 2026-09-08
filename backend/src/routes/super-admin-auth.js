@@ -7,7 +7,13 @@ const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const COOKIE_SECURE = String(process.env.COOKIE_SECURE || '').toLowerCase() === 'true' || IS_PRODUCTION;
-const COOKIE_SAME_SITE = String(process.env.COOKIE_SAME_SITE || (IS_PRODUCTION ? 'none' : 'lax')).toLowerCase();
+// Super Admin UI and API are hosted on different origins in production. A
+// cross-origin credentialed request requires SameSite=None; Secure. Keep the
+// configurable value for local/non-production environments, but never allow a
+// production override to silently downgrade the Owner session cookie to lax.
+const COOKIE_SAME_SITE = IS_PRODUCTION
+  ? 'none'
+  : String(process.env.COOKIE_SAME_SITE || 'lax').toLowerCase();
 const COOKIE_DOMAIN = String(process.env.COOKIE_DOMAIN || '').trim() || undefined;
 
 function envFirst(...names) {
