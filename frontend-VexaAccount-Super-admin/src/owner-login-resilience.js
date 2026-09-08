@@ -7,11 +7,9 @@ const isBootstrapUsersRequest=input=>{try{const u=typeof input==='string'?new UR
 const isAuthRequest=input=>{try{const u=typeof input==='string'?new URL(input,location.href):new URL(input.url);return u.origin===API&&AUTH_PATHS.has(u.pathname)}catch{return false}};
 window.fetch=async function(input,init={}){
  if(isAuthRequest(input)){
-  const headers=new Headers(init.headers||{});
-  headers.set('Cache-Control','no-cache');
-  headers.set('Pragma','no-cache');
-  const method=String(init.method||'GET').toUpperCase();
-  return originalFetch(input,{...init,credentials:'include',cache:'no-store',headers});
+  // cache:'no-store' prevents browser caching without adding non-safelisted request
+  // headers that would force an additional credentialed CORS preflight.
+  return originalFetch(input,{...init,credentials:'include',cache:'no-store'});
  }
  if(!isBootstrapUsersRequest(input))return originalFetch(input,init);
  const u=typeof input==='string'?new URL(input,location.href):new URL(input.url);
