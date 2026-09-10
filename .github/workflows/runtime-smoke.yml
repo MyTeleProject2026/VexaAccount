@@ -41,7 +41,15 @@ jobs:
           }
           check_endpoint login 400 "$base/api/auth/login" -H 'Content-Type: application/json' -d '{}'
           check_endpoint register 400 "$base/api/auth/register" -H 'Content-Type: application/json' -d '{}'
-          check_endpoint sso-authorize 401 "$base/api/sso/authorize"
+          # GET /api/sso/authorize intentionally redirects unauthenticated browser requests to the VexaAccount login UI.
+          # Do not follow that redirect here: the API contract is the 302 response and its login target.
+          sso_headers="$(mktemp)"
+          sso_body="$(mktemp)"
+          sso_code="$(curl --silent --show-error --retry 3 --retry-delay 3 --max-time 30 -D "$sso_headers" -o "$sso_body" -w '%{http_code}' "$base/api/sso/authorize")"
+          echo "sso-authorize HTTP status: $sso_code"
+          cat "$sso_body"
+          test "$sso_code" = "302"
+          grep -qi '^location: .*#/sso/authorize' "$sso_headers" || { echo "SSO authorize did not redirect to the canonical user SSO authorization UI"; cat "$sso_headers"; exit 1; }
       - name: Check user frontend serves canonical runtime
         env:
           VEXA_USER_BASE: ${{ vars.VEXA_USER_BASE || 'https://vexaaccount-management.onrender.com' }}
