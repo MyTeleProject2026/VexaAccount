@@ -4,60 +4,24 @@ const { auditAdminAction } = require('../middleware/adminAudit');
 const { generate, validateInput } = require('../services/ssoApplicationKit.service');
 const { generateTarget } = require('../services/ssoApplicationReplacement.service');
 const { verify: verifyPlanToken, create: createPlanToken } = require('../services/ssoIntegrationPlanToken.service');
+const ownerOperation = require('../services/ownerOperation.service');
 
 const router = express.Router();
-// Keep the kit endpoint resilient when an upstream/proxy request reaches this router without having been parsed by the global JSON parser.
-// This does not replace the global parser; it only provides a scoped fallback for JSON requests whose content type was not preserved.
-router.use((req, res, next) => {
-  if (req.body !== undefined) return next();
-  return express.json({ limit: '10mb', type: '*/*' })(req, res, next);
-});
+router.use((req, res, next) => { if (req.body !== undefined) return next(); return express.json({ limit: '10mb', type: '*/*' })(req, res, next); });
 router.use(express.urlencoded({ extended: true, limit: '10mb' }));
 router.use(requireSuperAdmin);
-router.get('/catalog', auditAdminAction('sso.application_kit.catalog','sso_application_kit'), (req,res) => res.json({
-  success:true,
-  generatorVersion:'1.4.0',
-  targets:['backend','frontend-user','frontend-admin'],
-  topologies:[
-    {key:'backend-user-admin',backend:true,frontendUser:true,frontendAdmin:true},
-    {key:'backend-user-only',backend:true,frontendUser:true,frontendAdmin:false}
-  ],
-  security:['Authorization Code','S256 PKCE','encrypted stateless PKCE transaction','server-side client secret','application-owned JWT session','no third-party cookie/token copying','signed expiring source-review plan','signed generated-file manifest','exact reviewed-blob SHA replacement guard'],
-  workflow:['read-only source analysis','cryptographically signed precise source plan','target-specific source reconstruction','target-specific replacement candidates','generated additive kit','cryptographically signed generated-file manifest','explicit Owner review before replacement','exact-blob preflight','explicit deployment action'],
-  replacementPolicy:'Target-specific replacement candidates are generated only from the exact source revision that was reviewed. Deterministic anchors are required; files without a safe anchor are preserved unchanged rather than guessed.'
-}));
-router.post('/generate', auditAdminAction('sso.application_kit.generate','sso_application_kit'), (req,res,next) => {
-  try {
-    const input=validateInput(req.body||{});
-    const token=verifyPlanToken(req.body?.planToken);
-    if (token.repository?.toLowerCase() !== String(req.body?.repository || token.repository || '').trim().toLowerCase()) throw Object.assign(new Error('Source-plan repository does not match the generation request'),{status:409});
-    if (token.stack?.backend !== input.framework) throw Object.assign(new Error('Detected backend stack does not match the signed source-review plan'),{status:409});
-    const signedHasAdmin = token.topology?.frontendAdmin === undefined ? true : Boolean(token.topology.frontendAdmin);
-    if (signedHasAdmin !== input.hasAdminFrontend) throw Object.assign(new Error('Selected Admin Frontend topology does not match the signed source-review plan. Rebuild the precise source plan after changing the topology.'),{status:409});
-    const generated=generate(input);
-    const generatedManifestToken=createPlanToken({
-      kind:'generated-manifest',
-      repository:token.repository,
-      branch:token.branch,
-      sourcePlanIssuedAt:token.iat,
-      sourcePlanExpiresAt:token.exp,
-      reviewedFiles:token.reviewedFiles,
-      applicationKey:input.appKey,
-      topology:generated.manifest.topology,
-      generatedFiles:generated.manifest.generatedFiles
-    });
-    res.status(200).json({success:true,sourcePlan:{repository:token.repository,branch:token.branch,expiresAt:token.exp,reviewedFiles:token.reviewedFiles},generatedManifestToken,...generated});
-  } catch(e){next(e);}
-});
-router.post('/generate-target-replacements', auditAdminAction('sso.application_kit.generate_target_replacements','sso_application_kit'), async (req,res,next) => {
-  try {
-    const token=verifyPlanToken(req.body?.planToken);
-    if (!token?.repository || !token?.branch || !Array.isArray(token.reviewedFiles) || !token.reviewedFiles.length) throw Object.assign(new Error('A valid signed source-review plan is required'),{status:400});
-    const requestedRepo=String(req.body?.repository||token.repository).trim().toLowerCase();
-    if(requestedRepo!==String(token.repository).trim().toLowerCase()) throw Object.assign(new Error('Source-plan repository does not match the replacement request'),{status:409});
-    const result=await generateTarget({repository:token.repository,branch:token.branch,reviewedFiles:token.reviewedFiles,stack:token.stack||{}});
-    const replacementManifestToken=createPlanToken({kind:'target-replacement-manifest',repository:token.repository,branch:token.branch,sourcePlanIssuedAt:token.iat,sourcePlanExpiresAt:token.exp,reviewedFiles:token.reviewedFiles,replacements:result.files.map(f=>({path:f.path,originalBlobSha:f.originalBlobSha,originalSha256:f.originalSha256,replacementSha256:f.replacementSha256,changed:f.changed}))});
-    res.json({...result,replacementManifestToken});
-  }catch(e){next(e);}
-});
+router.get('/catalog', auditAdminAction('sso.application_kit.catalog','sso_application_kit'), (req,res) => res.json({ success:true, generatorVersion:'1.4.0', targets:['backend','frontend-user','frontend-admin'], topologies:[{key:'backend-user-admin',backend:true,frontendUser:true,frontendAdmin:true},{key:'backend-user-only',backend:true,frontendUser:true,frontendAdmin:false}], security:['Authorization Code','S256 PKCE','encrypted stateless PKCE transaction','server-side client secret','application-owned JWT session','no third-party cookie/token copying','signed expiring source-review plan','signed generated-file manifest','exact reviewed-blob SHA replacement guard'], workflow:['read-only source analysis','cryptographically signed precise source plan','target-specific source reconstruction','target-specific replacement candidates','generated additive kit','cryptographically signed generated-file manifest','explicit Owner review before replacement','exact-blob preflight','explicit deployment action','background-owner-operation-jobs'], replacementPolicy:'Target-specific replacement candidates are generated only from the exact source revision that was reviewed. Deterministic anchors are required; files without a safe anchor are preserved unchanged rather than guessed.' }));
+function generation(req) {
+  const input=validateInput(req.body||{}); const token=verifyPlanToken(req.body?.planToken);
+  if(token.repository?.toLowerCase()!==String(req.body?.repository||token.repository||'').trim().toLowerCase()) throw Object.assign(new Error('Source-plan repository does not match the generation request'),{status:409});
+  if(token.stack?.backend!==input.framework) throw Object.assign(new Error('Detected backend stack does not match the signed source-review plan'),{status:409});
+  const signedHasAdmin=token.topology?.frontendAdmin===undefined?true:Boolean(token.topology.frontendAdmin); if(signedHasAdmin!==input.hasAdminFrontend) throw Object.assign(new Error('Selected Admin Frontend topology does not match the signed source-review plan. Rebuild the precise source plan after changing the topology.'),{status:409});
+  const generated=generate(input); const generatedManifestToken=createPlanToken({kind:'generated-manifest',repository:token.repository,branch:token.branch,sourcePlanIssuedAt:token.iat,sourcePlanExpiresAt:token.exp,reviewedFiles:token.reviewedFiles,applicationKey:input.appKey,topology:generated.manifest.topology,generatedFiles:generated.manifest.generatedFiles});
+  return {success:true,sourcePlan:{repository:token.repository,branch:token.branch,expiresAt:token.exp,reviewedFiles:token.reviewedFiles},generatedManifestToken,...generated};
+}
+router.post('/generate', auditAdminAction('sso.application_kit.generate','sso_application_kit'), (req,res,next)=>{try{res.status(200).json(generation(req));}catch(e){next(e);}});
+router.post('/generate/async', auditAdminAction('sso.application_kit.generate_async','sso_application_kit'), (req,res,next)=>{try{const body=req.body||{};const operation=ownerOperation.create({type:'integration-kit-generation',label:'Integration kit generation',run:async ctx=>{ctx.progress('VALIDATING','Validating signed source plan and target topology…',10);const result=generation({body});ctx.progress('GENERATING','Generating stack-matched SSO source package and signed manifest…',85);ctx.progress('GENERATED','Generated package is ready for Owner review.',100);return result;}});res.status(202).json({success:true,operation});}catch(e){next(e);}});
+async function replacements(req){const token=verifyPlanToken(req.body?.planToken);if(!token?.repository||!token?.branch||!Array.isArray(token.reviewedFiles)||!token.reviewedFiles.length)throw Object.assign(new Error('A valid signed source-review plan is required'),{status:400});const requestedRepo=String(req.body?.repository||token.repository).trim().toLowerCase();if(requestedRepo!==String(token.repository).trim().toLowerCase())throw Object.assign(new Error('Source-plan repository does not match the replacement request'),{status:409});const result=await generateTarget({repository:token.repository,branch:token.branch,reviewedFiles:token.reviewedFiles,stack:token.stack||{}});const replacementManifestToken=createPlanToken({kind:'target-replacement-manifest',repository:token.repository,branch:token.branch,sourcePlanIssuedAt:token.iat,sourcePlanExpiresAt:token.exp,reviewedFiles:token.reviewedFiles,replacements:result.files.map(f=>({path:f.path,originalBlobSha:f.originalBlobSha,originalSha256:f.originalSha256,replacementSha256:f.replacementSha256,changed:f.changed}))});return {...result,replacementManifestToken};}
+router.post('/generate-target-replacements', auditAdminAction('sso.application_kit.generate_target_replacements','sso_application_kit'), async(req,res,next)=>{try{res.json(await replacements(req));}catch(e){next(e);}});
+router.post('/generate-target-replacements/async', auditAdminAction('sso.application_kit.generate_target_replacements_async','sso_application_kit'), (req,res,next)=>{try{const body=req.body||{};const operation=ownerOperation.create({type:'target-repair-generation',label:'Target repair generation',run:async ctx=>{ctx.progress('TARGET SOURCE','Reading exact reviewed source revisions and deterministic anchors…',15);const result=await replacements({body});ctx.progress('REPAIR CANDIDATES','Generated deterministic target replacement candidates; target remains unchanged.',100);return result;}});res.status(202).json({success:true,operation});}catch(e){next(e);}});
 module.exports = router;
