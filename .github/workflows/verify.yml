@@ -154,17 +154,16 @@ jobs:
           if(!html.includes('./frontend-VexaAccount-user/')){console.error('Root entrypoint must redirect to the canonical user frontend');process.exit(1)}
           if(fs.existsSync('src/account-center-loader.js')||fs.existsSync('src/account-center-fetch-guard.js')){console.error('Duplicate root Account Center runtime files must not exist');process.exit(1)}
           NODE
-
       - name: Verify Owner OS entrypoint has no inline JavaScript or stacked fetch wrappers
         run: |
           node <<'NODE'
           const fs=require('fs');
           const html=fs.readFileSync('frontend-VexaAccount-Super-admin/index.html','utf8');
-          const scripts=[...html.matchAll(/<script\\b([^>]*)>([\\s\\S]*?)<\\/script>/gi)];
+          const scripts=[...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
           for(const m of scripts){
             const attrs=m[1]||'';
             const body=(m[2]||'').trim();
-            if(!/\\bsrc=/.test(attrs)&&body){
+            if(!/\bsrc=/.test(attrs)&&body){
               console.error('Owner index must not contain inline JavaScript');
               process.exit(1);
             }
@@ -172,7 +171,7 @@ jobs:
           const files=['owner-runtime-loader.js','owner-login-resilience.js','owner-auth-native-boundary.js','owner-os-runtime-guard.js'];
           for(const file of files){
             const s=fs.readFileSync('frontend-VexaAccount-Super-admin/src/'+file,'utf8');
-            if(/window\\.fetch\\s*=/.test(s)){
+            if(/window\.fetch\s*=/.test(s)){
               console.error('Stacked global fetch wrapper is forbidden:',file);
               process.exit(1);
             }
