@@ -22,38 +22,57 @@ function number(value) {
 }
 
 async function getDatabaseStatus() {
-  const [database] = await pool.query('SELECT 1 AS ok');
-  const rows = await optionalQuery(
-    "SHOW STATUS WHERE Variable_name IN ('Threads_connected','Threads_running','Questions','Com_commit','Com_rollback')"
-  );
-  const status = Object.fromEntries(rows.map((row) => [String(row.Variable_name).toLowerCase(), number(row.Value)]));
-  return {
-    connected: Boolean(database?.ok),
-    connections: status.threads_connected || 0,
-    running: status.threads_running || 0,
-    questions: status.questions || 0,
-    commits: status.com_commit || 0,
-    rollbacks: status.com_rollback || 0,
-  };
+  try {
+    const [database] = await pool.query('SELECT 1 AS ok');
+    const rows = await optionalQuery(
+      "SHOW STATUS WHERE Variable_name IN ('Threads_connected','Threads_running','Questions','Com_commit','Com_rollback')"
+    );
+    const status = Object.fromEntries(rows.map((row) => [String(row.Variable_name).toLowerCase(), number(row.Value)]));
+    return {
+      connected: Boolean(database?.ok),
+      connections: status.threads_connected || 0,
+      running: status.threads_running || 0,
+      questions: status.questions || 0,
+      commits: status.com_commit || 0,
+      rollbacks: status.com_rollback || 0,
+      error: null,
+    };
+  } catch (error) {
+    console.warn('[System C] database health query failed:', error.message);
+    return {
+      connected: false,
+      connections: 0,
+      running: 0,
+      questions: 0,
+      commits: 0,
+      rollbacks: 0,
+      error: 'Database health query failed',
+    };
+  }
 }
 
 async function getApplications() {
-  const rows = await query(`
-    SELECT r.client_id,r.display_name,r.application_key,r.environment,r.status,r.updated_at,
-           c.is_active,c.last_used_at,
-           (SELECT COUNT(*) FROM sso_sessions s
-             WHERE s.client_id=r.client_id
-               AND s.revoked_at IS NULL
-               AND s.expires_at>NOW()) AS active_sessions
-      FROM sso_client_registry r
-      LEFT JOIN sso_clients c ON c.client_id=r.client_id
-     ORDER BY r.display_name ASC
-  `);
-  return rows.map((row) => ({
-    ...row,
-    active: Boolean(row.is_active),
-    activeSessions: number(row.active_sessions),
-  }));
+  try {
+    const rows = await query(`
+      SELECT r.client_id,r.display_name,r.application_key,r.environment,r.status,r.updated_at,
+             c.is_active,c.last_used_at,
+             (SELECT COUNT(*) FROM sso_sessions s
+               WHERE s.client_id=r.client_id
+                 AND s.revoked_at IS NULL
+                 AND s.expires_at>NOW()) AS active_sessions
+        FROM sso_client_registry r
+        LEFT JOIN sso_clients c ON c.client_id=r.client_id
+       ORDER BY r.display_name ASC
+    `);
+    return rows.map((row) => ({
+      ...row,
+      active: Boolean(row.is_active),
+      activeSessions: number(row.active_sessions),
+    }));
+  } catch (error) {
+    console.warn('[System C] application telemetry unavailable:', error.message);
+    return [];
+  }
 }
 
 async function getEvents() {
@@ -91,47 +110,87 @@ async function getEvents() {
 }
 
 async function getMetrics() {
-  const [totals] = await query(`
-    SELECT
-      (SELECT COUNT(*) FROM sso_sessions
-        WHERE revoked_at IS NULL AND expires_at>NOW()) AS activeSessions,
-      (SELECT COUNT(*) FROM sso_consents WHERE revoked_at IS NULL) AS activeConsents,
-      (SELECT COUNT(*) FROM sso_security_events
-        WHERE created_at>=DATE_SUB(NOW(),INTERVAL ${WINDOW_MINUTES} MINUTE)) AS securityEventsWindow,
-      (SELECT COUNT(*) FROM vexa_observability_events
-        WHERE created_at>=DATE_SUB(NOW(),INTERVAL ${WINDOW_MINUTES} MINUTE)
-          AND status_code>=400) AS failuresWindow,
-      (SELECT COUNT(*) FROM vexa_observability_events
-        WHERE created_at>=DATE_SUB(NOW(),INTERVAL 1 MINUTE)) AS apiEventsMinute,
-      (SELECT COALESCE(AVG(latency_ms),0) FROM vexa_observability_events
-        WHERE created_at>=DATE_SUB(NOW(),INTERVAL 1 MINUTE)) AS apiLatencyMs,
-      (SELECT COUNT(*) FROM vexa_observability_events
-        WHERE created_at>=DATE_SUB(NOW(),INTERVAL 1 MINUTE)
-          AND status_code BETWEEN 200 AND 399) AS apiSuccessMinute,
-      (SELECT COUNT(*) FROM vexa_observability_events
-        WHERE created_at>=DATE_SUB(NOW(),INTERVAL 1 MINUTE)
-          AND status_code>=400) AS apiFailureMinute
-  `);
+  try {
+    const [totals] = await query(`
+      SELECT
+        (SELECT COUNT(*) FROM sso_sessions
+          WHERE revoked_at IS NULL AND expires_at>NOW()) AS activeSessions,
+        (SELECT COUNT(*) FROM sso_consents WHERE revoked_at IS NULL) AS activeConsents,
+        (SELECT COUNT(*) FROM sso_security_events
+          WHERE created_at>=DATE_SUB(NOW(),INTERVAL ${WINDOW_MINUTES} MINUTE)) AS securityEventsWindow,
+        (SELECT COUNT(*) FROM vexa_observability_events
+          WHERE created_at>=DATE_SUB(NOW(),INTERVAL ${WINDOW_MINUTES} MINUTE)
+            AND status_code>=400) AS failuresWindow,
+        (SELECT COUNT(*) FROM vexa_observability_events
+          WHERE created_at>=DATE_SUB(NOW(),INTERVAL 1 MINUTE)) AS apiEventsMinute,
+        (SELECT COALESCE(AVG(latency_ms),0) FROM vexa_observability_events
+          WHERE created_at>=DATE_SUB(NOW(),INTERVAL 1 MINUTE)) AS apiLatencyMs,
+        (SELECT COUNT(*) FROM vexa_observability_events
+          WHERE created_at>=DATE_SUB(NOW(),INTERVAL 1 MINUTE)
+            AND status_code BETWEEN 200 AND 399) AS apiSuccessMinute,
+        (SELECT COUNT(*) FROM vexa_observability_events
+          WHERE created_at>=DATE_SUB(NOW(),INTERVAL 1 MINUTE)
+            AND status_code>=400) AS apiFailureMinute,
+        (SELECT COUNT(*) FROM vexa_observability_events
+          WHERE created_at>=DATE_SUB(NOW(),INTERVAL ${WINDOW_MINUTES} MINUTE)
+            AND route LIKE '/api/auth/%'
+            AND status_code BETWEEN 200 AND 399) AS identitySuccessWindow,
+        (SELECT COUNT(*) FROM vexa_observability_events
+          WHERE created_at>=DATE_SUB(NOW(),INTERVAL ${WINDOW_MINUTES} MINUTE)
+            AND route LIKE '/api/auth/%'
+            AND status_code>=400) AS identityFailureWindow
+    `);
 
-  const apiTotal = number(totals?.apiEventsMinute);
-  const apiFailures = number(totals?.apiFailureMinute);
-  return {
-    activeSessions: number(totals?.activeSessions),
-    activeConsents: number(totals?.activeConsents),
-    securityEventsWindow: number(totals?.securityEventsWindow),
-    failuresWindow: number(totals?.failuresWindow),
-    apiEventsMinute: apiTotal,
-    apiLatencyMs: Math.round(number(totals?.apiLatencyMs)),
-    apiSuccessMinute: number(totals?.apiSuccessMinute),
-    apiFailureMinute: apiFailures,
-    apiSuccessRate: apiTotal ? Math.round(((apiTotal - apiFailures) / apiTotal) * 10000) / 100 : 100,
-    windowMinutes: WINDOW_MINUTES,
-  };
+    const apiTotal = number(totals?.apiEventsMinute);
+    const apiFailures = number(totals?.apiFailureMinute);
+    const identitySuccess = number(totals?.identitySuccessWindow);
+    const identityFailures = number(totals?.identityFailureWindow);
+    const identityTotal = identitySuccess + identityFailures;
+
+    return {
+      activeSessions: number(totals?.activeSessions),
+      activeConsents: number(totals?.activeConsents),
+      securityEventsWindow: number(totals?.securityEventsWindow),
+      failuresWindow: number(totals?.failuresWindow),
+      apiEventsMinute: apiTotal,
+      apiLatencyMs: Math.round(number(totals?.apiLatencyMs)),
+      apiSuccessMinute: number(totals?.apiSuccessMinute),
+      apiFailureMinute: apiFailures,
+      apiSuccessRate: apiTotal ? Math.round(((apiTotal - apiFailures) / apiTotal) * 10000) / 100 : 100,
+      identitySuccessWindow: identitySuccess,
+      identityFailureWindow: identityFailures,
+      identityActivityWindow: identityTotal,
+      identityHealth: identityTotal ? Math.round((identitySuccess / identityTotal) * 10000) / 100 : 100,
+      windowMinutes: WINDOW_MINUTES,
+      available: true,
+      error: null,
+    };
+  } catch (error) {
+    console.warn('[System C] metrics telemetry unavailable:', error.message);
+    return {
+      activeSessions: 0,
+      activeConsents: 0,
+      securityEventsWindow: 0,
+      failuresWindow: 0,
+      apiEventsMinute: 0,
+      apiLatencyMs: 0,
+      apiSuccessMinute: 0,
+      apiFailureMinute: 0,
+      apiSuccessRate: 100,
+      identitySuccessWindow: 0,
+      identityFailureWindow: 0,
+      identityActivityWindow: 0,
+      identityHealth: 0,
+      windowMinutes: WINDOW_MINUTES,
+      available: false,
+      error: 'Metrics telemetry unavailable',
+    };
+  }
 }
 
 async function buildSnapshot() {
   const started = Date.now();
-  const [database, metrics, applications, events] = await Promise.all([
+  const [databaseStatus, metrics, applications, events] = await Promise.all([
     getDatabaseStatus(),
     getMetrics(),
     getApplications(),
@@ -142,8 +201,8 @@ async function buildSnapshot() {
     success: true,
     generatedAt: new Date().toISOString(),
     latencyMs: Date.now() - started,
-    database: database.connected,
-    databaseStatus: database,
+    database: databaseStatus.connected,
+    databaseStatus,
     metrics,
     applications,
     events,
