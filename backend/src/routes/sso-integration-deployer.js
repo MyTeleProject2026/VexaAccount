@@ -17,8 +17,7 @@ router.post('/preflight', auditAdminAction('sso.integration.github.preflight','s
     const branch = String(req.body.branch || 'main').trim() || 'main';
     const result = await status(repository, branch);
     res.json({ success: true, repository: result });
-  }
-  catch (e) { next(e); }
+  } catch (e) { next(e); }
 });
 
 router.post('/deploy', auditAdminAction('sso.integration.github.deploy','sso_integration'), async (req, res, next) => {
@@ -27,12 +26,14 @@ router.post('/deploy', auditAdminAction('sso.integration.github.deploy','sso_int
       repository: req.body.repository,
       branch: req.body.branch,
       files: req.body.files,
+      replacements: req.body.replacements,
       commitMessage: req.body.commitMessage,
       pathPrefix: req.body.pathPrefix,
       expectedHeadSha: req.body.expectedHeadSha,
       reviewedFiles: req.body.reviewedFiles,
       planToken: req.body.planToken,
-      generatedManifestToken: req.body.generatedManifestToken
+      generatedManifestToken: req.body.generatedManifestToken,
+      replacementManifestToken: req.body.replacementManifestToken
     });
     res.status(201).json({ success: true, message: 'SSO integration committed to target repository', deployment: result });
   } catch (e) { next(e); }
