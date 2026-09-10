@@ -2,15 +2,97 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>VexaAccount — System C Identity Observability OS</title><meta name="color-scheme" content="dark">
-<link rel="stylesheet" href="./system-c.css?v=20260905-02">
+<title>VexaAccount — Live Integration & Runtime Observatory</title><meta name="color-scheme" content="dark">
+<link rel="stylesheet" href="./system-c.css?v=20260910-01">
 </head>
 <body>
-<main class="c-os">
-<header class="topbar"><div class="brand"><span class="orb-logo">V</span><div><b>VexaAccount</b><small>SYSTEM C · IDENTITY OBSERVABILITY OS</small></div></div><div class="live-state"><i id="liveDot"></i><strong id="liveText">AUTHENTICATING</strong><span id="updated">—</span></div><div class="top-actions"><button id="pauseBtn" type="button" aria-label="Pause live animation">Ⅱ</button><button id="refreshBtn" type="button" aria-label="Refresh runtime">↻</button><button id="clearBtn" type="button" aria-label="Clear visual particles">◇</button></div></header>
-<section class="stage-wrap"><canvas id="scene" aria-label="Live VexaAccount three dimensional runtime integration visualization"></canvas><canvas id="scene3d" aria-label="WebGL live transaction depth layer"></canvas><div class="scene-vignette"></div><div class="depth-hud" aria-hidden="true"><span class="depth-grid"></span><span class="scanline"></span></div><div class="scene-title"><span>LIVE RUNTIME</span><b>IDENTITY FLOW</b><small>Real VexaAccount telemetry drives every transaction animation</small></div><div class="scene-legend"><span><i class="cyan"></i>SSO</span><span><i class="violet"></i>API</span><span><i class="green"></i>DATABASE</span><span><i class="amber"></i>SECURITY</span></div><div class="scene-metrics"><div><b id="sessions">—</b><small>SESSIONS</small></div><div><b id="apiRate">—</b><small>EVENTS / MIN</small></div><div><b id="apiLatency">—</b><small>API LATENCY</small></div><div><b id="dbConnections">—</b><small>DB CONNECTIONS</small></div></div><div id="flowPills" class="flow-pills"></div></section>
-<section class="network-panel"><div class="panel-heading"><span>LIVE INTEGRATION NETWORK</span><small id="networkHealth">—</small></div><div id="apps" class="network"></div></section>
-<section class="bottom-grid"><div class="mini-panel"><span>API RUNTIME</span><div class="pulse-bars" id="apiBars"></div><b id="apiSuccess">—%</b></div><div class="mini-panel"><span>DATABASE RUNTIME</span><div class="db-core"><i></i><i></i><i></i></div><div><b id="dbQuestions">—</b><small>queries</small></div><div><b id="dbRunning">—</b><small>running</small></div></div><div class="mini-panel"><span>IDENTITY HEALTH</span><div class="health-ring" id="healthRing"><b>—%</b></div><div><b id="security5">—</b><small>security events</small></div></div></section>
+<main class="c-observatory">
+  <div class="obs-grid-bg" aria-hidden="true"></div>
+  <div class="obs-scanlines" aria-hidden="true"></div>
+
+  <header class="obs-header">
+    <div class="obs-brand">
+      <span class="obs-logo">V</span>
+      <div><b>VexaAccount</b><small>IDENTITY OBSERVABILITY OS</small></div>
+    </div>
+    <div class="obs-title">
+      <span>LIVE INTEGRATION &amp; RUNTIME OBSERVATORY</span>
+      <strong>VexaAccount SSO Runtime</strong>
+    </div>
+    <div class="obs-live"><i id="liveDot"></i><b id="liveText">AUTHENTICATING</b><small id="updated">—</small></div>
+    <div class="obs-actions">
+      <button id="pauseBtn" type="button" aria-label="Pause live animation">Ⅱ</button>
+      <button id="refreshBtn" type="button" aria-label="Refresh runtime">↻</button>
+      <button id="clearBtn" type="button" aria-label="Clear visual particles">◇</button>
+      <a class="obs-exit" href="../index.html">OWNER OS</a>
+    </div>
+  </header>
+
+  <section class="obs-ribbon" aria-label="Live runtime metrics">
+    <div><small>ACTIVE SESSIONS</small><b id="sessions">—</b><span>SSO sessions</span></div>
+    <div><small>EVENTS / MIN</small><b id="apiRate">—</b><span>API activity</span></div>
+    <div><small>API LATENCY</small><b id="apiLatency">—</b><span>request runtime</span></div>
+    <div><small>DB CONNECTIONS</small><b id="dbConnections">—</b><span>live pool</span></div>
+    <div><small>API SUCCESS</small><b id="apiSuccess">—</b><span>runtime window</span></div>
+  </section>
+
+  <section class="obs-hero">
+    <div class="obs-hero-head">
+      <div>
+        <span class="obs-kicker">SYSTEM C // REAL TELEMETRY</span>
+        <h1>LIVE INTEGRATION &amp; RUNTIME OBSERVATORY</h1>
+        <p>Real VexaAccount telemetry drives the runtime view. No demo events or generated observability values are used.</p>
+      </div>
+      <div class="obs-health"><i></i><span id="networkHealth">—</span></div>
+    </div>
+
+    <div class="runtime-stage">
+      <canvas id="scene" aria-label="Live VexaAccount runtime integration visualization"></canvas>
+      <canvas id="scene3d" aria-label="WebGL live transaction depth layer"></canvas>
+      <div class="stage-overlay" aria-hidden="true"><span class="stage-grid"></span><span class="stage-scan"></span></div>
+      <div class="stage-corner stage-corner-a">LIVE / STREAM</div>
+      <div class="stage-corner stage-corner-b">AUTH · API · DB · SECURITY</div>
+      <div class="stage-center"><span>RUNTIME FLOW</span><b>VEXAACCOUNT</b><small>Identity provider · authenticated system activity</small></div>
+      <div id="flowPills" class="flow-pills"></div>
+    </div>
+  </section>
+
+  <section class="obs-kpi-grid">
+    <article class="obs-panel obs-events">
+      <header><div><span class="obs-kicker">RUNTIME EVENT STREAM</span><h2>Live activity</h2></div><span class="obs-live-mini"><i></i>STREAM</span></header>
+      <div id="runtimeEvents" class="event-stream"><div class="event-empty">Waiting for real runtime events…</div></div>
+    </article>
+
+    <article class="obs-panel obs-runtime">
+      <header><div><span class="obs-kicker">RUNTIME HEALTH</span><h2>API / Database / Identity</h2></div></header>
+      <div class="health-row"><span>API SUCCESS</span><div><i id="apiHealthBar"></i></div><b id="apiHealthValue">—</b></div>
+      <div class="health-row"><span>DATABASE</span><div><i id="dbHealthBar"></i></div><b id="dbHealthValue">—</b></div>
+      <div class="health-row"><span>IDENTITY</span><div><i id="identityHealthBar"></i></div><b id="identityHealthValue">—</b></div>
+      <div class="runtime-stats">
+        <div><small>DB QUERIES</small><b id="dbQuestions">—</b></div>
+        <div><small>RUNNING</small><b id="dbRunning">—</b></div>
+        <div><small>SECURITY EVENTS</small><b id="security5">—</b></div>
+      </div>
+    </article>
+  </section>
+
+  <section class="obs-panel obs-integrations">
+    <header><div><span class="obs-kicker">EXTERNAL APPLICATION / SSO INTEGRATION</span><h2>Connected application runtime</h2></div><span class="obs-table-note">AUTHORITATIVE REGISTRY DATA</span></header>
+    <div class="integration-table-head"><span>APPLICATION</span><span>SSO STATUS</span><span>API STATUS</span><span>ACTIVE SESSIONS</span></div>
+    <div id="apps" class="integration-table"><div class="event-empty">Loading registered integrations…</div></div>
+  </section>
+
+  <section class="obs-bottom-grid">
+    <article class="obs-panel mini-runtime"><header><span class="obs-kicker">API RUNTIME</span><b id="apiSuccessMini">—</b></header><div class="pulse-bars" id="apiBars"></div><small>Live success window</small></article>
+    <article class="obs-panel mini-runtime"><header><span class="obs-kicker">DATABASE RUNTIME</span><b id="dbQuestionsMini">—</b></header><div class="db-terminal"><i></i><i></i><i></i><span>MYSQL / LIVE</span></div><small><b id="dbRunningMini">—</b> running queries</small></article>
+    <article class="obs-panel mini-runtime"><header><span class="obs-kicker">IDENTITY HEALTH</span><b id="healthRingValue">—</b></header><div class="health-ring" id="healthRing"><b>—%</b></div><small><b id="securityMini">—</b> security events in window</small></article>
+  </section>
+
+  <footer class="obs-footer">
+    <div><span class="ticker-dot"></span><b>VEXAACCOUNT SYSTEM C</b><span>LIVE RUNTIME OBSERVABILITY</span></div>
+    <div class="footer-ticker"><span>AUTHENTICATION</span><i>•</i><span>SSO REGISTRY</span><i>•</i><span>API ACTIVITY</span><i>•</i><span>DATABASE RUNTIME</span><i>•</i><span>SECURITY EVENTS</span></div>
+    <div id="footerState">WAITING FOR TELEMETRY</div>
+  </footer>
 </main>
 <script>
 window.VEXA_SYSTEM_C_BASE=window.VEXA_SYSTEM_C_BASE||'https://api-vexaaccount.onrender.com';
@@ -20,8 +102,8 @@ window.VEXA_SYSTEM_C_BASE=window.VEXA_SYSTEM_C_BASE||'https://api-vexaaccount.on
     const d=await r.json().catch(()=>({success:false}));
     if(!r.ok||d.success!==true){window.location.replace('../index.html');return;}
     const load=(src)=>new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=src;s.onload=resolve;s.onerror=reject;document.body.appendChild(s)});
-    await load('./system-c.webgl.js?v=20260905-05');
-    await load('./system-c.js?v=20260905-05');
+    await load('./system-c.webgl.js?v=20260910-01');
+    await load('./system-c.js?v=20260910-01');
   }catch(e){window.location.replace('../index.html');}
 })();
 </script>
