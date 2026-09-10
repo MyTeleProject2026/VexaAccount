@@ -12,6 +12,15 @@ const PRIVACY_FIELDS = [
   'marketing_email_enabled',
   'security_email_enabled'
 ];
+const PRIVACY_ALIASES = {
+  locationSharingEnabled: 'location_sharing_enabled',
+  personalizationEnabled: 'personalization_enabled',
+  activityHistoryEnabled: 'activity_history_enabled',
+  pushNotificationsEnabled: 'push_notifications_enabled',
+  productUpdatesEnabled: 'product_updates_enabled',
+  marketingEmailEnabled: 'marketing_email_enabled',
+  securityEmailEnabled: 'security_email_enabled'
+};
 
 router.use(authUser);
 router.use((req, res, next) => {
@@ -35,6 +44,30 @@ async function ensure(userId) {
     )
   `);
   await pool.query('INSERT IGNORE INTO vexa_account_privacy_settings(user_id) VALUES(?)', [userId]);
+}
+
+function normalizePrivacyBody(body = {}) {
+  const normalized = {};
+  for (const key of PRIVACY_FIELDS) {
+    if (typeof body[key] === 'boolean') normalized[key] = body[key];
+  }
+  for (const [alias, key] of Object.entries(PRIVACY_ALIASES)) {
+    if (typeof body[alias] === 'boolean') normalized[key] = body[alias];
+  }
+  return normalized;
+}
+
+async function updatePrivacy(userId, body) {
+  const valuesByField = normalizePrivacyBody(body);
+  const fields = Object.keys(valuesByField);
+  if (!fields.length) return false;
+  const values = fields.map(key => valuesByField[key] ? 1 : 0);
+  values.push(userId);
+  await pool.query(
+    `UPDATE vexa_account_privacy_settings SET ${fields.map(key => `${key}=?`).join(',')} WHERE user_id=?`,
+    values
+  );
+  return true;
 }
 
 router.get('/people', async (req, res, next) => {
@@ -116,6 +149,24 @@ router.patch('/people', async (req, res, next) => {
     if (error.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ success: false, message: 'Username is already in use' });
     }
+    return next(error);
+  }
+});
+
+// Backward-compatible privacy endpoint for existing clients that still call
+// /api/account/privacy. It uses the same authenticated privacy store and accepts
+// both the canonical snake_case field names and the existing camelCase client names.
+router.patch('/privacy', async (req, res, next) => {
+  try {
+    await ensure(req.userId);
+    if (!await updatePrivacy(req.userId, req.body || {})) {
+      return res.status(400).json({
+        success: false,
+        message: 'No valid privacy changes supplied. Privacy values must be boolean.'
+      });
+    }
+    return res.json({ success: true, message: 'Privacy settings updated' });
+  } catch (error) {
     return next(error);
   }
 });
