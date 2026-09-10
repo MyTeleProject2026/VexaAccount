@@ -23,13 +23,14 @@ function number(value) {
 
 async function getDatabaseStatus() {
   try {
-    const [database] = await pool.query('SELECT 1 AS ok');
-    const rows = await optionalQuery(
+    const [rows] = await pool.query('SELECT 1 AS ok');
+    const connected = Boolean(rows?.[0]?.ok);
+    const statusRows = await optionalQuery(
       "SHOW STATUS WHERE Variable_name IN ('Threads_connected','Threads_running','Questions','Com_commit','Com_rollback')"
     );
-    const status = Object.fromEntries(rows.map((row) => [String(row.Variable_name).toLowerCase(), number(row.Value)]));
+    const status = Object.fromEntries(statusRows.map((row) => [String(row.Variable_name).toLowerCase(), number(row.Value)]));
     return {
-      connected: Boolean(database?.ok),
+      connected,
       connections: status.threads_connected || 0,
       running: status.threads_running || 0,
       questions: status.questions || 0,
