@@ -5,23 +5,24 @@ The SSO Application Integration Kit is an Owner-only workflow for preparing a co
 ## End-to-end Owner workflow
 
 1. Open Owner OS.
-2. Select **Generate App Integration Kit**.
-3. Enter application key, display name and target URLs.
-4. Provide the GitHub repository and branch when source analysis is required.
-5. Run the read-only source analyzer.
+2. Select the target SSO application.
+3. Confirm the authorized repository and branch when source work is required.
+4. Select **Generate App Integration Kit** or **Source Repair** as appropriate.
+5. Run the bounded read-only source analyzer.
 6. Review detected stack, authentication/session/routing candidates and warnings.
-7. Select the source files that should form the precise review plan.
-8. Build the signed source plan.
-9. Confirm the reviewed file paths, GitHub blob SHAs, source SHA-256 values and integration anchors.
-10. Generate the supported integration package.
-11. Review generated file contents and their SHA-256 values.
-12. Register the target application and exact HTTPS redirect URI in the VexaAccount SSO registry.
-13. Configure target application secrets in its own server-side secret manager.
-14. If installation is requested, explicitly approve the Owner installation action.
-15. The server verifies the signed source plan, current reviewed blobs, current branch head and signed generated-file manifest before committing.
-16. Adapt and test the generated integration in the target application.
+7. Review affected files and source findings.
+8. Select the source files that should form the precise review/repair plan.
+9. Build the signed source plan.
+10. Confirm reviewed file paths, GitHub blob SHAs, source SHA-256 values and integration anchors.
+11. Generate the supported integration package and/or target-specific repair source.
+12. Review generated file contents, replacement source and SHA-256 values.
+13. Register the target application and exact HTTPS redirect URI in the VexaAccount SSO registry.
+14. Configure target application secrets in its own server-side secret manager.
+15. If installation is requested, explicitly approve the Owner installation action.
+16. The server verifies the signed source plan, current reviewed blobs, current branch head and signed generated-file manifest before committing.
+17. Verify the resulting CI/deployment and test the real deployed SSO flow.
 
-The analyzer and planner are read-only. Generation prepares files; it does not automatically overwrite target authentication code.
+Analysis is read-only. Generation prepares files; it does not silently overwrite target authentication code. Source Repair requires explicit Owner approval before a target repository commit.
 
 ## Source analyzer
 
@@ -41,15 +42,17 @@ Recommended server configuration:
 - `GITHUB_SSO_DEPLOY_TOKEN`: separate credential for explicit installation.
 - `GITHUB_SSO_ALLOWED_REPOSITORIES`: repository allowlist.
 
-## Precise source planning
+## Precise source planning and repair
 
 The planner selects a bounded set of relevant files and records GitHub blob SHA plus source SHA-256. It identifies useful anchors such as authentication imports, session cookies, bearer middleware, login routes, callback routes and frontend login entry points.
+
+Source Repair extends this process into an Owner-reviewed sequence: analyze the repository, report affected files/findings, generate repair candidates, let the Owner select/approve changes, run a fresh preflight, and commit only the approved changes.
 
 The generated plan is additive-first. Existing authentication/session files are review candidates and are not treated as safe automatic replacement targets.
 
 ### Installation guard
 
-Before any patch or replacement is installed, the current target blob SHA must exactly match the reviewed plan. If it differs, the installation must stop and a new read-only plan must be created.
+Before any patch or replacement is installed, the current target blob SHA must exactly match the reviewed plan. If it differs, installation must stop and a new read-only plan must be created.
 
 ## Generated package
 
@@ -65,6 +68,10 @@ Generated files include:
 - `VEXAACCOUNT_SSO_INTEGRATION.md` — target installation/security guidance.
 
 The generator version is tracked by the backend kit route; the current repository implementation is version `1.3.0`.
+
+## Live Owner processing
+
+The Owner frontend exposes real processing phases for source analysis, source review, integration generation and deployment verification. These phases are backed by the actual operation lifecycle and are intended to show the Owner what the system is currently doing. A completed visual phase is not itself a certification of the deployed application.
 
 ## Secret boundaries
 
@@ -91,4 +98,4 @@ If any check fails, no target repository commit is created.
 
 ## Production expectations
 
-Generation success is not SSO certification. Certification requires the target application's deployed backend, configured secrets, registered redirect URI, authorization-code + PKCE exchange, userinfo, application session, logout/revocation and browser behavior to be tested in the deployed environment.
+Generation or repair success is not SSO certification. Certification requires the target application's deployed backend, configured secrets, registered redirect URI, authorization-code + PKCE exchange, userinfo, application session, logout/revocation and browser behavior to be tested in the deployed environment. GitHub Actions and deployment checks must finish successfully before describing the integration as runtime-certified.
