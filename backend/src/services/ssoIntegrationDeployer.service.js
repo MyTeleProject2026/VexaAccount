@@ -5,22 +5,130 @@ const { verify: verifyPlanToken } = require('./ssoIntegrationPlanToken.service')
 const API = String(process.env.GITHUB_API_URL || 'https://api.github.com').replace(/\/$/, '');
 const TOKEN = String(process.env.GITHUB_SSO_DEPLOY_TOKEN || '').trim();
 const ALLOWED = String(process.env.GITHUB_SSO_ALLOWED_REPOSITORIES || '').split(',').map(v => v.trim().toLowerCase()).filter(Boolean);
+
+function fail(message, status = 400) { throw Object.assign(new Error(message), { status }); }
 function assertConfigured(repository) {
-  if (!TOKEN) throw Object.assign(new Error('GitHub SSO deployment is not configured. Set GITHUB_SSO_DEPLOY_TOKEN on the VexaAccount backend.'), { status: 503 });
-  const repo = String(repository || '').trim();
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) throw Object.assign(new Error('repository must use owner/repository format'), { status: 400 });
-  if (ALLOWED.length && !ALLOWED.includes(repo.toLowerCase())) throw Object.assign(new Error('Target repository is not allowlisted for Owner SSO deployment'), { status: 403 });
+  if (!TOKEN) fail('GitHub SSO deployment is not configured. Set GITHUB_SSO_DEPLOY_TOKEN on the VexaAccount backend.', 503);
+  const repo = String(repository || '').trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\/$/, '').replace(/\.git$/i, '');
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) fail('repository must use owner/repository format');
+  if (ALLOWED.length && !ALLOWED.includes(repo.toLowerCase())) fail('Target repository is not allowlisted for Owner SSO deployment', 403);
   return repo;
 }
 function headers() { return { Authorization: `Bearer ${TOKEN}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'VexaAccount-Owner-SSO' }; }
-async function request(method, path, data) { try { const r=await axios({ method, url: API + path, headers: headers(), data, timeout:15000 }); return r.data; } catch(e) { throw Object.assign(new Error(`GitHub deployment: ${e.response?.data?.message || e.message || 'GitHub API request failed'}`), { status:e.response?.status || 502 }); } }
-function assertBranch(branch) { const value=String(branch || 'main').trim(); if(!/^[A-Za-z0-9._\/-]{1,100}$/.test(value) || value.includes('..')) throw Object.assign(new Error('Invalid target branch'), { status:400 }); return value; }
-function normalizeFiles(files, prefix) { if(!Array.isArray(files)||!files.length||files.length>100) throw Object.assign(new Error('files must contain between 1 and 100 generated files'), { status:400 }); const normalized=files.map(f=>({path:String(f.path||'').replace(/^\/+/,''),content:String(f.code??f.content??'')})).filter(f=>f.path&&f.content.length<=2000000&&!f.path.includes('..')&&!f.path.startsWith('.git/')); if(!normalized.length) throw Object.assign(new Error('No valid generated files supplied'), { status:400 }); const seen=new Set(); for(const f of normalized){ if(!/^[A-Za-z0-9._\/-]{1,240}$/.test(f.path)||f.path.startsWith('/')||f.path.endsWith('/')) throw Object.assign(new Error(`Invalid generated file path: ${f.path}`),{status:400}); const target=prefix?`${prefix}/${f.path}`:f.path; if(seen.has(target)) throw Object.assign(new Error(`Duplicate generated file path: ${target}`),{status:400}); seen.add(target); } return normalized; }
-function assertReviewedFiles(reviewedFiles) { if(!Array.isArray(reviewedFiles)||!reviewedFiles.length||reviewedFiles.length>30) throw Object.assign(new Error('reviewedFiles is required. Build a precise source review plan before installation.'),{status:409}); const seen=new Set(); return reviewedFiles.map(f=>{const path=String(f.path||'').replace(/^\/+/,''),blobSha=String(f.blobSha||'').trim(); if(!path||path.includes('..')||path.startsWith('.git/')||!/^[A-Za-z0-9._\/-]{1,240}$/.test(path)) throw Object.assign(new Error(`Invalid reviewed source path: ${path}`),{status:400}); if(!/^[0-9a-f]{40}$/i.test(blobSha)) throw Object.assign(new Error(`Invalid reviewed blob SHA for ${path}`),{status:400}); if(seen.has(path)) throw Object.assign(new Error(`Duplicate reviewed source path: ${path}`),{status:400}); seen.add(path); return {path,blobSha};}); }
-async function verifyReviewedFiles(repository,branch,reviewedFiles){const reviewed=assertReviewedFiles(reviewedFiles); for(const file of reviewed){const data=await request('GET',`/repos/${repository}/contents/${file.path}?ref=${encodeURIComponent(branch)}`); if(String(data.sha||'').toLowerCase()!==file.blobSha.toLowerCase()) throw Object.assign(new Error(`Reviewed source changed: ${file.path}. No files were committed; rebuild the precise source plan.`),{status:409});} return reviewed;}
-function verifySignedPlan(planToken,repository,branch,reviewedFiles){const plan=verifyPlanToken(planToken); if(String(plan.repository||'').toLowerCase()!==repository.toLowerCase()||String(plan.branch||'')!==branch) throw Object.assign(new Error('Signed source plan does not match the target repository or branch'),{status:409}); const signed=new Map((plan.reviewedFiles||[]).map(f=>[String(f.path),String(f.blobSha).toLowerCase()])); const submitted=assertReviewedFiles(reviewedFiles); if(signed.size!==submitted.length||submitted.some(f=>signed.get(f.path)!==f.blobSha.toLowerCase())) throw Object.assign(new Error('Submitted reviewed sources do not exactly match the signed Owner source plan'),{status:409}); return plan; }
-function verifyGeneratedManifest(generatedManifestToken,repository,branch,files){const manifest=verifyPlanToken(generatedManifestToken); if(manifest.kind!=='generated-manifest') throw Object.assign(new Error('Invalid generated integration manifest token'),{status:409}); if(String(manifest.repository||'').toLowerCase()!==repository.toLowerCase()||String(manifest.branch||'')!==branch) throw Object.assign(new Error('Generated manifest does not match the target repository or branch'),{status:409}); const signed=manifest.generatedFiles||[]; if(!Array.isArray(signed)||!signed.length||signed.length!==files.length) throw Object.assign(new Error('Generated files do not exactly match the signed generated-file manifest'),{status:409}); const byPath=new Map(signed.map(f=>[String(f.path),f])); const seen=new Set(); for(const f of files){ if(seen.has(f.path)||!byPath.has(f.path)) throw Object.assign(new Error(`Generated file is not present in the signed manifest: ${f.path}`),{status:409}); seen.add(f.path); const expected=byPath.get(f.path); const actual=crypto.createHash('sha256').update(f.content,'utf8').digest('hex'); const size=Buffer.byteLength(f.content,'utf8'); if(String(expected.sha256||'').toLowerCase()!==actual||Number(expected.size)!==size) throw Object.assign(new Error(`Generated file content changed after Owner generation: ${f.path}. Generate a new signed integration kit.`),{status:409}); } return manifest; }
-async function getBranch(repository,branch){return request('GET',`/repos/${repository}/git/ref/heads/${encodeURIComponent(branch)}`);}
-async function deploy({repository,branch='main',files,commitMessage='feat(auth): install VexaAccount SSO integration',pathPrefix='',expectedHeadSha,reviewedFiles,planToken,generatedManifestToken}){const repo=assertConfigured(repository),targetBranch=assertBranch(branch),prefix=String(pathPrefix||'').trim().replace(/^\/+|\/+$/g,''); if(prefix&&(!/^[A-Za-z0-9._\/-]{1,180}$/.test(prefix)||prefix.includes('..')||prefix.startsWith('.git'))) throw Object.assign(new Error('Invalid path prefix'),{status:400}); const normalized=normalizeFiles(files,prefix); const expected=String(expectedHeadSha||'').trim(); if(!/^[0-9a-f]{40}$/i.test(expected)) throw Object.assign(new Error('expectedHeadSha is required. Run repository preflight again before committing.'),{status:409}); verifySignedPlan(planToken,repo,targetBranch,reviewedFiles); verifyGeneratedManifest(generatedManifestToken,repo,targetBranch,normalized); const ref=await getBranch(repo,targetBranch),parentSha=ref.object?.sha; if(!parentSha) throw Object.assign(new Error('Target branch does not resolve to a commit'),{status:409}); if(parentSha.toLowerCase()!==expected.toLowerCase()) throw Object.assign(new Error('Target branch changed after preflight. No files were committed; run preflight again and review the new branch head.'),{status:409}); const reviewed=await verifyReviewedFiles(repo,targetBranch,reviewedFiles); const parent=await request('GET',`/repos/${repo}/git/commits/${parentSha}`),baseTree=parent.tree?.sha; if(!baseTree) throw Object.assign(new Error('Target branch has no readable base tree'),{status:409}); const treeElements=[]; for(const f of normalized){const blob=await request('POST',`/repos/${repo}/git/blobs`,{content:f.content,encoding:'utf-8'}); treeElements.push({path:prefix?`${prefix}/${f.path}`:f.path,mode:'100644',type:'blob',sha:blob.sha});} const tree=await request('POST',`/repos/${repo}/git/trees`,{base_tree:baseTree,tree:treeElements}); const message=String(commitMessage||'').trim().slice(0,200)||'feat(auth): install VexaAccount SSO integration'; const commit=await request('POST',`/repos/${repo}/git/commits`,{message,tree:tree.sha,parents:[parentSha]}); await request('PATCH',`/repos/${repo}/git/refs/heads/${encodeURIComponent(targetBranch)}`,{sha:commit.sha,force:false}); return {repository:repo,branch:targetBranch,parentSha,commitSha:commit.sha,commitUrl:`https://github.com/${repo}/commit/${commit.sha}`,reviewedFiles:reviewed.map(f=>f.path),files:treeElements.map(x=>x.path)};}
-async function status(repository,branch='main'){const repo=assertConfigured(repository),targetBranch=assertBranch(branch); const [data,ref]=await Promise.all([request('GET',`/repos/${repo}`),getBranch(repo,targetBranch)]); return {repository:repo,private:Boolean(data.private),defaultBranch:data.default_branch,branch:targetBranch,headSha:ref.object?.sha||null,permissions:data.permissions||{}};}
-module.exports={deploy,status};
+async function request(method, path, data) { try { const r = await axios({ method, url: API + path, headers: headers(), data, timeout: 15000 }); return r.data; } catch (e) { throw Object.assign(new Error(`GitHub deployment: ${e.response?.data?.message || e.message || 'GitHub API request failed'}`), { status: e.response?.status || 502 }); } }
+function assertBranch(branch) { const value = String(branch || 'main').trim(); if (!/^[A-Za-z0-9._\/-]{1,100}$/.test(value) || value.includes('..')) fail('Invalid target branch'); return value; }
+function normalizeFiles(files, prefix = '') {
+  if (!Array.isArray(files) || !files.length || files.length > 100) fail('files must contain between 1 and 100 generated files');
+  const normalized = files.map(f => ({ path: String(f.path || '').replace(/^\/+/, ''), content: String(f.code ?? f.content ?? '') })).filter(f => f.path && f.content.length <= 2000000 && !f.path.includes('..') && !f.path.startsWith('.git/'));
+  if (!normalized.length) fail('No valid generated files supplied');
+  const seen = new Set();
+  for (const f of normalized) {
+    if (!/^[A-Za-z0-9._\/-]{1,240}$/.test(f.path) || f.path.startsWith('/') || f.path.endsWith('/')) fail(`Invalid generated file path: ${f.path}`);
+    const target = prefix ? `${prefix}/${f.path}` : f.path;
+    if (seen.has(target)) fail(`Duplicate generated file path: ${target}`);
+    seen.add(target);
+  }
+  return normalized;
+}
+function assertReviewedFiles(reviewedFiles) {
+  if (!Array.isArray(reviewedFiles) || !reviewedFiles.length || reviewedFiles.length > 30) fail('reviewedFiles is required. Build a precise source review plan before installation.', 409);
+  const seen = new Set();
+  return reviewedFiles.map(f => {
+    const path = String(f.path || '').replace(/^\/+/, ''), blobSha = String(f.blobSha || '').trim();
+    if (!path || path.includes('..') || path.startsWith('.git/') || !/^[A-Za-z0-9._\/-]{1,240}$/.test(path)) fail(`Invalid reviewed source path: ${path}`);
+    if (!/^[0-9a-f]{40}$/i.test(blobSha)) fail(`Invalid reviewed blob SHA for ${path}`);
+    if (seen.has(path)) fail(`Duplicate reviewed source path: ${path}`);
+    seen.add(path); return { path, blobSha };
+  });
+}
+async function verifyReviewedFiles(repository, branch, reviewedFiles) {
+  const reviewed = assertReviewedFiles(reviewedFiles);
+  for (const file of reviewed) {
+    const data = await request('GET', `/repos/${repository}/contents/${file.path}?ref=${encodeURIComponent(branch)}`);
+    if (String(data.sha || '').toLowerCase() !== file.blobSha.toLowerCase()) fail(`Reviewed source changed: ${file.path}. No files were committed; rebuild the precise source plan.`, 409);
+  }
+  return reviewed;
+}
+function verifySignedPlan(planToken, repository, branch, reviewedFiles) {
+  const plan = verifyPlanToken(planToken);
+  if (String(plan.repository || '').toLowerCase() !== repository.toLowerCase() || String(plan.branch || '') !== branch) fail('Signed source plan does not match the target repository or branch', 409);
+  const signed = new Map((plan.reviewedFiles || []).map(f => [String(f.path), String(f.blobSha).toLowerCase()]));
+  const submitted = assertReviewedFiles(reviewedFiles);
+  if (signed.size !== submitted.length || submitted.some(f => signed.get(f.path) !== f.blobSha.toLowerCase())) fail('Submitted reviewed sources do not exactly match the signed Owner source plan', 409);
+  return plan;
+}
+function verifyGeneratedManifest(generatedManifestToken, repository, branch, files) {
+  const manifest = verifyPlanToken(generatedManifestToken);
+  if (manifest.kind !== 'generated-manifest') fail('Invalid generated integration manifest token', 409);
+  if (String(manifest.repository || '').toLowerCase() !== repository.toLowerCase() || String(manifest.branch || '') !== branch) fail('Generated manifest does not match the target repository or branch', 409);
+  const signed = manifest.generatedFiles || [];
+  if (!Array.isArray(signed) || !signed.length || signed.length !== files.length) fail('Generated files do not exactly match the signed generated-file manifest', 409);
+  const byPath = new Map(signed.map(f => [String(f.path), f]));
+  const seen = new Set();
+  for (const f of files) {
+    if (seen.has(f.path) || !byPath.has(f.path)) fail(`Generated file is not present in the signed manifest: ${f.path}`, 409);
+    seen.add(f.path);
+    const expected = byPath.get(f.path), actual = crypto.createHash('sha256').update(f.content, 'utf8').digest('hex'), size = Buffer.byteLength(f.content, 'utf8');
+    if (String(expected.sha256 || '').toLowerCase() !== actual || Number(expected.size) !== size) fail(`Generated file content changed after Owner generation: ${f.path}. Generate a new signed integration kit.`, 409);
+  }
+  return manifest;
+}
+function verifyReplacementManifest(token, repository, branch, replacements) {
+  const manifest = verifyPlanToken(token);
+  if (manifest.kind !== 'target-replacement-manifest') fail('Invalid target replacement manifest token', 409);
+  if (String(manifest.repository || '').toLowerCase() !== repository.toLowerCase() || String(manifest.branch || '') !== branch) fail('Target replacement manifest does not match the target repository or branch', 409);
+  const signed = manifest.replacements || [];
+  if (!Array.isArray(signed) || signed.length !== replacements.length) fail('Submitted replacements do not exactly match the signed replacement manifest', 409);
+  const byPath = new Map(signed.map(f => [String(f.path), f]));
+  const seen = new Set();
+  for (const f of replacements) {
+    if (seen.has(f.path) || !byPath.has(f.path)) fail(`Replacement is not present in the signed manifest: ${f.path}`, 409);
+    seen.add(f.path);
+    const expected = byPath.get(f.path);
+    if (!expected.changed) fail(`Unchanged reviewed file cannot be submitted as a replacement: ${f.path}`, 409);
+    if (String(expected.originalBlobSha || '').toLowerCase() !== String(f.originalBlobSha || '').toLowerCase()) fail(`Replacement original SHA mismatch: ${f.path}`, 409);
+    const actual = crypto.createHash('sha256').update(f.content, 'utf8').digest('hex');
+    if (actual.toLowerCase() !== String(expected.replacementSha256 || '').toLowerCase()) fail(`Replacement content changed after Owner review: ${f.path}`, 409);
+  }
+  return manifest;
+}
+async function getBranch(repository, branch) { return request('GET', `/repos/${repository}/git/ref/heads/${encodeURIComponent(branch)}`); }
+async function verifyReplacementOriginals(repository, branch, replacements) {
+  for (const f of replacements) {
+    const data = await request('GET', `/repos/${repository}/contents/${f.path}?ref=${encodeURIComponent(branch)}`);
+    if (String(data.sha || '').toLowerCase() !== String(f.originalBlobSha || '').toLowerCase()) fail(`Replacement source changed: ${f.path}. No files were committed; rebuild the source plan.`, 409);
+  }
+}
+async function deploy({ repository, branch = 'main', files, replacements = [], commitMessage = 'feat(auth): install VexaAccount SSO integration', pathPrefix = '', expectedHeadSha, reviewedFiles, planToken, generatedManifestToken, replacementManifestToken }) {
+  const repo = assertConfigured(repository), targetBranch = assertBranch(branch), prefix = String(pathPrefix || '').trim().replace(/^\/+|\/+$/g, '');
+  if (prefix && (!/^[A-Za-z0-9._\/-]{1,180}$/.test(prefix) || prefix.includes('..') || prefix.startsWith('.git'))) fail('Invalid path prefix');
+  const generated = normalizeFiles(files, prefix);
+  const replacementInput = Array.isArray(replacements) ? replacements.map(f => ({ path: String(f.path || '').replace(/^\/+/, ''), content: String(f.code ?? f.content ?? ''), originalBlobSha: String(f.originalBlobSha || '').trim() })).filter(f => f.path && f.content.length <= 2000000) : [];
+  const expected = String(expectedHeadSha || '').trim();
+  if (!/^[0-9a-f]{40}$/i.test(expected)) fail('expectedHeadSha is required. Run repository preflight again before committing.', 409);
+  verifySignedPlan(planToken, repo, targetBranch, reviewedFiles);
+  verifyGeneratedManifest(generatedManifestToken, repo, targetBranch, generated);
+  if (replacementInput.length) {
+    if (!replacementManifestToken) fail('Replacement manifest approval is required when replacement candidates are included.', 409);
+    verifyReplacementManifest(replacementManifestToken, repo, targetBranch, replacementInput);
+  }
+  const ref = await getBranch(repo, targetBranch), parentSha = ref.object?.sha;
+  if (!parentSha) fail('Target branch does not resolve to a commit', 409);
+  if (parentSha.toLowerCase() !== expected.toLowerCase()) fail('Target branch changed after preflight. No files were committed; run preflight again and review the new branch head.', 409);
+  const reviewed = await verifyReviewedFiles(repo, targetBranch, reviewedFiles);
+  if (replacementInput.length) await verifyReplacementOriginals(repo, targetBranch, replacementInput);
+  const parent = await request('GET', `/repos/${repo}/git/commits/${parentSha}`), baseTree = parent.tree?.sha;
+  if (!baseTree) fail('Target branch has no readable base tree', 409);
+  const all = [...generated, ...replacementInput.map(f => ({ path: f.path, content: f.content }))];
+  const seenTargets = new Set();
+  for (const f of all) { const target = prefix ? `${prefix}/${f.path}` : f.path; if (seenTargets.has(target)) fail(`Generated/replacement path collision: ${target}`, 409); seenTargets.add(target); }
+  const treeElements = [];
+  for (const f of all) { const blob = await request('POST', `/repos/${repo}/git/blobs`, { content: f.content, encoding: 'utf-8' }); treeElements.push({ path: prefix ? `${prefix}/${f.path}` : f.path, mode: '100644', type: 'blob', sha: blob.sha }); }
+  const tree = await request('POST', `/repos/${repo}/git/trees`, { base_tree: baseTree, tree: treeElements });
+  const message = String(commitMessage || '').trim().slice(0, 200) || 'feat(auth): install VexaAccount SSO integration';
+  const commit = await request('POST', `/repos/${repo}/git/commits`, { message, tree: tree.sha, parents: [parentSha] });
+  await request('PATCH', `/repos/${repo}/git/refs/heads/${encodeURIComponent(targetBranch)}`, { sha: commit.sha, force: false });
+  return { repository: repo, branch: targetBranch, parentSha, commitSha: commit.sha, commitUrl: `https://github.com/${repo}/commit/${commit.sha}`, reviewedFiles: reviewed.map(f => f.path), files: treeElements.map(x => x.path), replacementFiles: replacementInput.map(f => f.path) };
+}
+async function status(repository, branch = 'main') { const repo = assertConfigured(repository), targetBranch = assertBranch(branch); const [data, ref] = await Promise.all([request('GET', `/repos/${repo}`), getBranch(repo, targetBranch)]); return { repository: repo, private: Boolean(data.private), defaultBranch: data.default_branch, branch: targetBranch, headSha: ref.object?.sha || null, permissions: data.permissions || {} }; }
+module.exports = { deploy, status };
