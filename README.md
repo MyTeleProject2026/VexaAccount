@@ -2,11 +2,11 @@
 
 ## Current implementation guide
 
-This README documents the current repository implementation. It is intentionally based on source that exists in `master`, rather than obsolete/planned behavior.
+This README documents the current repository implementation on `master`, distinguishing implemented source behavior from production runtime certification.
 
 ### Runtime components
 
-- `backend/` — Express API, authentication, SSO registry, Owner controls, infrastructure integration, and System C observability.
+- `backend/` — Express API, authentication, SSO registry, Owner controls, infrastructure integration, Source Repair/Integration Kit services, and System C observability.
 - `frontend-VexaAccount-Super-admin/` — authenticated Owner/Super Admin Control Center and System C UI.
 - `frontend-VexaAccount-user/` — VexaAccount user-facing runtime.
 - Production API: `https://api-vexaaccount.onrender.com`
@@ -19,7 +19,7 @@ The Owner runtime verifies the Super Admin session before loading protected Owne
 
 ## Owner Control Center
 
-The Owner gateway exposes System A (VexaAccount SSO Full Controlling System), System B (Owner Control Center), and System C (Live Integration & Runtime Observatory). The controls call authenticated backend APIs.
+The Owner gateway exposes System A (VexaAccount SSO Full Controlling System), System B (Owner Control Center), and System C (Live Integration & Runtime Observatory). Controls call authenticated backend APIs and are not intended to be client-only mock state.
 
 ## SSO application lifecycle
 
@@ -27,9 +27,17 @@ The implemented registry flow is: Owner creates an application; backend validate
 
 Current default scopes: `openid`, `profile`, `email`, `account`, `session`, `applications`, `notifications`.
 
+## Integration Kit and Source Repair
+
+The Owner SSO application workflow now includes repository-aware source analysis and Source Repair. For an allowlisted repository/branch, the backend can inspect a bounded source tree, detect stack/auth/session/routing candidates, prepare a precise source review plan, and generate supported integration material without modifying the target repository during analysis.
+
+The Super Admin Source Repair console is loaded by the Owner frontend and is designed to progress through: repository/branch selection, full bounded repository analysis, affected-file findings, repair selection, generated replacement source, review, fresh preflight, and explicit Owner-approved commit. Source integrity is bound to reviewed blob SHA/branch state and protected deployment checks; secrets and credential-bearing paths are excluded.
+
+The UI also exposes live operation phases for analysis, source review, integration generation and deployment verification. These phases represent real backend operations and must not be treated as runtime certification until the resulting operation and downstream checks succeed.
+
 ## Infrastructure and deployment
 
-Owner infrastructure controls can connect to Render, list services, manage application environment variables, trigger deployments, and bind a Render service to an SSO application. MTP2026 provisioning can create/reuse `mtp2026-app-launcher`, configure its SSO settings, write the generated configuration/credential to the selected Render service environment, persist the infrastructure binding, and trigger deployment.
+Owner infrastructure controls can connect to Render, list services, manage application environment variables, trigger deployments, and bind a Render service to an SSO application. MTP2026 provisioning can create/reuse `mtp2026-app-launcher`, configure its SSO settings, write generated configuration/credential values to the selected Render service environment, persist the infrastructure binding, and trigger deployment.
 
 ## System C
 
@@ -43,10 +51,12 @@ Platform settings require Super Admin authentication. Mutations also pass throug
 
 **Owner UI action → frontend handler → authenticated API request → `requireSuperAdmin` → route validation → service/database/provider operation → audit where required → JSON response → UI state refresh.**
 
-## Certification policy
+For Source Repair/Integration Kit, the protected deployment path additionally requires reviewed source integrity, current branch/source verification and explicit Owner approval before a target repository commit.
 
-A feature is implemented when its source route/handler and backend contract exist. It is runtime-certified only after the relevant GitHub Actions and production smoke checks finish successfully. Queued or in-progress workflows are not certification.
+## Verification policy
+
+A feature is implemented when its source route/handler and frontend/backend contract exist. It is runtime-certified only after the relevant GitHub Actions and production smoke checks finish successfully. Queued or in-progress workflows are not certification, and a successful build alone does not prove end-to-end SSO runtime behavior.
 
 ## Documentation maintenance
 
-Keep this README synchronized with actual source. Remove obsolete claims, document only traceable behavior, distinguish implementation from runtime certification, and verify the full frontend → API → middleware → service/database/provider → response chain after material changes.
+Keep this README synchronized with actual source on `master`. Document only traceable behavior, distinguish implementation from runtime certification, and verify the full frontend → API → middleware → service/database/provider → response chain after material changes.
