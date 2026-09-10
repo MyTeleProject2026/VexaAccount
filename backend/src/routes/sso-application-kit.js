@@ -6,6 +6,10 @@ const { generateTarget } = require('../services/ssoApplicationReplacement.servic
 const { verify: verifyPlanToken, create: createPlanToken } = require('../services/ssoIntegrationPlanToken.service');
 
 const router = express.Router();
+// Keep the kit endpoint resilient when an upstream/proxy request reaches this router without having been parsed by the global JSON parser.
+// This does not replace the global parser; it only provides a scoped fallback for the JSON/URL-encoded kit request body.
+router.use(express.json({ limit: '10mb' }));
+router.use(express.urlencoded({ extended: true, limit: '10mb' }));
 router.use(requireSuperAdmin);
 router.get('/catalog', auditAdminAction('sso.application_kit.catalog','sso_application_kit'), (req,res) => res.json({
   success:true,
