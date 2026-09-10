@@ -27,11 +27,19 @@ Every privileged operation is authorized by the backend's DB-backed Super Admin 
 - Revoke application sessions/tokens when required.
 - Inspect SSO diagnostics and lifecycle state.
 
-### Integration Kit
+### Integration Kit and Source Repair
 
-Owner OS includes an application integration workflow that can analyze an allowlisted GitHub repository without modifying it, build a precise source plan, generate supported integration files and optionally install only Owner-approved generated files.
+- Select an SSO application and its authorized repository/branch for source work.
+- Run bounded read-only repository analysis before any target write.
+- Detect frontend/backend stacks and authentication, session, callback and routing candidates.
+- Produce affected-file findings and a precise source review plan.
+- Generate supported integration files and target-specific repair candidates.
+- Review source changes and integrity information before installation.
+- Run a fresh preflight against the current repository state.
+- Explicitly approve the final protected commit.
+- Follow resulting CI/deployment verification rather than treating commit success as runtime certification.
 
-The installation guard binds the operation to the reviewed source blob SHAs, branch head SHA and signed generated-file manifest. Any source or branch change requires a new review/plan. Generated content cannot be silently substituted between review and installation.
+The Source Repair console is intended to be an Owner-controlled repair workflow, not a generic unrestricted GitHub editor. Secret-bearing and credential files are blocked, analysis is bounded, and target writes remain behind source-integrity checks and explicit approval.
 
 ### Support and platform
 
@@ -44,20 +52,24 @@ System C provides authenticated observability for identity, SSO/session, API and
 ## Secure SSO operating sequence
 
 1. Register the application.
-2. Confirm exact HTTPS callback URI(s).
+2. Bind/confirm the authorized repository and exact HTTPS callback URI(s).
 3. Configure only required scopes.
-4. Generate/rotate the client credential through the owner backend workflow.
+4. Generate/rotate the client credential through the Owner backend workflow.
 5. Store the secret only in the consuming backend secret manager.
 6. Test Authorization Code + S256 PKCE.
 7. Verify userinfo and consumer-owned session creation.
-8. Verify logout/revocation and consent removal.
+8. Run diagnostics and, when needed, Source Repair analysis.
+9. Review any generated repair/integration source.
+10. Run fresh preflight and explicitly approve installation/commit.
+11. Verify logout/revocation and consent removal.
+12. Verify the deployed consumer runtime and CI status.
 
 Client secrets and refresh tokens must never be placed in frontend JavaScript or browser storage.
 
 ## MTP2026 boundary
 
-MTP2026 is a registered SSO consumer. Its consumer-side login transaction, PKCE state, token encryption and `mtp_session` are owned by the MTP2026 repository. Do not add MTP-specific implementation to VexaAccount merely to fix a consumer-side defect.
+MTP2026 is a registered SSO consumer. Its consumer-side login transaction, PKCE state, token encryption and `mtp_session` are owned by the MTP2026 repository. VexaAccount provides the identity/SSO contract and Owner tooling; consumer-specific source repairs should be made in the consumer repository through the protected Owner workflow rather than embedding MTP-specific business logic in VexaAccount.
 
 ## Verification boundary
 
-A visible Owner button or successful frontend request does not prove persistence or downstream success. High-impact operations should be verified through API response, database state, session/token state and resulting application behavior.
+A visible Owner button or successful frontend request does not prove persistence or downstream success. High-impact operations should be verified through API response, database state, session/token state, CI/deployment status and resulting application behavior.
