@@ -48,12 +48,15 @@ async function githubGet(path){try{const r=await axios.get(String(process.env.GI
 router.post('/patch/prepare', auditAdminAction('sso.integration.github.patch.prepare','sso_source_repair'), async (req,res,next)=>{
   try {
     const repository=configuredRepo(req.body.repository), branch=branchName(req.body.branch), path=sourcePath(req.body.path);
-    const reason=String(req.body.reason||'Owner-reviewed source repair').trim().slice(0,500)||'Owner-reviewed source repair';
-    const replacement=String(req.body.content??'');
-    if(!replacement||Buffer.byteLength(replacement,'utf8')>2000000) throw Object.assign(new Error('Replacement source must be 1 byte to 2 MB'),{status:400});
     const current=await githubGet(`/repos/${repository}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`);
     if(!current?.sha||!current?.content) throw Object.assign(new Error('Target source file could not be read'),{status:502});
     const original=Buffer.from(String(current.content).replace(/\s/g,''),'base64').toString('utf8');
+    if(req.body.content===undefined){
+      return res.json({success:true,repository:{repository,branch},file:{path,blobSha:String(current.sha),size:Buffer.byteLength(original,'utf8')},content:original,policy:{mode:'read-only-source-inspection',secretsBlocked:true}});
+    }
+    const reason=String(req.body.reason||'Owner-reviewed source repair').trim().slice(0,500)||'Owner-reviewed source repair';
+    const replacement=String(req.body.content??'');
+    if(!replacement||Buffer.byteLength(replacement,'utf8')>2000000) throw Object.assign(new Error('Replacement source must be 1 byte to 2 MB'),{status:400});
     const replacementSha256=crypto.createHash('sha256').update(replacement,'utf8').digest('hex');
     const originalSha256=crypto.createHash('sha256').update(original,'utf8').digest('hex');
     if(original===replacement) throw Object.assign(new Error('Replacement is identical to the current source'),{status:409});
