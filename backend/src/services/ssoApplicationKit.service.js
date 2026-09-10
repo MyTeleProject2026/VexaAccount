@@ -5,6 +5,10 @@ const URL_RE = /^https:\/\/[^\s]+$/i;
 const SUPPORTED_BACKEND = 'Node.js/Express';
 
 function clean(v, max = 500) { return String(v ?? '').trim().slice(0, max); }
+function safeDiagnostic(value) {
+  const s = String(value ?? '');
+  return { type: typeof value, length: s.length, trimmedLength: s.trim().length, codePoints: Array.from(s).map(ch => ch.codePointAt(0)) };
+}
 function validateInput(body = {}) {
   const appKey = clean(body.applicationKey, 100);
   const displayName = clean(body.displayName || appKey, 160);
@@ -16,7 +20,11 @@ function validateInput(body = {}) {
     : body.hasAdminFrontend === true || String(body.hasAdminFrontend).toLowerCase() === 'true';
   const framework = clean(body.framework, 80);
   const language = clean(body.language, 40) || 'javascript';
-  if (!SAFE_NAME.test(appKey)) throw Object.assign(new Error('applicationKey must contain only letters, numbers, dot, underscore or hyphen'), { status: 400 });
+  const safeNameValid = SAFE_NAME.test(appKey);
+  if (!safeNameValid) {
+    console.error('SSO kit applicationKey validation failed', { raw: safeDiagnostic(body.applicationKey), cleaned: safeDiagnostic(appKey), regexPassed: safeNameValid });
+    throw Object.assign(new Error('applicationKey must contain only letters, numbers, dot, underscore or hyphen'), { status: 400 });
+  }
   for (const [name, value] of [['backendUrl', backendUrl], ['frontendUserUrl', userUrl]]) {
     if (!URL_RE.test(value)) throw Object.assign(new Error(`${name} must be an HTTPS URL`), { status: 400 });
   }
