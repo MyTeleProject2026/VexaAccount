@@ -12,7 +12,18 @@ const SOURCE_EXT = /\.(js|jsx|ts|tsx|mjs|cjs|json|py|rb|php|go|java|kt|cs|rs|vue
 
 function fail(message, status = 400) { throw Object.assign(new Error(message), { status }); }
 function repoName(value) {
-  const repo = String(value || '').trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\/$/, '').replace(/\.git$/i, '');
+  let repo = String(value || '').trim();
+  // Accept the repository forms users naturally paste into Owner SSO Control:
+  // owner/repository, github.com/owner/repository, and full HTTPS GitHub URLs.
+  repo = repo
+    .replace(/^git\+https?:\/\/github\.com\//i, '')
+    .replace(/^https?:\/\/github\.com\//i, '')
+    .replace(/^git@github\.com:/i, '')
+    .replace(/^ssh:\/\/git@github\.com\//i, '')
+    .replace(/^github\.com\//i, '')
+    .replace(/^www\.github\.com\//i, '')
+    .replace(/\/$/, '')
+    .replace(/\.git$/i, '');
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) fail('repository must use owner/repository format');
   if (ALLOWED.length && !ALLOWED.includes(repo.toLowerCase())) fail('Target repository is not allowlisted for Owner SSO analysis', 403);
   return repo;
