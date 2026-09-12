@@ -24,16 +24,52 @@ router.get('/operations/:operationId/stream', (req,res)=>{
   const operationId=String(req.params.operationId||'');
   const operation=ownerOperation.get(operationId);
   if(!operation)return res.status(404).json({success:false,message:'Owner operation not found or expired'});
+
   res.status(200);
-  res.set({'Content-Type':'text/event-stream; charset=utf-8','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no'});
+  res.set({
+    'Content-Type':'text/event-stream; charset=utf-8',
+    'Cache-Control':'no-cache, no-transform',
+    'Connection':'keep-alive',
+    'X-Accel-Buffering':'no'
+  });
   if(typeof res.flushHeaders==='function')res.flushHeaders();
+
   let closed=false;
   let keepAlive=null;
   let unsubscribe=()=>{};
-  const close=()=>{if(closed)return;closed=true;if(keepAlive)clearInterval(keepAlive);unsubscribe();try{res.end();}catch(_) {}};
-  const send=(snapshot,event)=>{if(closed)return;try{res.write(`event: ${event?.kind||'state'}\ndata: ${JSON.stringify({operation:snapshot,event:event||null})}\n\n`);}catch(_){close();}};
-  unsubscribe=ownerOperation.subscribe(operationId,(snapshot,event)=>{send(snapshot,event);if(['completed','failed','cancelled','stalled'].includes(String(snapshot.status||'').toLowerCase()))close();});
-  keepAlive=setInterval(()=>{if(closed)return;try{res.write(': heartbeat\n\n');}catch(_){close();}},15000);
+  const close=()=>{
+    if(closed)return;
+    closed=true;
+    if(keepAlive)clearInterval(keepAlive);
+    unsubscribe();
+    try{res.end();}catch(_){ }
+  };
+  const send=(snapshot,event)=>{
+    if(closed)return;
+    try{
+      res.write(`event: ${event?.kind||'state'}\ndata: ${JSON.stringify({operation:snapshot,event:event||null})}\n\n`);
+      if(typeof res.flush==='function')res.flush();
+    }catch(_){close();}
+  };
+
+  // Send a complete authoritative snapshot immediately. This guarantees that a
+  // newly opened EventSource has visible state even if worker events happened
+  // before the browser established the stream.
+  send(operation,null);
+  if(['completed','failed','cancelled','stalled'].includes(String(operation.status||'').toLowerCase())){
+    close();
+    return;
+  }
+
+  unsubscribe=ownerOperation.subscribe(operationId,(snapshot,event)=>{
+    send(snapshot,event);
+    if(['completed','failed','cancelled','stalled'].includes(String(snapshot.status||'').toLowerCase()))close();
+  });
+  keepAlive=setInterval(()=>{
+    if(closed)return;
+    try{res.write(': heartbeat\n\n');if(typeof res.flush==='function')res.flush();}catch(_){close();}
+  },15000);
+  keepAlive.unref?.();
   req.on('close',close);
 });
 
