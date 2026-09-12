@@ -1,1 +1,1 @@
-(()=>{'use strict';if(window.__VEXA_OWNER_AUTH_NATIVE_BOUNDARY__)return;window.__VEXA_OWNER_AUTH_NATIVE_BOUNDARY__=true;})();
+(()=>{'use strict';if(window.__VEXA_OWNER_AUTH_NATIVE_BOUNDARY__)return;window.__VEXA_OWNER_AUTH_NATIVE_BOUNDARY__=true;const nativeFetch=window.fetch;if(typeof nativeFetch==='function'&&!window.__VEXA_OWNER_NATIVE_FETCH__)window.__VEXA_OWNER_NATIVE_FETCH__=nativeFetch.bind(window);})();
