@@ -1,6 +1,7 @@
 (()=>{
 'use strict';
-if(window.__VEXA_OWNER_OPERATION_RUNTIME_V4__)return;
+if(window.__VEXA_OWNER_OPERATION_RUNTIME_V5__)return;
+window.__VEXA_OWNER_OPERATION_RUNTIME_V5__=true;
 window.__VEXA_OWNER_OPERATION_RUNTIME_V4__=true;
 window.__VEXA_OWNER_OPERATION_RUNTIME_V3__=true;
 
@@ -12,6 +13,21 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const isTerminal=s=>TERMINAL.has(String(s||'').toLowerCase());
 const elapsed=ms=>{let n=Math.max(0,Math.floor(ms/1000)),h=Math.floor(n/3600),m=Math.floor((n%3600)/60),s=n%60;return [h,m,s].map(v=>String(v).padStart(2,'0')).join(':')};
 const cls=s=>{s=String(s||'').toLowerCase();return s==='completed'?'success':s==='failed'||s==='stalled'?'error':s==='cancelled'?'warning':'live'};
+
+function readTokenValue(value){
+ if(!value)return '';
+ let v=String(value).trim();
+ try{const parsed=JSON.parse(v);if(typeof parsed==='string')v=parsed;else if(parsed&&typeof parsed==='object')v=String(parsed.token||parsed.accessToken||parsed.access_token||'')}catch(_){ }
+ return v.replace(/^Bearer\s+/i,'').trim();
+}
+function authHeaders(){
+ const headers={Accept:'application/json','Cache-Control':'no-cache'};
+ const candidates=[];
+ try{['adminToken','admin_token','superAdminToken','super_admin_token','accessToken','access_token','token'].forEach(k=>{candidates.push(localStorage.getItem(k));candidates.push(sessionStorage.getItem(k))})}catch(_){ }
+ candidates.push(window.VEXA_ACCOUNT_ADMIN_TOKEN,window.VEXA_SUPER_ADMIN_TOKEN,window.vexaAdminToken,window.vexaSuperAdminToken);
+ for(const candidate of candidates){const token=readTokenValue(candidate);if(token){headers.Authorization=`Bearer ${token}`;break}}
+ return headers;
+}
 
 function ensure(){
  if(state.panel)return state.panel;
@@ -35,19 +51,20 @@ function hide(){const p=ensure();p.classList.remove('visible','min');state.minim
 function render(op){const p=ensure(),status=String(op.status||'running').toLowerCase(),c=cls(status),events=Array.isArray(op.events)?op.events.slice(-MAX_EVENTS):[],percent=Math.max(0,Math.min(100,Number(op.progress)||0));p.classList.remove('success','error','warning','live');p.classList.add(c);p.querySelector('[data-phase]').textContent=String(op.phase||'RUNNING').replace(/[_-]+/g,' ');p.querySelector('[data-detail]').textContent=op.detail||'';p.querySelector('[data-percent]').textContent=percent+'%';p.querySelector('[data-bar]').style.width=percent+'%';p.querySelector('[data-id]').textContent=op.id||'—';p.querySelector('[data-side-id]').textContent=op.id||'—';p.querySelector('[data-status]').textContent=status.toUpperCase();p.querySelector('[data-count]').textContent=String(events.length);p.querySelector('[data-live]').textContent=isTerminal(status)?status.toUpperCase():'LIVE';p.querySelector('[data-result]').textContent=op.error?String(op.error):op.result?JSON.stringify(op.result,null,2):op.detail||'Operation is running.';p.querySelector('[data-result]').className='vo-result '+(c==='success'?'ok':c==='error'?'err':'');p.querySelector('[data-cancel]').hidden=isTerminal(status);p.querySelector('[data-check-server]').className='vo-check ok';p.querySelector('[data-check-state]').className='vo-check live';p.querySelector('[data-check-worker]').className='vo-check '+(op.lastHeartbeatAt?'live':'');p.querySelector('[data-check-result]').className='vo-check '+(isTerminal(status)?(c==='success'?'ok':c==='error'?'err':'live'):'');
  const log=p.querySelector('[data-log]');const key=events.map(e=>(e.at||'')+'|'+(e.detail||'')+'|'+(e.progress??'')).join('\n');if(log.dataset.key!==key){log.dataset.key=key;log.innerHTML=events.length?events.map(e=>{const t=e.at?new Date(e.at).toLocaleTimeString([], {hour12:false}):'--:--:--';return `<div class="vo-event"><span class="vo-time">${esc(t)}</span><span class="vo-phase-e">${esc(e.phase||'SYSTEM')}</span><span class="vo-detail-e">${esc(e.detail||'')}</span><span class="vo-prog">${Number(e.progress)||0}%</span></div>`}).join(''):'<div style="padding:22px;color:#53687e">Waiting for server events…</div>';if(!state.minimized)log.scrollTop=log.scrollHeight}
 }
-function startClock(){if(state.timer)return;state.timer=setInterval(()=>{const id=state.activeId,w=state.watchers.get(id);if(!w)return;const end=w.op?.completedAt?new Date(w.op.completedAt).getTime():Date.now();const start=w.op?.startedAt?new Date(w.op.startedAt).getTime():w.startedAt||Date.now();const el=ensure().querySelector('[data-elapsed]');if(el)el.textContent=elapsed(end-start)},250)}
+function startClock(){if(state.timer)return;state.timer=setInterval(()=>{const id=state.activeId,w=state.watchers.get(id);if(!w)return;const end=w.op?.completedAt?new Date(w.op.completedAt).getTime():Date.now();const start=w.op?.startedAt?new Date(w.op.startedAt).getTime():w.startedAt||Date.now();const el=ensure().querySelector('[data-elapsed]');if(el)el.textContent=elapsed(end-start)},1000)}
 function stopClock(){if(state.timer){clearInterval(state.timer);state.timer=null}}
-async function getState(id){const ctl=new AbortController(),to=setTimeout(()=>ctl.abort('timeout'),REQUEST_TIMEOUT_MS);try{const r=await fetch(`${API}/api/sso-application-analyzer/operations/${encodeURIComponent(id)}`,{headers:{Accept:'application/json','Cache-Control':'no-cache'},cache:'no-store',signal:ctl.signal});if(!r.ok)throw new Error(`Operation status HTTP ${r.status}`);return await r.json()}finally{clearTimeout(to)}}
-function watch(id,options={}){if(!id)return null;show();state.activeId=id;startClock();let w=state.watchers.get(id);if(w){w.options={...w.options,...options};return w.promise}w={op:null,startedAt:Date.now(),busy:false,stopped:false,options};state.watchers.set(id,w);
- const loop=async()=>{if(w.stopped)return; if(w.busy){setTimeout(loop,POLL_MS);return}w.busy=true;try{const data=await getState(id);if(data?.success&&data.operation){w.op=data.operation;state.activeId=id;render(w.op);if(options.onUpdate)options.onUpdate(w.op);if(isTerminal(w.op.status)){w.stopped=true;if(options.onComplete)options.onComplete(w.op);state.watchers.delete(id);state.activeId=null;setTimeout(()=>{if(!state.watchers.size)stopClock()},3500);return}}}catch(err){if(err?.name!=='AbortError'){const p=ensure();p.querySelector('[data-log-state]').textContent='RETRYING SERVER STATE';p.querySelector('[data-detail]').textContent='Status request timed out; operation continues on the server.'}}finally{w.busy=false}if(!w.stopped)setTimeout(loop,POLL_MS)};
+async function getState(id){const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),REQUEST_TIMEOUT_MS);try{const r=await fetch(`${API}/api/sso-application-analyzer/operations/${encodeURIComponent(id)}`,{headers:authHeaders(),credentials:'include',cache:'no-store',signal:ctl.signal});if(!r.ok){const e=new Error(`Operation status HTTP ${r.status}`);e.status=r.status;throw e}return await r.json()}finally{clearTimeout(to)}}
+function setConnection(message,terminal=false){const p=ensure();p.querySelector('[data-log-state]').textContent=message;p.querySelector('[data-check-state]').className='vo-check '+(terminal?'':'live');if(terminal)p.querySelector('[data-check-state]').className='vo-check';}
+function watch(id,options={}){if(!id)return null;show();state.activeId=id;startClock();let w=state.watchers.get(id);if(w){w.options={...w.options,...options};return w.promise}w={op:null,startedAt:Date.now(),busy:false,stopped:false,options:{...options}};state.watchers.set(id,w);
+ const loop=async()=>{if(w.stopped)return;w.busy=true;try{const data=await getState(id);if(data?.success&&data.operation){w.op=data.operation;state.activeId=id;render(w.op);setConnection('SERVER LIVE');if(w.options.onUpdate)w.options.onUpdate(w.op);if(isTerminal(w.op.status)){w.stopped=true;if(w.options.onComplete)w.options.onComplete(w.op);state.watchers.delete(id);state.activeId=null;setTimeout(()=>{if(!state.watchers.size)stopClock()},3500);return}}}catch(err){if(err?.status===401||err?.status===403){setConnection(err.status===401?'AUTHENTICATION REQUIRED':'SUPER ADMIN ACCESS REQUIRED',true);const p=ensure();p.querySelector('[data-detail]').textContent='Live operation access was rejected. The server job is not cancelled.';p.querySelector('[data-check-server]').className='vo-check';}else{setConnection('RECONNECTING');const p=ensure();p.querySelector('[data-detail]').textContent='Temporary status connection loss. Operation continues on the server.'}}finally{w.busy=false}if(!w.stopped)setTimeout(loop,POLL_MS)};
 w.promise=loop();return w.promise}
-async function cancelActive(){const id=state.activeId;if(!id)return;try{const r=await fetch(`${API}/api/sso-application-analyzer/operations/${encodeURIComponent(id)}/cancel`,{method:'POST',headers:{Accept:'application/json','Content-Type':'application/json'},body:'{}',cache:'no-store'});if(!r.ok)throw new Error(`Cancel HTTP ${r.status}`);const w=state.watchers.get(id);if(w)w.options.cancelRequested=true}catch(e){ensure().querySelector('[data-detail]').textContent='Cancel request failed; server operation remains protected.'}}
+async function cancelActive(){const id=state.activeId;if(!id)return;try{const r=await fetch(`${API}/api/sso-application-analyzer/operations/${encodeURIComponent(id)}/cancel`,{method:'POST',headers:{...authHeaders(),'Content-Type':'application/json'},credentials:'include',body:'{}',cache:'no-store'});if(!r.ok){const e=new Error(`Cancel HTTP ${r.status}`);e.status=r.status;throw e}const w=state.watchers.get(id);if(w)w.options.cancelRequested=true}catch(e){const p=ensure();p.querySelector('[data-detail]').textContent=e.status===401?'Authentication required to cancel this operation.':'Cancel request failed; server operation remains protected.'}}
 function begin(label='Owner OS operation',type='operation'){show();const id='local-'+Date.now();render({id,type,label,status:'running',phase:'STARTING',progress:0,detail:label,events:[],startedAt:new Date().toISOString()});return id}
-function setPhase(phase,progress,detail){const p=ensure();p.querySelector('[data-phase]').textContent=String(phase||'RUNNING').replace(/[_-]+/g,' ');if(progress!=null){p.querySelector('[data-percent]').textContent=Math.max(0,Math.min(100,Number(progress)))+'%';p.querySelector('[data-bar]').style.width=Math.max(0,Math.min(100,Number(progress)))+'%'}if(detail)p.querySelector('[data-detail]').textContent=detail}
+function setPhase(phase,progress,detail){const p=ensure();p.querySelector('[data-phase]').textContent=String(phase||'RUNNING').replace(/[_-]+/g,' ');if(progress!=null){const n=Math.max(0,Math.min(100,Number(progress)));p.querySelector('[data-percent]').textContent=n+'%';p.querySelector('[data-bar]').style.width=n+'%'}if(detail)p.querySelector('[data-detail]').textContent=detail}
 function step(detail,progress){setPhase('RUNNING',progress,detail)}
 function complete(result){setPhase('COMPLETE',100,'Operation completed successfully');const p=ensure();p.querySelector('[data-status]').textContent='COMPLETED';p.querySelector('[data-result]').textContent=result?JSON.stringify(result,null,2):'Completed successfully.'}
 function fail(error){setPhase('FAILED',100,String(error||'Operation failed'));const p=ensure();p.querySelector('[data-status]').textContent='FAILED';p.querySelector('[data-result]').textContent=String(error||'Operation failed')}
-function status(id){const w=state.watchers.get(id);return w?.op||null}
+function status(id){return state.watchers.get(id)?.op||null}
 window.vexaOwnerProcess={ensure,show,hide,minimize:toggleMin,begin,setPhase,step,complete,fail,watch,cancel:cancelActive,status};
 window.addEventListener('pagehide',()=>{for(const w of state.watchers.values())w.stopped=true;state.watchers.clear();stopClock()},{once:true});
 })();
