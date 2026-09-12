@@ -14,18 +14,23 @@ function terminal(status) { return ['completed', 'failed', 'cancelled', 'stalled
 
 function create({ type, label = type, run }) {
   if (typeof run !== 'function') throw new TypeError('Owner operation requires a run function');
+  const controller = new AbortController();
   const operation = {
     id: id(), type: clean(type, 'owner-operation'), label: clean(label, type), status: 'queued', phase: 'QUEUED',
     progress: 0, detail: 'Queued', events: [], result: null, error: null,
     createdAt: new Date().toISOString(), startedAt: null, completedAt: null,
-    lastHeartbeatAt: null, cancelRequested: false
+    lastHeartbeatAt: null, cancelRequested: false, controller
   };
   jobs.set(operation.id, operation);
   setImmediate(() => execute(operation, run));
   return snapshot(operation);
 }
 
-function snapshot(operation) { return JSON.parse(JSON.stringify(operation)); }
+function snapshot(operation) {
+  const copy = { ...operation };
+  delete copy.controller;
+  return JSON.parse(JSON.stringify(copy));
+}
 function get(operationId) {
   const operation = jobs.get(String(operationId || ''));
   return operation ? snapshot(operation) : null;
@@ -63,7 +68,10 @@ function context(operation) {
       heartbeat(operation);
       emit(operation, phase, detail, operation.progress);
     },
-    heartbeat(detail) { if (operation.cancelRequested || operation.controller.signal.aborted) throw Object.assign(new Error('Owner operation cancelled'), { code: 'OWNER_OPERATION_CANCELLED' }); heartbeat(operation, detail); },
+    heartbeat(detail) {
+      if (operation.cancelRequested || operation.controller.signal.aborted) throw Object.assign(new Error('Owner operation cancelled'), { code: 'OWNER_OPERATION_CANCELLED' });
+      heartbeat(operation, detail);
+    },
     isCancelled() { return operation.cancelRequested || operation.controller.signal.aborted; }
   };
 }
@@ -90,12 +98,16 @@ function subscribe(operationId, listener) {
   if (!subscribers.has(key)) subscribers.set(key, new Set());
   subscribers.get(key).add(listener);
   try { listener(snapshot(operation), null); } catch (_) {}
-  return () => { const set = subscribers.get(key); if (!set) return; set.delete(listener); if (!set.size) subscribers.delete(key); };
+  return () => {
+    const set = subscribers.get(key);
+    if (!set) return;
+    set.delete(listener);
+    if (!set.size) subscribers.delete(key);
+  };
 }
 
 async function execute(operation, run) {
   if (operation.status === 'cancelled') return;
-  operation.controller = new AbortController();
   operation.status = 'running';
   operation.startedAt = new Date().toISOString();
   operation.lastHeartbeatAt = operation.startedAt;
@@ -113,7 +125,7 @@ async function execute(operation, run) {
     if (runtimeAge > MAX_RUNTIME_MS) {
       operation.status = 'failed'; operation.phase = 'TIMEOUT'; operation.detail = `Owner operation exceeded the ${Math.round(MAX_RUNTIME_MS / 60000)} minute runtime limit`; operation.error = { message: operation.detail, status: 504, code: 'OWNER_OPERATION_TIMEOUT' }; operation.completedAt = new Date().toISOString(); operation.controller.abort(new Error(operation.detail)); emit(operation, 'TIMEOUT', operation.detail, operation.progress); return;
     }
-    if (now - Date.parse(operation.lastHeartbeatAt || operation.createdAt) >= HEARTBEAT_MS) heartbeat(operation, 'Server worker heartbeat');
+    heartbeat(operation);
   }, HEARTBEAT_MS);
   try {
     const result = await run(context(operation));
