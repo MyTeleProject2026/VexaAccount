@@ -21,16 +21,20 @@ router.get('/operations/:operationId', (req,res)=>{
 });
 
 router.get('/operations/:operationId/stream', (req,res)=>{
-  const operation=ownerOperation.get(req.params.operationId);
+  const operationId=String(req.params.operationId||'');
+  const operation=ownerOperation.get(operationId);
   if(!operation)return res.status(404).json({success:false,message:'Owner operation not found or expired'});
   res.status(200);
   res.set({'Content-Type':'text/event-stream; charset=utf-8','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no'});
   if(typeof res.flushHeaders==='function')res.flushHeaders();
-  const send=(snapshot,event)=>{res.write(`event: ${event?.kind||'state'}\ndata: ${JSON.stringify({operation:snapshot,event:event||null})}\n\n`);};
-  send(operation,null);
-  const unsubscribe=ownerOperation.subscribe(req.params.operationId,(snapshot,event)=>{send(snapshot,event);if(['completed','failed','cancelled','stalled'].includes(snapshot.status)){clearInterval(keepAlive);unsubscribe();try{res.end();}catch(_){}}});
-  const keepAlive=setInterval(()=>{try{res.write(': heartbeat\n\n');}catch(_){clearInterval(keepAlive);unsubscribe();}},15000);
-  req.on('close',()=>{clearInterval(keepAlive);unsubscribe();});
+  let closed=false;
+  let keepAlive=null;
+  let unsubscribe=()=>{};
+  const close=()=>{if(closed)return;closed=true;if(keepAlive)clearInterval(keepAlive);unsubscribe();try{res.end();}catch(_) {}};
+  const send=(snapshot,event)=>{if(closed)return;try{res.write(`event: ${event?.kind||'state'}\ndata: ${JSON.stringify({operation:snapshot,event:event||null})}\n\n`);}catch(_){close();}};
+  unsubscribe=ownerOperation.subscribe(operationId,(snapshot,event)=>{send(snapshot,event);if(['completed','failed','cancelled','stalled'].includes(String(snapshot.status||'').toLowerCase()))close();});
+  keepAlive=setInterval(()=>{if(closed)return;try{res.write(': heartbeat\n\n');}catch(_){close();}},15000);
+  req.on('close',close);
 });
 
 router.post('/operations/:operationId/cancel', auditAdminAction('sso.owner.operation.cancel','sso_owner_operation'), (req,res)=>{const operation=ownerOperation.cancel(req.params.operationId);if(!operation)return res.status(404).json({success:false,message:'Owner operation not found or expired'});res.json({success:true,operation});});
