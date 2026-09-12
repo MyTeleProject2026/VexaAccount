@@ -37,6 +37,7 @@ router.get('/operations/:operationId/stream', (req,res)=>{
   let closed=false;
   let keepAlive=null;
   let unsubscribe=()=>{};
+  const terminalStatus=status=>['completed','failed','cancelled','stalled'].includes(String(status||'').toLowerCase());
   const close=()=>{
     if(closed)return;
     closed=true;
@@ -44,33 +45,31 @@ router.get('/operations/:operationId/stream', (req,res)=>{
     unsubscribe();
     try{res.end();}catch(_){ }
   };
+  const flush=()=>{try{if(typeof res.flush==='function')res.flush();}catch(_){}};
   const send=(snapshot,event)=>{
     if(closed)return;
     try{
       res.write(`event: ${event?.kind||'state'}\ndata: ${JSON.stringify({operation:snapshot,event:event||null})}\n\n`);
-      if(typeof res.flush==='function')res.flush();
+      flush();
     }catch(_){close();}
   };
 
-  // Send a complete authoritative snapshot immediately. This guarantees that a
-  // newly opened EventSource has visible state even if worker events happened
-  // before the browser established the stream.
-  send(operation,null);
-  if(['completed','failed','cancelled','stalled'].includes(String(operation.status||'').toLowerCase())){
-    close();
-    return;
-  }
-
+  // subscribe() immediately replays the authoritative snapshot. This avoids a
+  // race where analysis starts before EventSource connects and the UI waits for
+  // the next worker event before displaying anything.
   unsubscribe=ownerOperation.subscribe(operationId,(snapshot,event)=>{
     send(snapshot,event);
-    if(['completed','failed','cancelled','stalled'].includes(String(snapshot.status||'').toLowerCase()))close();
+    if(terminalStatus(snapshot.status))close();
   });
+
+  if(closed)return;
   keepAlive=setInterval(()=>{
     if(closed)return;
-    try{res.write(': heartbeat\n\n');if(typeof res.flush==='function')res.flush();}catch(_){close();}
+    try{res.write(': heartbeat\n\n');flush();}catch(_){close();}
   },15000);
   keepAlive.unref?.();
   req.on('close',close);
+  res.on('close',close);
 });
 
 router.post('/operations/:operationId/cancel', auditAdminAction('sso.owner.operation.cancel','sso_owner_operation'), (req,res)=>{const operation=ownerOperation.cancel(req.params.operationId);if(!operation)return res.status(404).json({success:false,message:'Owner operation not found or expired'});res.json({success:true,operation});});
