@@ -92,7 +92,10 @@ function stopClock(){if(state.timer){clearInterval(state.timer);state.timer=null
 function authFetch(url,options={}){
  const ctl=new AbortController();const timer=setTimeout(()=>ctl.abort(),REQUEST_TIMEOUT_MS);
  const opts={...options,credentials:'include',cache:'no-store',signal:ctl.signal,headers:{...authHeaders(),...(options.headers||{})}};
- return fetch(url,opts).finally(()=>clearTimeout(timer));
+ const nativeFetch=window.__VEXA_OWNER_NATIVE_FETCH__;
+ const transport=typeof nativeFetch==='function'?nativeFetch:(typeof window.fetch==='function'?window.fetch.bind(window):null);
+ if(!transport){clearTimeout(timer);return Promise.reject(new Error('Native browser fetch is unavailable.'));}
+ return transport(url,opts).finally(()=>clearTimeout(timer));
 }
 async function getState(id){
  try{
