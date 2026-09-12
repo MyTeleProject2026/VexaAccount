@@ -6,10 +6,15 @@ const SYSTEM_C_TIMEOUT_MS = 15000;
 
 function timeoutFor(path) {
   const value = String(path || '');
+
+  // Long-lived event streams must never be terminated by the normal request deadline.
+  // The operation engine owns liveness and its watchdog closes stalled workers.
+  if (value.startsWith('/api/sso-application-analyzer/operations/') && value.endsWith('/stream')) return 0;
+  if (value === '/api/system-c/stream') return 0;
+
   if (value.startsWith('/api/sso-application-analyzer/')) return ANALYZER_TIMEOUT_MS;
   if (value.startsWith('/api/sso-application-kit/')) return KIT_TIMEOUT_MS;
   if (value.startsWith('/api/sso-integration/deploy')) return DEPLOY_TIMEOUT_MS;
-  if (value === '/api/system-c/stream') return 0;
   if (value.startsWith('/api/system-c/')) return SYSTEM_C_TIMEOUT_MS;
   if (value.startsWith('/api/auth/super-admin/') || value.startsWith('/api/owner/') || value.startsWith('/api/sso-registry/')) return DEFAULT_TIMEOUT_MS;
   return 0;
