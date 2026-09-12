@@ -11,11 +11,10 @@ const POLL_DELAY_MS=900;
 const REQUEST_TIMEOUT_MS=4500;
 const MAX_EVENTS=100;
 const TERMINAL=new Set(['completed','failed','cancelled','stalled']);
-const state={panel:null,activeId:null,watchers:new Map(),timer:null,pollTimer:null,pollInFlight:false,minimized:false};
+const state={panel:null,activeId:null,watchers:new Map(),timer:null,pollTimer:null,pollInFlight:false,pollEpoch:0,minimized:false};
 
 const isTerminal=s=>TERMINAL.has(String(s||'').toLowerCase());
 const elapsed=ms=>{let n=Math.max(0,Math.floor(ms/1000)),h=Math.floor(n/3600),m=Math.floor((n%3600)/60),s=n%60;return [h,m,s].map(v=>String(v).padStart(2,'0')).join(':')};
-const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 function readToken(v){
  if(!v)return '';
@@ -31,8 +30,6 @@ function authHeaders(){
  for(const v of values){const t=readToken(v);if(t){h.Authorization='Bearer '+t;break;}}
  return h;
 }
-function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
-
 function ensure(){
  if(state.panel)return state.panel;
  const p=document.createElement('div');p.id='vexa-owner-live-operation';
@@ -97,17 +94,22 @@ function authFetch(url,options={}){
  if(!transport){clearTimeout(timer);return Promise.reject(new Error('Native browser fetch is unavailable.'));}
  return transport(url,opts).finally(()=>clearTimeout(timer));
 }
-async function getState(id){
+async function getState(id,epoch){
  try{
   const r=await authFetch(`${API}/api/sso-application-analyzer/operations/${encodeURIComponent(id)}`);
   const d=await r.json().catch(()=>({}));
+  if(epoch!==state.pollEpoch||id!==state.activeId){const e=new Error('Stale operation response ignored.');e.code='OWNER_OPERATION_STALE';throw e;}
   if(!r.ok||!d.operation){const e=new Error(d.message||`Operation status HTTP ${r.status}`);e.status=r.status;throw e;}
   return d.operation;
- }catch(e){if(e.name==='AbortError'){const x=new Error('Operation status request timed out; retrying without blocking the workspace.');x.code='OWNER_OPERATION_STATUS_TIMEOUT';throw x;}throw e;}
+ }catch(e){
+  if(e.code==='OWNER_OPERATION_STALE')throw e;
+  if(e.name==='AbortError'){const x=new Error('Operation status request timed out; retrying without blocking the workspace.');x.code='OWNER_OPERATION_STATUS_TIMEOUT';throw x;}
+  throw e;
+ }
 }
 function apply(op,onUpdate){
- if(!op)return;
- const id=op.id||state.activeId;state.activeId=id;
+ if(!op||op.id!==state.activeId)return;
+ const id=op.id;state.activeId=id;
  const w=state.watchers.get(id);if(w){w.op=op;}
  show();render(op);clock();if(onUpdate)onUpdate(op);
  if(isTerminal(op.status)){
@@ -117,46 +119,56 @@ function apply(op,onUpdate){
   else w?.onError?.(op.error||{message:op.detail,code:'OWNER_OPERATION_'+String(op.status).toUpperCase()},op);
  }
 }
-function stopPolling(){if(state.pollTimer){clearTimeout(state.pollTimer);state.pollTimer=null;}state.pollInFlight=false}
-function schedulePoll(id){if(state.pollTimer)return;state.pollTimer=setTimeout(()=>{state.pollTimer=null;pollOnce(id).catch(()=>{});},POLL_DELAY_MS)}
-async function pollOnce(id){
- const w=state.watchers.get(id);if(!w||w.terminal||state.pollInFlight)return;
+function stopPolling(){state.pollEpoch++;if(state.pollTimer){clearTimeout(state.pollTimer);state.pollTimer=null;}state.pollInFlight=false;}
+function schedulePoll(id,epoch=state.pollEpoch){if(state.pollTimer||epoch!==state.pollEpoch||id!==state.activeId)return;state.pollTimer=setTimeout(()=>{state.pollTimer=null;pollOnce(id,epoch).catch(()=>{});},POLL_DELAY_MS);}
+async function pollOnce(id,epoch){
+ const w=state.watchers.get(id);if(!w||w.terminal||id!==state.activeId||epoch!==state.pollEpoch||state.pollInFlight)return;
  state.pollInFlight=true;
- try{const op=await getState(id);apply(op,w.onUpdate);if(!isTerminal(op.status))schedulePoll(id);}
+ try{const op=await getState(id,epoch);if(epoch!==state.pollEpoch||id!==state.activeId)return;apply(op,w.onUpdate);if(!isTerminal(op.status))schedulePoll(id,epoch);}
  catch(e){
+  if(e.code==='OWNER_OPERATION_STALE'||epoch!==state.pollEpoch||id!==state.activeId)return;
   if(w.terminal)return;
   w.failures=(w.failures||0)+1;
   const detail=e.status===401||e.status===403?'Owner session is not authorized for live status; retrying.':(e.message||'Live status temporarily unavailable; retrying.');
   const pseudo={id,status:'running',phase:'RECONNECTING',progress:w.op?.progress||0,detail,events:w.op?.events||[],startedAt:w.op?.startedAt||w.startedAt,lastHeartbeatAt:w.op?.lastHeartbeatAt,result:null,error:null};
-  w.op=pseudo;render(pseudo);clock();schedulePoll(id);
+  w.op=pseudo;render(pseudo);clock();schedulePoll(id,epoch);
  }
  finally{state.pollInFlight=false;}
 }
-function startPolling(id){stopPolling();schedulePoll(id)}
+function startPolling(id){stopPolling();const epoch=state.pollEpoch;state.pollInFlight=false;schedulePoll(id,epoch)}
 async function watch(id,opts={}){
- ensure();
- if(!id)return null;
+ ensure();if(!id)return null;
  stopPolling();state.activeId=id;
  const w={id,startedAt:Date.now(),op:null,terminal:false,failures:0,onComplete:opts.onComplete,onError:opts.onError,onUpdate:opts.onUpdate};
  state.watchers.set(id,w);show();startClock();
- try{const op=await getState(id);apply(op,opts.onUpdate);if(!isTerminal(op.status))startPolling(id);}
- catch(e){w.failures=1;render({id,status:'running',phase:'RECONNECTING',progress:0,detail:e.message||'Connecting to operation service…',events:[],startedAt:new Date(w.startedAt).toISOString()});startPolling(id);}
+ const epoch=state.pollEpoch;
+ try{const op=await getState(id,epoch);if(epoch!==state.pollEpoch||id!==state.activeId)return w.op;apply(op,opts.onUpdate);if(!isTerminal(op.status))schedulePoll(id,epoch);}
+ catch(e){if(e.code==='OWNER_OPERATION_STALE'||epoch!==state.pollEpoch||id!==state.activeId)return w.op;w.failures=1;render({id,status:'running',phase:'RECONNECTING',progress:0,detail:e.message||'Connecting to operation service…',events:[],startedAt:new Date(w.startedAt).toISOString()});schedulePoll(id,epoch);}
  return w.op;
 }
 async function cancelActive(){
  const id=state.activeId;if(!id)return;
- const w=state.watchers.get(id);try{
+ const w=state.watchers.get(id);const epoch=state.pollEpoch;state.pollEpoch++;
+ if(state.pollTimer){clearTimeout(state.pollTimer);state.pollTimer=null;}
+ try{
   const r=await authFetch(`${API}/api/sso-application-analyzer/operations/${encodeURIComponent(id)}/cancel`,{method:'POST',headers:{'Content-Type':'application/json'}});
-  const d=await r.json().catch(()=>({}));if(!r.ok||!d.operation)throw new Error(d.message||`Cancel HTTP ${r.status}`);apply(d.operation,w?.onUpdate);
- }catch(e){const op=w?.op||{id,status:'running',phase:'CANCEL',progress:0,events:[]};op.detail='Cancel request failed; operation remains running. '+(e.message||'');render(op);}
+  const d=await r.json().catch(()=>({}));
+  if(id!==state.activeId)return;
+  if(!r.ok||!d.operation)throw new Error(d.message||`Cancel HTTP ${r.status}`);
+  apply(d.operation,w?.onUpdate);
+ }catch(e){
+  if(id!==state.activeId)return;
+  const op=w?.op||{id,status:'running',phase:'CANCEL',progress:0,events:[]};op.detail='Cancel request failed; operation remains running. '+(e.message||'');render(op);
+  if(w&&!w.terminal){state.pollEpoch=epoch+2;schedulePoll(id,state.pollEpoch);}
+ }
 }
 function status(){const w=state.watchers.get(state.activeId);return w?.op||null}
 function ensureAndShow(){show();return ensure()}
-function begin(phase,detail,total){ensureAndShow();const id='local-'+Date.now();const op={id,status:'running',phase:phase||'RUNNING',progress:0,detail:detail||'Working…',events:[],createdAt:new Date().toISOString(),startedAt:new Date().toISOString(),lastHeartbeatAt:new Date().toISOString()};state.watchers.set(id,{id,op,startedAt:Date.now(),terminal:false,total:total||0});state.activeId=id;render(op);startClock();return id}
+function begin(phase,detail,total){ensureAndShow();stopPolling();const id='local-'+Date.now();const op={id,status:'running',phase:phase||'RUNNING',progress:0,detail:detail||'Working…',events:[],createdAt:new Date().toISOString(),startedAt:new Date().toISOString(),lastHeartbeatAt:new Date().toISOString()};state.watchers.set(id,{id,op,startedAt:Date.now(),terminal:false,total:total||0});state.activeId=id;render(op);startClock();return id}
 function setPhase(phase,detail,total){const w=state.watchers.get(state.activeId);if(!w)return;w.op={...(w.op||{}),phase:phase||w.op.phase,detail:detail||w.op.detail};render(w.op)}
 function step(detail,progress){const w=state.watchers.get(state.activeId);if(!w)return;const o=w.op||{};const events=Array.isArray(o.events)?o.events.slice(-MAX_EVENTS):[];events.push({at:new Date().toISOString(),phase:o.phase||'RUNNING',detail:detail||'',progress:Number(progress??o.progress??0),kind:'event'});w.op={...o,events,progress:Number(progress??o.progress??0),detail:detail||o.detail,lastHeartbeatAt:new Date().toISOString()};render(w.op)}
-function complete(detail,result){const w=state.watchers.get(state.activeId);if(!w)return;w.op={...(w.op||{}),status:'completed',phase:'COMPLETE',progress:100,detail:detail||'Operation completed successfully',completedAt:new Date().toISOString(),result:result??null};w.terminal=true;render(w.op);stopPolling()}
-function fail(detail,error){const w=state.watchers.get(state.activeId);if(!w)return;w.op={...(w.op||{}),status:'failed',phase:'ERROR',detail:detail||'Operation failed',error:error||null,completedAt:new Date().toISOString()};w.terminal=true;render(w.op);stopPolling()}
+function complete(detail,result){const w=state.watchers.get(state.activeId);if(!w)return;stopPolling();w.op={...(w.op||{}),status:'completed',phase:'COMPLETE',progress:100,detail:detail||'Operation completed successfully',completedAt:new Date().toISOString(),result:result??null};w.terminal=true;render(w.op)}
+function fail(detail,error){const w=state.watchers.get(state.activeId);if(!w)return;stopPolling();w.op={...(w.op||{}),status:'failed',phase:'ERROR',detail:detail||'Operation failed',error:error||null,completedAt:new Date().toISOString()};w.terminal=true;render(w.op)}
 function minimize(){const p=ensure();state.minimized=true;p.classList.add('min','visible')}
 function hide(){const p=ensure();p.classList.remove('visible','min');state.minimized=false}
 function cancel(){return cancelActive()}
