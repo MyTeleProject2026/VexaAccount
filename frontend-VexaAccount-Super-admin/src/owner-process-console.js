@@ -1,10 +1,10 @@
 (()=>{
 'use strict';
-if(window.__VEXA_OWNER_PROCESS_CONSOLE__)return;
+if(window.__VEXA_OWNER_OPERATION_RUNTIME_V3__||window.__VEXA_OWNER_PROCESS_CONSOLE__)return;
 window.__VEXA_OWNER_PROCESS_CONSOLE__=true;
 const API=()=>String(window.VEXA_ACCOUNT_ADMIN_API_BASE||'https://api-vexaaccount.onrender.com').replace(/\/$/,'');
 const TERMINAL=new Set(['completed','failed','cancelled','stalled']);
-const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const esc=v=>String(v??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
 const $=s=>document.querySelector(s);
 let state={active:false,phase:'READY',detail:'Standing by',startedAt:0,phaseStartedAt:0,progress:0,completed:0,total:0,events:[],operationId:null,operationStatus:null,canCancel:false,result:null,error:null,lastServerUpdate:0};
 let timer=null,pollTimer=null,stream=null,pollInFlight=false;
