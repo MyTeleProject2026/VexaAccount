@@ -13,8 +13,6 @@ const SOURCE_EXT = /\.(js|jsx|ts|tsx|mjs|cjs|json|py|rb|php|go|java|kt|cs|rs|vue
 function fail(message, status = 400) { throw Object.assign(new Error(message), { status }); }
 function repoName(value) {
   let repo = String(value || '').trim();
-  // Accept the repository forms users naturally paste into Owner SSO Control:
-  // owner/repository, github.com/owner/repository, and full HTTPS GitHub URLs.
   repo = repo
     .replace(/^git\+https?:\/\/github\.com\//i, '')
     .replace(/^https?:\/\/github\.com\//i, '')
@@ -32,11 +30,14 @@ function headers() {
   if (!TOKEN) fail('GitHub source analysis is not configured. Set GITHUB_SSO_ANALYZE_TOKEN on the VexaAccount backend.', 503);
   return { Authorization: `Bearer ${TOKEN}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'VexaAccount-Owner-SSO-Analyzer' };
 }
-async function request(method, path) {
+async function request(method, path, ctx) {
   try {
-    const r = await axios({ method, url: API + path, headers: headers(), timeout: 15000, maxContentLength: 2_000_000, maxBodyLength: 2_000_000 });
+    ctx?.heartbeat?.();
+    const r = await axios({ method, url: API + path, headers: headers(), timeout: 15000, maxContentLength: 2_000_000, maxBodyLength: 2_000_000, signal: ctx?.signal });
+    ctx?.heartbeat?.();
     return r.data;
   } catch (e) {
+    if (e?.code === 'ERR_CANCELED' || ctx?.isCancelled?.()) throw Object.assign(new Error('Owner operation cancelled'), { code: 'OWNER_OPERATION_CANCELLED' });
     const status = e.response?.status || 502;
     const message = e.response?.data?.message || e.message || 'GitHub API request failed';
     throw Object.assign(new Error(`GitHub source analysis: ${message}`), { status });
@@ -80,54 +81,71 @@ function buildPlan(files, detected) {
   if (detected.backend === 'Node.js/Express' || detected.backend === 'Node.js/NestJS') operations.push({ path: 'backend entry/router', action: 'mount-generated-vexaaccount-router', reason: 'Additive route registration; do not replace existing auth middleware.' });
   if (detected.frontend === 'React/Vite' || detected.frontend === 'Next.js' || detected.frontend === 'Vue' || detected.frontend === 'Svelte') operations.push({ path: 'frontend auth/login entry', action: 'wire-generated-login-adapter', reason: 'Use backend redirect; never expose client secret or application JWT secret.' });
   return {
-    strategy: 'additive-first',
-    detected,
-    authenticationCandidates: auth.slice(0,30),
-    routeCandidates: routes.slice(0,30),
-    configurationCandidates: config.slice(0,20),
-    filesToAdd: add,
-    filesToReviewBeforeReplacement: review,
-    operations,
+    strategy: 'additive-first', detected, authenticationCandidates: auth.slice(0,30), routeCandidates: routes.slice(0,30), configurationCandidates: config.slice(0,20), filesToAdd: add, filesToReviewBeforeReplacement: review, operations,
     replacementPolicy: 'No automatic whole-file replacement. A target file may be replaced only after its current contents, hash, and integration anchors are reviewed and the Owner explicitly approves installation.',
-    warnings: [
-      'Analysis is read-only; no target repository files are changed by this endpoint.',
-      'Existing authentication files should be patched only after Owner review because the target application owns its session/JWT model.',
-      'Client secrets must remain server-side and the target application JWT secret must never be sent to VexaAccount.',
-      'Third-party browser cookies or raw third-party access tokens are never copied.'
-    ]
+    warnings: ['Analysis is read-only; no target repository files are changed by this endpoint.','Existing authentication files should be patched only after Owner review because the target application owns its session/JWT model.','Client secrets must remain server-side and the target application JWT secret must never be sent to VexaAccount.','Third-party browser cookies or raw third-party access tokens are never copied.']
   };
 }
-async function analyze(input = {}) {
+
+async function analyze(input = {}, ctx) {
   const repository = repoName(input.repository);
-  const meta = await request('GET', `/repos/${repository}`);
+  ctx?.progress?.('REPOSITORY', `Loading repository metadata for ${repository}…`, 5);
+  const meta = await request('GET', `/repos/${repository}`, ctx);
+  ctx?.progress?.('BRANCH', `Resolving default branch and target revision (${input.branch || meta.default_branch})…`, 10);
   const branch = String(input.branch || meta.default_branch || 'main').trim();
   if (!/^[A-Za-z0-9._\/-]{1,100}$/.test(branch) || branch.includes('..')) fail('Invalid target branch');
-  const tree = await request('GET', `/repos/${repository}/git/trees/${encodeURIComponent(branch)}?recursive=1`);
+  ctx?.progress?.('TREE', `Reading ${repository}@${branch} repository tree…`, 15);
+  const tree = await request('GET', `/repos/${repository}/git/trees/${encodeURIComponent(branch)}?recursive=1`, ctx);
   if (!Array.isArray(tree.tree)) fail('GitHub repository tree could not be read', 502);
   const candidates = tree.tree.filter(x => x.type === 'blob' && SOURCE_EXT.test(x.path) && !SECRET_FILE.test(x.path)).slice(0, MAX_FILES);
+  const eligible = candidates.filter(item => Number(item.size || 0) <= MAX_FILE_BYTES);
+  const skippedLarge = candidates.length - eligible.length;
+  ctx?.progress?.('FILES', `Selected ${eligible.length} eligible source files${skippedLarge ? `; skipped ${skippedLarge} oversized files` : ''}.`, 20);
   const files = [];
-  for (const item of candidates) {
-    if (Number(item.size || 0) > MAX_FILE_BYTES) continue;
+  let completed = 0;
+  for (const item of eligible) {
+    if (ctx?.isCancelled?.()) throw Object.assign(new Error('Owner operation cancelled'), { code: 'OWNER_OPERATION_CANCELLED' });
+    const filePercent = 20 + Math.round(((completed / Math.max(1, eligible.length)) * 60));
+    ctx?.progress?.('SOURCE', `Reading ${completed + 1}/${eligible.length}: ${item.path}`, filePercent);
     try {
-      const data = await request('GET', `/repos/${repository}/contents/${item.path}?ref=${encodeURIComponent(branch)}`);
+      const data = await request('GET', `/repos/${repository}/contents/${item.path}?ref=${encodeURIComponent(branch)}`, ctx);
       const text = decode(data.content);
-      files.push({ path: item.path, size: Number(item.size || text.length), findings: classify(item.path, text) });
-    } catch (_) { /* one unreadable source file must not abort the read-only analysis */ }
+      const findings = classify(item.path, text);
+      files.push({ path: item.path, size: Number(item.size || text.length), findings });
+      completed += 1;
+      const progress = 20 + Math.round((completed / Math.max(1, eligible.length)) * 60);
+      ctx?.progress?.('SOURCE', `Inspected ${completed}/${eligible.length}: ${item.path}`, Math.min(80, progress));
+    } catch (error) {
+      if (error?.code === 'OWNER_OPERATION_CANCELLED') throw error;
+      completed += 1;
+      ctx?.event?.('SOURCE SKIP', `Could not read ${item.path}; continuing with remaining sources.`, 20 + Math.round((completed / Math.max(1, eligible.length)) * 60));
+    }
   }
+  ctx?.progress?.('DEPENDENCIES', 'Inspecting package/manifests and detected application stack…', 85);
   const packagePaths = files.map(x => x.path).filter(x => /(^|\/)(package\.json|requirements\.txt|pyproject\.toml|go\.mod|pom\.xml|build\.gradle|Cargo\.toml)$/i.test(x));
   const manifestTexts = [];
   for (const p of packagePaths.slice(0, 6)) {
-    try { const d = await request('GET', `/repos/${repository}/contents/${p}?ref=${encodeURIComponent(branch)}`); manifestTexts.push(decode(d.content)); } catch (_) {}
+    if (ctx?.isCancelled?.()) throw Object.assign(new Error('Owner operation cancelled'), { code: 'OWNER_OPERATION_CANCELLED' });
+    try {
+      const d = await request('GET', `/repos/${repository}/contents/${p}?ref=${encodeURIComponent(branch)}`, ctx);
+      manifestTexts.push(decode(d.content));
+      ctx?.event?.('DEPENDENCY', `Read manifest ${p}`, 87);
+    } catch (error) {
+      if (error?.code === 'OWNER_OPERATION_CANCELLED') throw error;
+      ctx?.event?.('DEPENDENCY SKIP', `Manifest ${p} could not be read; continuing.`, 87);
+    }
   }
   const detected = frameworkFrom(null, files.map(x => x.path), manifestTexts);
-  return {
+  ctx?.progress?.('ANALYSIS', `Classifying authentication, routing and runtime findings for ${files.length} inspected files…`, 92);
+  const result = {
     success: true,
     repository: { name: repository, private: Boolean(meta.private), defaultBranch: meta.default_branch, analyzedBranch: branch, url: meta.html_url },
     limits: { maxFiles: MAX_FILES, maxFileBytes: MAX_FILE_BYTES },
-    summary: { sourceFilesInspected: files.length, treeEntries: tree.tree.length },
-    detected,
+    summary: { sourceFilesInspected: files.length, treeEntries: tree.tree.length }, detected,
     files: files.map(f => ({ path: f.path, size: f.size, findings: f.findings })),
     plan: buildPlan(files, detected)
   };
+  ctx?.progress?.('FINDINGS', `Analysis findings assembled: ${files.length} source files inspected; stack ${detected.backend}/${detected.frontend}.`, 97);
+  return result;
 }
 module.exports = { analyze, repoName };
