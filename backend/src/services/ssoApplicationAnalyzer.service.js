@@ -9,7 +9,7 @@ const MAX_FILE_BYTES = 400_000;
 const SECRET_FILE = /(^|\/)(\.env(?:\..*)?|.*\.pem|.*\.key|.*credentials.*|.*secret.*)$/i;
 const SOURCE_EXT = /\.(js|jsx|ts|tsx|mjs|cjs|json|py|rb|php|go|java|kt|cs|rs|vue|svelte|html|css|yml|yaml)$/i;
 const REQUEST_TIMEOUT_MS = 15_000;
-const REQUEST_HEARTBEAT_MS = 4_000;
+const REQUEST_HEARTBEAT_MS = 2_000;
 const TREE_MAX_BYTES = 20_000_000;
 
 function fail(message, status = 400) { throw Object.assign(new Error(message), { status }); }
@@ -35,12 +35,24 @@ function headers() {
 
 async function request(method, path, ctx, detail = 'Waiting for GitHub…', maxContentLength = 2_000_000) {
   let ticker;
+  let hardTimeout;
+  let timedOut = false;
+  const controller = new AbortController();
+  const parentSignal = ctx?.signal;
+  const abortFromParent = () => controller.abort(parentSignal?.reason || new Error('Owner operation cancelled'));
+  if (parentSignal) {
+    if (parentSignal.aborted) abortFromParent();
+    else parentSignal.addEventListener('abort', abortFromParent, { once: true });
+  }
   try {
     ctx?.heartbeat?.(`GitHub request active: ${detail}`);
     ticker = setInterval(() => {
       try { ctx?.heartbeat?.(`GitHub request active: ${detail}`); } catch (_) {}
     }, REQUEST_HEARTBEAT_MS);
-    ticker.unref?.();
+    hardTimeout = setTimeout(() => {
+      timedOut = true;
+      controller.abort(new Error(`GitHub request exceeded ${REQUEST_TIMEOUT_MS / 1000}s`));
+    }, REQUEST_TIMEOUT_MS);
     const r = await axios({
       method,
       url: API + path,
@@ -48,15 +60,15 @@ async function request(method, path, ctx, detail = 'Waiting for GitHub…', maxC
       timeout: REQUEST_TIMEOUT_MS,
       maxContentLength,
       maxBodyLength: maxContentLength,
-      signal: ctx?.signal
+      signal: controller.signal
     });
     ctx?.heartbeat?.(`GitHub request completed: ${detail}`);
     return r.data;
   } catch (e) {
-    if (e?.code === 'ERR_CANCELED' || ctx?.isCancelled?.()) {
+    if (parentSignal?.aborted || e?.code === 'ERR_CANCELED' && ctx?.isCancelled?.()) {
       throw Object.assign(new Error('Owner operation cancelled'), { code: 'OWNER_OPERATION_CANCELLED' });
     }
-    if (e?.code === 'ECONNABORTED' || e?.code === 'ETIMEDOUT') {
+    if (timedOut || e?.code === 'ECONNABORTED' || e?.code === 'ETIMEDOUT' || /timeout|exceeded/i.test(String(e?.message || ''))) {
       throw Object.assign(new Error(`GitHub source analysis: request timed out after ${REQUEST_TIMEOUT_MS / 1000}s while ${detail}`), { status: 504, code: 'GITHUB_REQUEST_TIMEOUT' });
     }
     if (e?.code === 'ERR_FR_MAX_BODY_LENGTH_EXCEEDED') {
@@ -67,6 +79,8 @@ async function request(method, path, ctx, detail = 'Waiting for GitHub…', maxC
     throw Object.assign(new Error(`GitHub source analysis: ${message}`), { status });
   } finally {
     if (ticker) clearInterval(ticker);
+    if (hardTimeout) clearTimeout(hardTimeout);
+    if (parentSignal) parentSignal.removeEventListener('abort', abortFromParent);
   }
 }
 
