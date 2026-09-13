@@ -1,0 +1,33 @@
+/* Owner OS live-operation workspace must never lock the underlying application. */
+#vexa-owner-live-operation {
+  pointer-events: none !important;
+}
+#vexa-owner-live-operation:before {
+  display: none !important;
+  pointer-events: none !important;
+}
+#vexa-owner-live-operation .vo-shell {
+  inset: auto 18px 18px auto !important;
+  width: min(680px, calc(100vw - 36px)) !important;
+  height: min(430px, calc(100vh - 36px)) !important;
+  max-height: calc(100vh - 36px) !important;
+  pointer-events: auto !important;
+}
+#vexa-owner-live-operation.min .vo-shell {
+  inset: auto 16px 16px auto !important;
+  width: min(430px, calc(100vw - 32px)) !important;
+  height: auto !important;
+}
+@media (max-width: 700px) {
+  #vexa-owner-live-operation .vo-shell,
+  #vexa-owner-live-operation.min .vo-shell {
+    inset: auto 8px 8px 8px !important;
+    width: auto !important;
+    height: min(390px, calc(100vh - 16px)) !important;
+    max-height: calc(100vh - 16px) !important;
+    border-radius: 14px !important;
+  }
+  #vexa-owner-live-operation.min .vo-shell {
+    height: auto !important;
+  }
+}
