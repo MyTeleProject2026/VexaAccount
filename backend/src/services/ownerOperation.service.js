@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const jobs = new Map();
 const subscribers = new Map();
 const MAX_EVENTS = 500;
+const SNAPSHOT_EVENTS = 80;
 const RETAIN_MS = 6 * 60 * 60 * 1000;
 const HEARTBEAT_MS = 5000;
 const STALL_MS = 90 * 1000;
@@ -29,6 +30,9 @@ function create({ type, label = type, run }) {
 function snapshot(operation) {
   const copy = { ...operation };
   delete copy.controller;
+  copy.events = operation.events.slice(-SNAPSHOT_EVENTS);
+  // Large analysis/review results are only transferred after the worker reaches a terminal state.
+  if (!terminal(operation.status)) copy.result = null;
   return JSON.parse(JSON.stringify(copy));
 }
 function get(operationId) {
@@ -131,9 +135,6 @@ async function execute(operation, run) {
     const now = Date.now();
     const heartbeatAge = now - Date.parse(operation.lastHeartbeatAt || operation.startedAt || operation.createdAt);
     const runtimeAge = now - Date.parse(operation.startedAt || operation.createdAt);
-
-    // IMPORTANT: the watchdog must NEVER refresh lastHeartbeatAt itself.
-    // Only the actual worker may heartbeat. Otherwise a dead worker can look alive forever.
     if (heartbeatAge > STALL_MS) {
       operation.status = 'stalled';
       operation.phase = 'STALLED';
