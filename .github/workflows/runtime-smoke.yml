@@ -22,6 +22,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          git fetch origin cb0fe2618b090f1e94017593a5a1b0353467b41e --depth=1
           git restore --source=cb0fe2618b090f1e94017593a5a1b0353467b41e -- .github/workflows/runtime-smoke.yml
           rm -f scripts/one-shot-owner-boot-fix.py .github/workflows/one-shot-owner-boot-fix.yml
           git add frontend-VexaAccount-Super-admin/src/owner-os.js .github/workflows/runtime-smoke.yml scripts/one-shot-owner-boot-fix.py .github/workflows/one-shot-owner-boot-fix.yml
