@@ -11,6 +11,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const COOKIE_SECURE = String(process.env.COOKIE_SECURE || '').toLowerCase() === 'true' || IS_PRODUCTION;
 const COOKIE_SAME_SITE = IS_PRODUCTION ? 'none' : String(process.env.COOKIE_SAME_SITE || 'lax').toLowerCase();
 const COOKIE_DOMAIN = String(process.env.COOKIE_DOMAIN || '').trim() || undefined;
+const OWNER_SESSION_COOKIE = 'vexa_owner_session';
 
 function envFirst(...names) {
   for (const name of names) {
@@ -40,7 +41,11 @@ function sessionCookieOptions() {
 }
 
 function setSessionCookie(res, token) {
-  res.cookie('vexaccount_session', token, sessionCookieOptions());
+  res.cookie(OWNER_SESSION_COOKIE, token, sessionCookieOptions());
+}
+
+function clearSessionCookie(res) {
+  res.clearCookie(OWNER_SESSION_COOKIE, sessionCookieOptions());
 }
 
 function preventSessionCaching(res) {
@@ -98,24 +103,37 @@ router.get('/session', async (req, res) => {
   preventSessionCaching(res);
   try {
     if (!JWT_SECRET) return res.status(503).json({ success: false, message: 'Authentication is not configured' });
-    const token = req.cookies?.vexaccount_session || bearerToken(req);
+    const token = req.cookies?.[OWNER_SESSION_COOKIE] || bearerToken(req);
     if (!token) return res.json({ success: false, message: 'No Super Admin session' });
     const claims = jwt.verify(token, JWT_SECRET);
-    if (claims.role !== 'super_admin' || claims.admin !== true) return res.json({ success: false, message: 'Super Admin session required' });
+    if (claims.role !== 'super_admin' || claims.admin !== true) {
+      clearSessionCookie(res);
+      return res.json({ success: false, message: 'Super Admin session required' });
+    }
     const userId = claims.sub || claims.id;
     const [rows] = await withDeadline(pool.query({
       sql: `SELECT u.id,u.email,u.name,sa.role,sa.is_active FROM store_users u JOIN vexa_super_admins sa ON sa.user_id=u.id WHERE u.id=? AND u.is_active=1 AND sa.is_active=1 LIMIT 1`,
       values: [userId],
       timeout: SESSION_DB_TIMEOUT_MS
     }), SESSION_DB_TIMEOUT_MS, 'Super Admin session lookup timed out');
-    if (!rows.length || rows[0].role !== 'owner') return res.json({ success: false, message: 'Super Admin session required' });
+    if (!rows.length || rows[0].role !== 'owner') {
+      clearSessionCookie(res);
+      return res.json({ success: false, message: 'Super Admin session required' });
+    }
     res.json({ success: true, user: { ...rows[0], role: rows[0].role } });
   } catch (error) {
     if (error?.code === 'VEXA_REQUEST_TIMEOUT' || error?.code === 'PROTOCOL_SEQUENCE_TIMEOUT' || /timeout/i.test(String(error?.message || ''))) {
       return res.status(503).json({ success: false, message: 'Super Admin session lookup timed out. Please retry.' });
     }
+    clearSessionCookie(res);
     res.json({ success: false, message: 'Invalid Super Admin session' });
   }
+});
+
+router.post('/logout', async (req, res) => {
+  preventSessionCaching(res);
+  clearSessionCookie(res);
+  res.json({ success: true, message: 'Super Admin signed out' });
 });
 
 module.exports = router;
