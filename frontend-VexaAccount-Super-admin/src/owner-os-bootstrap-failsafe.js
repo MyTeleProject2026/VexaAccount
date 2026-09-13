@@ -15,6 +15,18 @@ function clearRuntimeOverlay(){
  document.documentElement?.classList.remove('voc-open');
  document.body?.classList.remove('owner-processing','is-loading','loading','voc-open');
 }
+function dispatchSessionState(state){
+ try{window.dispatchEvent(new CustomEvent(state==='authenticated'?'vexa-owner-auth-ready':'vexa-owner-session-lost',{detail:{source:'owner-bootstrap-failsafe',state}}))}catch{}
+}
+function showLogin(message){
+ shown=false;
+ window.__VEXA_OWNER_BOOTING__=false;
+ window.__VEXA_OWNER_BOOT_STATE__='unauthenticated';
+ clearRuntimeOverlay();
+ dispatchSessionState('unauthenticated');
+ if(window.vexaOwnerOS?.showLogin)window.vexaOwnerOS.showLogin(message||'Your Owner session is not active on this device. Sign in to continue.');
+ else window.location.replace(location.pathname+'?owner_session_reset='+Date.now());
+}
 function showRecovery(message){
  if(shown)return;
  shown=true;
@@ -25,13 +37,13 @@ function showRecovery(message){
  const retry=document.getElementById('owner-os-retry');
  const signin=document.getElementById('owner-os-signin');
  if(retry)retry.onclick=()=>{shown=false;recoveryAttempted=false;window.__VEXA_OWNER_BOOTING__=false;window.__VEXA_OWNER_BOOT_STATE__='retrying';clearRuntimeOverlay();window.vexaOwnerOS?.reload?.()};
- if(signin)signin.onclick=()=>{shown=false;recoveryAttempted=false;clearRuntimeOverlay();window.__VEXA_OWNER_BOOTING__=false;window.__VEXA_OWNER_BOOT_STATE__='signin';if(window.vexaOwnerOS?.showLogin){window.vexaOwnerOS.showLogin('Sign in to continue to Owner OS.')}else location.replace(location.pathname+'?owner_session_reset='+Date.now())};
+ if(signin)signin.onclick=()=>{showLogin('Sign in to continue to Owner OS.')};
 }
 async function recover(reason){
  if(!loading()||recoveryAttempted)return;
  recoveryAttempted=true;
  const state=window.__VEXA_OWNER_BOOT_STATE__||'starting';
- if(state==='rendered-gateway'||state==='ready')return;
+ if(state==='rendered-gateway'||state==='ready'||state==='authenticated')return;
  clearRuntimeOverlay();
  try{
   const base=(window.VEXA_ACCOUNT_ADMIN_API_BASE||'https://api-vexaaccount.onrender.com').replace(/\/$/,'');
@@ -43,19 +55,19 @@ async function recover(reason){
   if(r.ok&&d.success){
    window.__VEXA_OWNER_BOOTING__=false;
    window.__VEXA_OWNER_BOOT_STATE__='failsafe-recovery';
+   dispatchSessionState('authenticated');
    if(window.vexaOwnerOS?.reload){
     await window.vexaOwnerOS.reload();
     setTimeout(()=>{if(loading())showRecovery('Owner authentication is valid, but the Owner interface did not finish rendering.')},6000);
    }
    return;
   }
+  if(r.ok&&d.success===false){
+   showLogin(d?.message||'Your Owner session is not active on this device. Sign in to continue.');
+   return;
+  }
   if(r.status===401||r.status===403){
-   shown=false;
-   window.__VEXA_OWNER_BOOTING__=false;
-   window.__VEXA_OWNER_BOOT_STATE__='unauthenticated';
-   clearRuntimeOverlay();
-   if(window.vexaOwnerOS?.showLogin)window.vexaOwnerOS.showLogin('Your Owner session is not active on this device. Sign in to continue.');
-   else window.location.replace(location.pathname+'?owner_session_reset='+Date.now());
+   showLogin('Your Owner session is not active on this device. Sign in to continue.');
    return;
   }
   showRecovery(d?.message||`Owner session verification failed (${r.status}).`);
