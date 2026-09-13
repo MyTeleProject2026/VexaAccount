@@ -8,7 +8,7 @@ const STORE='vexa.owner.async.planner.v2';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $=(s,r=document)=>r.querySelector(s);
 let analysis=null,opId='',kind='',pollTimer=null,polling=false,pollDelay=1400,startedAt=0;
-const save=()=>{try{if(opId)localStorage.setItem(STORE,JSON.stringify({opId,kind,startedAt,repository:$('#vexa-async-planner [data-repo]')?.value||'',branch:$('#vexa-async-planner [data-branch]')?.value||'main',applicationKey:$('#vexa-async-planner [data-key]')?.value||''});}catch(_){}};
+const save=()=>{try{if(opId)localStorage.setItem(STORE,JSON.stringify({opId,kind,startedAt,repository:$('#vexa-async-planner [data-repo]')?.value||'',branch:$('#vexa-async-planner [data-branch]')?.value||'main',applicationKey:$('#vexa-async-planner [data-key]')?.value||''}));}catch(_){}};
 const clearSave=()=>{try{localStorage.removeItem(STORE)}catch(_){} };
 const loadSave=()=>{try{return JSON.parse(localStorage.getItem(STORE)||'null')}catch(_){return null}};
 const api=async(path,opt={})=>{const ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),8500);try{const r=await fetch(API+path,{credentials:'include',cache:'no-store',...opt,signal:ctl.signal,headers:{Accept:'application/json',...(opt.body?{'Content-Type':'application/json'}:{}),...(opt.headers||{})}});const d=await r.json().catch(()=>({}));if(!r.ok||d.success===false)throw Error(d.message||d.error||`Request failed (${r.status})`);return d}finally{clearTimeout(timer)}};
