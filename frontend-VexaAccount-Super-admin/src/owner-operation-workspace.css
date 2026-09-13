@@ -1,0 +1,6 @@
+#vexa-owner-live-operation.owner-operation-full{pointer-events:none!important}
+#vexa-owner-live-operation.owner-operation-full:before{display:none!important}
+#vexa-owner-live-operation.owner-operation-full .vo-shell{inset:0!important;width:100vw!important;height:100dvh!important;max-height:none!important;border-radius:0!important;pointer-events:auto!important;box-shadow:none!important}
+#vexa-owner-live-operation.owner-operation-full .vo-body{min-height:0!important}
+#vexa-owner-live-operation.owner-operation-full .vo-side{width:min(320px,28vw)!important}
+@media(max-width:700px){#vexa-owner-live-operation.owner-operation-full .vo-shell{inset:0!important;width:100vw!important;height:100dvh!important;border-radius:0!important}#vexa-owner-live-operation.owner-operation-full .vo-side{display:none!important}#vexa-owner-live-operation.owner-operation-full .vo-event{grid-template-columns:50px 65px 1fr!important}}
