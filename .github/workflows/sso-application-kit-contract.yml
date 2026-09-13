@@ -24,7 +24,7 @@ jobs:
           node --check backend/src/services/ssoApplicationKit.service.js
           node --check backend/src/services/ssoIntegrationDeployer.service.js
           node --check frontend-VexaAccount-Super-admin/src/sso-application-kit-ui.js
-          node --check frontend-VexaAccount-Super-admin/src/sso-application-planner-ui.js
+          node --check frontend-VexaAccount-Super-admin/src/sso-application-planner-async-v2.js
           node --check frontend-VexaAccount-Super-admin/src/owner-application-kit-actions.js
           node --check frontend-VexaAccount-Super-admin/src/sso-application-integration-builder.js
           node --check frontend-VexaAccount-Super-admin/src/sso-application-builder-launcher.js
@@ -77,13 +77,13 @@ jobs:
           const html=fs.readFileSync('frontend-VexaAccount-Super-admin/index.html','utf8');
           const kit=fs.readFileSync('frontend-VexaAccount-Super-admin/src/sso-application-kit-ui.js','utf8');
           const replacements=fs.readFileSync('frontend-VexaAccount-Super-admin/src/sso-application-kit-replacements-ui.js','utf8');
-          const planner=fs.readFileSync('frontend-VexaAccount-Super-admin/src/sso-application-planner-ui.js','utf8');
+          const planner=fs.readFileSync('frontend-VexaAccount-Super-admin/src/sso-application-planner-async-v2.js','utf8');
           const actions=fs.readFileSync('frontend-VexaAccount-Super-admin/src/owner-application-kit-actions.js','utf8');
           const builder=fs.readFileSync('frontend-VexaAccount-Super-admin/src/sso-application-integration-builder.js','utf8');
           const launcher=fs.readFileSync('frontend-VexaAccount-Super-admin/src/sso-application-builder-launcher.js','utf8');
           const deployer=fs.readFileSync('frontend-VexaAccount-Super-admin/src/sso-github-deployer.js','utf8');
           const loader=fs.readFileSync('frontend-VexaAccount-Super-admin/src/owner-runtime-loader.js','utf8');
-          for(const x of ['sso-application-kit-ui.js','sso-application-kit-replacements-ui.js','owner-application-kit-actions.js','sso-application-planner-ui.js','sso-application-integration-builder.js','sso-application-builder-launcher.js','sso-diagnostics-panel.js','sso-github-deployer.js','owner-runtime-loader.js'])if(!html.includes(x))throw Error('Owner index missing canonical SSO asset: '+x)
+          for(const x of ['sso-application-kit-ui.js','sso-application-kit-replacements-ui.js','owner-application-kit-actions.js','sso-application-planner-async-v2.js','sso-application-integration-builder.js','sso-application-builder-launcher.js','sso-diagnostics-panel.js','sso-github-deployer.js','owner-runtime-loader.js'])if(!html.includes(x))throw Error('Owner index missing canonical SSO asset: '+x)
           for(const x of ['/api/sso-application-analyzer/analyze','/api/sso-application-analyzer/plan','/api/sso-application-kit/generate','kit-admin-mode','No Admin Frontend','hasAdminFrontend'])if(!kit.includes(x))throw Error('Kit UI missing optional-admin topology contract: '+x)
           if(!replacements.includes('/api/sso-application-kit/generate-target-replacements'))throw Error('Target replacement UI missing canonical backend endpoint')
           for(const x of ['__VEXA_LAST_SOURCE_PLAN__','replacementManifestToken','No target files are modified'])if(!replacements.includes(x))throw Error('Target replacement UI safety bridge missing: '+x)
