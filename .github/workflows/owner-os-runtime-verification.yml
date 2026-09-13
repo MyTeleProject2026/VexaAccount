@@ -1,0 +1,50 @@
+name: Owner OS runtime verification
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  owner-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check canonical Owner OS assets and async operation contracts
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const html=fs.readFileSync('frontend-VexaAccount-Super-admin/index.html','utf8');
+          const required=['owner-os.js','owner-os.css','sso-runtime-sync.js','sso-integration-factory-v4.js','sso-github-deployer.js','sso-application-kit-ui.js','owner-application-kit-actions.js','sso-application-planner-async-v2.js','sso-application-integration-builder.js','sso-application-builder-launcher.js','sso-diagnostics-panel.js','owner-sso-security-control-center.js'];
+          for(const file of required) if(!html.includes(file)) throw new Error(`Missing canonical Owner OS asset: ${file}`);
+          const forbidden=['sso-status-sync.js','sso-application-planner-ui.js','owner-console-runtime.js','owner-control-center-loader.js','owner-control-center.js','sso-integration-factory-v3.js'];
+          for(const file of forbidden) if(html.includes(file)) throw new Error(`Obsolete Owner runtime referenced: ${file}`);
+          const planner=fs.readFileSync('frontend-VexaAccount-Super-admin/src/sso-application-planner-async-v2.js','utf8');
+          for(const contract of ['/api/sso-application-analyzer/analyze/async','/api/sso-application-analyzer/plan/async','/api/sso-application-analyzer/operations/','operationId']) if(!planner.includes(contract)) throw new Error(`Async planner contract missing: ${contract}`);
+          if(/window\.fetch\s*=/.test(planner)) throw new Error('Async planner must not replace global fetch');
+          const runtime=fs.readFileSync('frontend-VexaAccount-Super-admin/src/owner-operation-runtime.js','utf8');
+          for(const contract of ['/api/sso-application-analyzer/operations/','cancel','watch']) if(!runtime.includes(contract)) throw new Error(`Operation runtime contract missing: ${contract}`);
+          const boot=fs.readFileSync('frontend-VexaAccount-Super-admin/src/owner-os.js','utf8');
+          if(!boot.includes('/api/auth/super-admin/session')) throw new Error('Owner session contract missing');
+          if(!boot.includes('Promise.allSettled')) throw new Error('Owner startup must hydrate independent resources without serial blocking');
+          NODE
+      - name: Check JavaScript syntax
+        run: |
+          node --check frontend-VexaAccount-Super-admin/src/sso-application-planner-async-v2.js
+          node --check frontend-VexaAccount-Super-admin/src/owner-operation-runtime.js
+          node --check frontend-VexaAccount-Super-admin/src/owner-operation-workspace-ui.js
+          node --check frontend-VexaAccount-Super-admin/src/owner-operation-nonblocking-guard.js
+          node --check frontend-VexaAccount-Super-admin/src/owner-os.js
+      - name: Reject document-wide operation observers
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          for(const file of ['owner-operation-nonblocking-guard.js','owner-operation-workspace-ui.js']){
+            const s=fs.readFileSync('frontend-VexaAccount-Super-admin/src/'+file,'utf8');
+            if(/observe\(document\.documentElement/.test(s)) throw new Error(`Document-wide observer remains in ${file}`);
+          }
+          NODE
