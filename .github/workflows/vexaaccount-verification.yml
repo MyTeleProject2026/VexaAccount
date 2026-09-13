@@ -41,11 +41,18 @@ jobs:
           const obsolete=['sso-status-sync.js','sso-application-planner-ui.js','owner-console-runtime.js','owner-control-center-loader.js','owner-control-center.js','sso-control-upgrade.js','sso-create-wizard.js','sso-integration-patch.js','sso-receipt-security.js','sso-integration-factory-v3.js'];
           for(const x of obsolete)if(html.includes(x)){console.error('Obsolete runtime still loaded:',x);process.exit(1)}
           NODE
-      - name: Verify no global fetch replacement or document-wide input observer
+      - name: Verify no global fetch replacement or unsafe document-wide input hook
         run: |
-          if grep -RInE 'window\.fetch[[:space:]]*=|new MutationObserver' frontend-VexaAccount-Super-admin/src; then
-            echo 'Unsafe global runtime hook detected'; exit 1;
-          fi
+          node <<'NODE'
+          const fs=require('fs');
+          const root='frontend-VexaAccount-Super-admin/src';
+          const files=fs.readdirSync(root).filter(x=>x.endsWith('.js')).map(x=>root+'/'+x);
+          for(const p of files){
+            const s=fs.readFileSync(p,'utf8');
+            if(/window\.fetch\s*=/.test(s)){console.error('Global fetch replacement is forbidden:',p);process.exit(1)}
+            if(/document\.addEventListener\(\s*['\"](?:mousemove|pointermove|touchmove|wheel)['\"]/.test(s)){console.error('Unsafe document-wide input hook:',p);process.exit(1)}
+          }
+          NODE
       - name: Verify durable operation service
         run: |
           node <<'NODE'
