@@ -61,6 +61,13 @@ jobs:
           NODE
       - name: Verify canonical Owner runtime has no unsafe global input hooks
         run: |
-          if grep -RInE 'document\.addEventListener\(("|\x27)(mousemove|pointermove|touchmove)' frontend-VexaAccount-Super-admin/src/owner-operation-*.js frontend-VexaAccount-Super-admin/src/owner-source-repair*.js 2>/dev/null; then
-            echo 'Unsafe document-wide input hook detected in Owner operation runtime'; exit 1;
-          fi
+          node <<'NODE'
+          const fs=require('fs');
+          const root='frontend-VexaAccount-Super-admin/src';
+          const files=fs.readdirSync(root).filter(x=>x.endsWith('.js')).map(x=>root+'/'+x);
+          for(const p of files){
+            const s=fs.readFileSync(p,'utf8');
+            if(/window\.fetch\s*=/.test(s)){console.error('Global fetch replacement is forbidden:',p);process.exit(1)}
+            if(/document\.addEventListener\(\s*['\"](?:mousemove|pointermove|touchmove|wheel)['\"]/.test(s)){console.error('Unsafe document-wide input hook:',p);process.exit(1)}
+          }
+          NODE
