@@ -19,15 +19,56 @@
   height: auto !important;
 }
 @media (max-width: 700px) {
+  /* Never turn the mobile monitor into a full-screen modal. */
   #vexa-owner-live-operation .vo-shell,
   #vexa-owner-live-operation.min .vo-shell {
-    inset: auto 8px 8px 8px !important;
-    width: auto !important;
-    height: min(390px, calc(100vh - 16px)) !important;
-    max-height: calc(100vh - 16px) !important;
+    inset: auto 8px 8px auto !important;
+    width: min(340px, calc(100vw - 16px)) !important;
+    height: min(300px, 48vh) !important;
+    max-height: 48vh !important;
     border-radius: 14px !important;
   }
   #vexa-owner-live-operation.min .vo-shell {
+    width: min(300px, calc(100vw - 16px)) !important;
     height: auto !important;
+  }
+  #vexa-owner-live-operation .vo-head {
+    height: 52px !important;
+    flex-basis: 52px !important;
+    padding: 0 10px !important;
+  }
+  #vexa-owner-live-operation .vo-title {
+    font-size: 11px !important;
+  }
+  #vexa-owner-live-operation .vo-actions {
+    gap: 4px !important;
+  }
+  #vexa-owner-live-operation .vo-btn {
+    padding: 6px 7px !important;
+    font-size: 9px !important;
+  }
+  #vexa-owner-live-operation .vo-overview {
+    padding: 9px 10px 8px !important;
+  }
+  #vexa-owner-live-operation .vo-phase {
+    font-size: 15px !important;
+  }
+  #vexa-owner-live-operation .vo-percent {
+    font-size: 17px !important;
+  }
+  #vexa-owner-live-operation .vo-log,
+  #vexa-owner-live-operation .vo-log-head {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+  #vexa-owner-live-operation .vo-log {
+    font-size: 9px !important;
+  }
+  #vexa-owner-live-operation .vo-event {
+    grid-template-columns: 45px 58px minmax(0,1fr) !important;
+    gap: 5px !important;
+  }
+  #vexa-owner-live-operation .vo-prog {
+    display: none !important;
   }
 }
