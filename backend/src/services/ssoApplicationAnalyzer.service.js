@@ -50,7 +50,6 @@ async function request(method, path, ctx, detail = 'Waiting for GitHub…', maxC
   } finally { if (ticker) clearInterval(ticker); if (hardTimeout) clearTimeout(hardTimeout); if (parentSignal) parentSignal.removeEventListener('abort', abortFromParent); }
 }
 function jsonData(response) { try { return JSON.parse(Buffer.from(response.data).toString('utf8')); } catch (_) { return null; } }
-function decode(content) { return Buffer.from(String(content || ''), 'base64').toString('utf8'); }
 function classify(path, text) {
   const p = path.toLowerCase(); const findings = [];
   if (/(auth|login|session|jwt|oauth|sso|passport|security|middleware|guard|protected)/i.test(p)) findings.push('authentication/security candidate');
@@ -82,81 +81,46 @@ function buildPlan(files, detected) {
 }
 function cacheKey(repository, branch, revision) { return `${repository.toLowerCase()}@${branch}@${revision}`; }
 function cacheSnapshot(repository, branch, revision, sourceFiles) {
-  const key = cacheKey(repository, branch, revision);
-  const entries = new Map();
-  let bytes = 0;
-  for (const file of sourceFiles) {
-    if (!file?.path || !file?.text || file.text.length > MAX_FILE_BYTES) continue;
-    entries.set(file.path, { text: file.text, size: file.size, sha: file.sha || null });
-    bytes += Buffer.byteLength(file.text, 'utf8');
-  }
+  const key = cacheKey(repository, branch, revision); const entries = new Map(); let bytes = 0;
+  for (const file of sourceFiles) { if (!file?.path || !file?.text || file.text.length > MAX_FILE_BYTES) continue; entries.set(file.path, { text: file.text, size: file.size, sha: file.sha || null }); bytes += Buffer.byteLength(file.text, 'utf8'); }
   if (!entries.size || bytes > SNAPSHOT_CACHE_MAX_BYTES) return;
-  const previous = snapshotCache.get(key);
-  if (previous) snapshotCacheBytes -= previous.bytes;
-  snapshotCache.set(key, { repository, branch, revision, entries, bytes, createdAt: Date.now(), lastUsedAt: Date.now() });
-  snapshotCacheBytes += bytes;
-  while (snapshotCacheBytes > SNAPSHOT_CACHE_MAX_BYTES && snapshotCache.size) {
-    const oldest = [...snapshotCache.entries()].sort((a,b) => a[1].lastUsedAt - b[1].lastUsedAt)[0];
-    snapshotCache.delete(oldest[0]); snapshotCacheBytes -= oldest[1].bytes;
-  }
+  const previous = snapshotCache.get(key); if (previous) snapshotCacheBytes -= previous.bytes;
+  snapshotCache.set(key, { repository, branch, revision, entries, bytes, createdAt: Date.now(), lastUsedAt: Date.now() }); snapshotCacheBytes += bytes;
+  while (snapshotCacheBytes > SNAPSHOT_CACHE_MAX_BYTES && snapshotCache.size) { const oldest = [...snapshotCache.entries()].sort((a,b) => a[1].lastUsedAt - b[1].lastUsedAt)[0]; snapshotCache.delete(oldest[0]); snapshotCacheBytes -= oldest[1].bytes; }
 }
 function getSnapshot(repository, branch, revision) {
-  const key = cacheKey(repository, branch, revision); const cached = snapshotCache.get(key);
-  if (!cached) return null;
+  const key = cacheKey(repository, branch, revision); const cached = snapshotCache.get(key); if (!cached) return null;
   if (Date.now() - cached.createdAt > SNAPSHOT_CACHE_TTL_MS) { snapshotCache.delete(key); snapshotCacheBytes -= cached.bytes; return null; }
-  cached.lastUsedAt = Date.now();
-  return { repository: cached.repository, branch: cached.branch, revision: cached.revision, entries: cached.entries };
+  cached.lastUsedAt = Date.now(); return { repository: cached.repository, branch: cached.branch, revision: cached.revision, entries: cached.entries };
+}
+function getLatestSnapshot(repository, branch) {
+  const normalized = repository.toLowerCase(); const now = Date.now(); let latest = null;
+  for (const [key,cached] of snapshotCache) {
+    if (cached.repository.toLowerCase() !== normalized || cached.branch !== branch) continue;
+    if (now - cached.createdAt > SNAPSHOT_CACHE_TTL_MS) { snapshotCache.delete(key); snapshotCacheBytes -= cached.bytes; continue; }
+    if (!latest || cached.createdAt > latest.createdAt) latest = cached;
+  }
+  if (!latest) return null; latest.lastUsedAt = now; return { repository: latest.repository, branch: latest.branch, revision: latest.revision, entries: latest.entries };
 }
 
 async function analyze(input = {}, ctx) {
   const repository = repoName(input.repository);
   ctx?.progress?.('REPOSITORY', `Loading repository metadata for ${repository}…`, 5);
-  const metaResponse = await request('GET', `/repos/${repository}`, ctx, `loading repository metadata for ${repository}`);
-  const meta = jsonData(metaResponse);
-  if (!meta) fail('GitHub repository metadata could not be decoded', 502);
-  if (ctx?.isCancelled?.()) throw Object.assign(new Error('Owner operation cancelled'), { code: 'OWNER_OPERATION_CANCELLED' });
-
-  const branch = String(input.branch || meta.default_branch || 'main').trim();
-  ctx?.progress?.('BRANCH', `Resolving target branch ${branch}…`, 10);
+  const metaResponse = await request('GET', `/repos/${repository}`, ctx, `loading repository metadata for ${repository}`); const meta = jsonData(metaResponse);
+  if (!meta) fail('GitHub repository metadata could not be decoded', 502); if (ctx?.isCancelled?.()) throw Object.assign(new Error('Owner operation cancelled'), { code: 'OWNER_OPERATION_CANCELLED' });
+  const branch = String(input.branch || meta.default_branch || 'main').trim(); ctx?.progress?.('BRANCH', `Resolving target branch ${branch}…`, 10);
   if (!/^[A-Za-z0-9._\/-]{1,100}$/.test(branch) || branch.includes('..')) fail('Invalid target branch');
-  const refResponse = await request('GET', `/repos/${repository}/git/ref/heads/${encodeURIComponent(branch)}`, ctx, `resolving branch ${branch}`);
-  const ref = jsonData(refResponse); const treeSha = ref?.object?.sha;
+  const refResponse = await request('GET', `/repos/${repository}/git/ref/heads/${encodeURIComponent(branch)}`, ctx, `resolving branch ${branch}`); const ref = jsonData(refResponse); const treeSha = ref?.object?.sha;
   if (!treeSha) fail(`GitHub did not return a tree revision for ${repository}@${branch}`, 502);
-
   ctx?.progress?.('ARCHIVE', `Downloading one repository snapshot for ${repository}@${branch}…`, 16);
-  const archiveResponse = await request('GET', `/repos/${repository}/zipball/${encodeURIComponent(treeSha)}`, ctx, `downloading repository snapshot for ${repository}@${branch}`, MAX_ARCHIVE_BYTES);
-  const archive = Buffer.from(archiveResponse.data);
+  const archiveResponse = await request('GET', `/repos/${repository}/zipball/${encodeURIComponent(treeSha)}`, ctx, `downloading repository snapshot for ${repository}@${branch}`, MAX_ARCHIVE_BYTES); const archive = Buffer.from(archiveResponse.data);
   if (archive.length > MAX_ARCHIVE_BYTES) fail(`Repository snapshot exceeds the ${Math.round(MAX_ARCHIVE_BYTES / 1_000_000)}MB analysis limit`, 413);
-
   ctx?.progress?.('SCAN', 'Extracting and indexing source files locally…', 25);
   const zip = new AdmZip(archive); const entries = zip.getEntries(); const files = []; const manifestTexts = []; const sourceSnapshot = [];
   const candidates = entries.filter(entry => !entry.isDirectory && entry.entryName && SOURCE_EXT.test(entry.entryName) && !SECRET_FILE.test(entry.entryName) && !SKIP_PATH.test(entry.entryName)).slice(0, MAX_FILES);
-  for (let i = 0; i < candidates.length; i += 1) {
-    if (ctx?.isCancelled?.()) throw Object.assign(new Error('Owner operation cancelled'), { code: 'OWNER_OPERATION_CANCELLED' });
-    const entry = candidates[i]; const path = entry.entryName.replace(/^[^/]+\//, ''); const raw = entry.getData();
-    if (raw.length > MAX_FILE_BYTES) continue;
-    const text = raw.toString('utf8'); const findings = classify(path, text);
-    files.push({ path, size: raw.length, findings });
-    sourceSnapshot.push({ path, size: raw.length, text });
-    if (/(^|\/)(package\.json|requirements\.txt|pyproject\.toml|go\.mod|pom\.xml|build\.gradle|Cargo\.toml)$/i.test(path)) manifestTexts.push(text);
-    if (i % 5 === 0 || i === candidates.length - 1) ctx?.progress?.('SCAN', `Inspected ${files.length}/${candidates.length} source candidates locally: ${path}`, 25 + Math.round(((i + 1) / Math.max(1, candidates.length)) * 55));
-  }
-
-  ctx?.progress?.('ANALYSIS', `Classifying authentication, routing and runtime findings for ${files.length} inspected files…`, 85);
-  const detected = frameworkFrom(null, files.map(x => x.path), manifestTexts);
-  cacheSnapshot(repository, branch, treeSha, sourceSnapshot);
-  const result = {
-    success: true,
-    repository: { name: repository, private: Boolean(meta.private), defaultBranch: meta.default_branch, analyzedBranch: branch, revision: treeSha, url: meta.html_url },
-    limits: { maxFiles: MAX_FILES, maxFileBytes: MAX_FILE_BYTES, maxArchiveBytes: MAX_ARCHIVE_BYTES },
-    summary: { sourceFilesInspected: files.length, treeEntries: entries.length, treeTruncated: false, acquisition: 'single-repository-archive' },
-    detected,
-    files,
-    plan: buildPlan(files, detected),
-    sourceSnapshot: { availableForOwnerPlanning: true, ttlSeconds: SNAPSHOT_CACHE_TTL_MS / 1000, repositoryRevision: treeSha }
-  };
-  ctx?.progress?.('FINDINGS', `Analysis findings assembled: ${files.length} source files inspected; stack ${detected.backend}/${detected.frontend}.`, 97);
-  return result;
+  for (let i = 0; i < candidates.length; i += 1) { if (ctx?.isCancelled?.()) throw Object.assign(new Error('Owner operation cancelled'), { code: 'OWNER_OPERATION_CANCELLED' }); const entry = candidates[i]; const path = entry.entryName.replace(/^[^/]+\//, ''); const raw = entry.getData(); if (raw.length > MAX_FILE_BYTES) continue; const text = raw.toString('utf8'); const findings = classify(path, text); files.push({ path, size: raw.length, findings }); sourceSnapshot.push({ path, size: raw.length, text }); if (/(^|\/)(package\.json|requirements\.txt|pyproject\.toml|go\.mod|pom\.xml|build\.gradle|Cargo\.toml)$/i.test(path)) manifestTexts.push(text); if (i % 5 === 0 || i === candidates.length - 1) ctx?.progress?.('SCAN', `Inspected ${files.length}/${candidates.length} source candidates locally: ${path}`, 25 + Math.round(((i + 1) / Math.max(1, candidates.length)) * 55)); }
+  ctx?.progress?.('ANALYSIS', `Classifying authentication, routing and runtime findings for ${files.length} inspected files…`, 85); const detected = frameworkFrom(null, files.map(x => x.path), manifestTexts); cacheSnapshot(repository, branch, treeSha, sourceSnapshot);
+  const result = { success:true, repository:{name:repository,private:Boolean(meta.private),defaultBranch:meta.default_branch,analyzedBranch:branch,revision:treeSha,url:meta.html_url}, limits:{maxFiles:MAX_FILES,maxFileBytes:MAX_FILE_BYTES,maxArchiveBytes:MAX_ARCHIVE_BYTES}, summary:{sourceFilesInspected:files.length,treeEntries:entries.length,treeTruncated:false,acquisition:'single-repository-archive'}, detected, files, plan:buildPlan(files,detected), sourceSnapshot:{availableForOwnerPlanning:true,ttlSeconds:SNAPSHOT_CACHE_TTL_MS/1000,repositoryRevision:treeSha} };
+  ctx?.progress?.('FINDINGS', `Analysis findings assembled: ${files.length} source files inspected; stack ${detected.backend}/${detected.frontend}.`, 97); return result;
 }
-
-module.exports = { analyze, repoName, getSnapshot };
+module.exports={ analyze, repoName, getSnapshot, getLatestSnapshot };
