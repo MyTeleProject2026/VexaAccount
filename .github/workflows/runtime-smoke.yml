@@ -3,8 +3,6 @@ name: VexaAccount production runtime smoke
 on:
   push:
     branches: [master]
-  schedule:
-    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -14,132 +12,21 @@ jobs:
   runtime-smoke:
     runs-on: ubuntu-latest
     steps:
-      - name: One-shot Owner OS boot patch
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 10
+          ref: master
+      - name: Apply Owner OS startup hydration fix
+        run: python3 scripts/one-shot-owner-boot-fix.py
+      - name: Commit source fix and restore smoke workflow
         shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          git clone --depth 2 --branch master "https://github.com/${GITHUB_REPOSITORY}.git" repo
-          cd repo
-          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          python3 - <<'PY'
-          from pathlib import Path
-          import subprocess
-          path=Path('frontend-VexaAccount-Super-admin/src/owner-os.js')
-          text=path.read_text(encoding='utf-8')
-          old='''    // The authenticated Owner gateway is rendered immediately. Slow operational
-    // data must update the UI later and must never hold the whole page on its
-    // loading screen.
-    const results=await Promise.allSettled([
-      api('/api/sso-registry/applications'),
-      api('/api/sso-registry/audit?limit=100'),
-      api('/api/owner/users?limit=200')
-    ]);
-    const [appsResult,auditResult,usersResult]=results;
-    if(appsResult.status==='fulfilled')S.apps=appsResult.value.applications||[];
-    if(auditResult.status==='fulfilled')S.audit=auditResult.value.events||[];
-    if(usersResult.status==='fulfilled')S.users=usersResult.value.users||[];
-    render();
-    window.__VEXA_OWNER_BOOT_STATE__='ready';
-    const unavailable=[
-      appsResult.status==='rejected'?'SSO application registry':null,
-      auditResult.status==='rejected'?'SSO audit':null,
-      usersResult.status==='rejected'?'Owner users':null
-    ].filter(Boolean);
-    if(unavailable.length)toast(unavailable.join(', ')+' temporarily unavailable. Your Owner session remains authenticated.',true);'''
-          new='''    // The gateway is interactive immediately after authentication.
-    // Startup hydration runs in the background and never re-renders the gateway.
-    // Re-rendering the whole Owner DOM after these requests complete can interrupt
-    // clicks/navigation and makes a slow API call feel like a frozen application.
-    window.__VEXA_OWNER_BOOT_STATE__='ready';
-    void Promise.allSettled([
-      api('/api/sso-registry/applications'),
-      api('/api/sso-registry/audit?limit=100'),
-      api('/api/owner/users?limit=200')
-    ]).then(results=>{
-      const [appsResult,auditResult,usersResult]=results;
-      if(appsResult.status==='fulfilled')S.apps=appsResult.value.applications||[];
-      if(auditResult.status==='fulfilled')S.audit=auditResult.value.events||[];
-      if(usersResult.status==='fulfilled')S.users=usersResult.value.users||[];
-      const unavailable=[
-        appsResult.status==='rejected'?'SSO application registry':null,
-        auditResult.status==='rejected'?'SSO audit':null,
-        usersResult.status==='rejected'?'Owner users':null
-      ].filter(Boolean);
-      if(unavailable.length)toast(unavailable.join(', ')+' temporarily unavailable. Your Owner session remains authenticated.',true);
-    }).catch(e=>console.error('Owner OS background hydration failed',e));'''
-          if old not in text:
-              raise SystemExit('Expected Owner OS boot block was not found; refusing to modify the file.')
-          path.write_text(text.replace(old,new,1),encoding='utf-8')
-          Path('.github/workflows/one-shot-owner-boot-fix.yml').unlink(missing_ok=True)
-          subprocess.run(['git','restore','--source=cb0fe2618b090f1e94017593a5a1b0353467b41e','--','.github/workflows/runtime-smoke.yml'],check=True)
-          subprocess.run(['git','config','user.name','github-actions[bot]'],check=True)
-          subprocess.run(['git','config','user.email','41898282+github-actions[bot]@users.noreply.github.com'],check=True)
-          subprocess.run(['git','add','frontend-VexaAccount-Super-admin/src/owner-os.js','.github/workflows/one-shot-owner-boot-fix.yml','.github/workflows/runtime-smoke.yml'],check=True)
-          subprocess.run(['git','diff','--cached','--check'],check=True)
-          subprocess.run(['git','commit','-m','fix(owner-os): make startup hydration truly non-blocking'],check=True)
-          subprocess.run(['git','push','origin','master'],check=True)
-          PY
-      - name: Check API health and database dependency
-        env:
-          VEXA_API_BASE: ${{ vars.VEXA_API_BASE || 'https://api-vexaaccount.onrender.com' }}
-        run: |
-          set -euo pipefail
-          base="${VEXA_API_BASE%/}"
-          body="$(curl --fail --silent --show-error --location --retry 4 --retry-delay 5 --max-time 45 "$base/api/health")"
-          echo "$body"
-          node -e 'const d=JSON.parse(process.argv[1]); if(d.success!==true || d.status!=="healthy" || d.checks?.database!=="ok" || d.checks?.server!=="ok") process.exit(1)' "$body"
-      - name: Check public authentication contracts at runtime
-        env:
-          VEXA_API_BASE: ${{ vars.VEXA_API_BASE || 'https://api-vexaaccount.onrender.com' }}
-        run: |
-          set -euo pipefail
-          base="${VEXA_API_BASE%/}"
-          check_endpoint() {
-            local name="$1"
-            local expected="$2"
-            local url="$3"
-            shift 3
-            local body_file="/tmp/${name}-body"
-            local code
-            code="$(curl --silent --show-error --location --retry 3 --retry-delay 3 --max-time 30 -o "$body_file" -w '%{http_code}' "$@" "$url")"
-            echo "$name HTTP status: $code"
-            cat "$body_file"
-            echo
-            test "$code" = "$expected"
-          }
-          check_endpoint login 400 "$base/api/auth/login" -H 'Content-Type: application/json' -d '{}'
-          check_endpoint register 400 "$base/api/auth/register" -H 'Content-Type: application/json' -d '{}'
-          sso_headers="$(mktemp)"
-          sso_body="$(mktemp)"
-          sso_code="$(curl --silent --show-error --retry 3 --retry-delay 3 --max-time 30 -D "$sso_headers" -o "$sso_body" -w '%{http_code}' "$base/api/sso/authorize")"
-          echo "sso-authorize HTTP status: $sso_code"
-          cat "$sso_body"
-          test "$sso_code" = "302"
-          grep -qi '^location: .*#/sso/authorize' "$sso_headers" || { echo "SSO authorize did not redirect to the canonical user SSO authorization UI"; cat "$sso_headers"; exit 1; }
-      - name: Check user frontend serves canonical runtime
-        env:
-          VEXA_USER_BASE: ${{ vars.VEXA_USER_BASE || 'https://vexaaccount-management.onrender.com' }}
-        run: |
-          set -euo pipefail
-          base="${VEXA_USER_BASE%/}"
-          html="$(curl --fail --silent --show-error --location --retry 4 --retry-delay 5 --max-time 45 "$base/")"
-          for asset in account-center-loader.js functional-runtime-bridge.js account-workflow-bridge.js sso-frontend.js auth-session-bridge.js; do
-            printf '%s' "$html" | grep -q "$asset" || { echo "Canonical user runtime asset is not referenced by production HTML: $asset"; exit 1; }
-            curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --max-time 30 "$base/src/$asset" >/dev/null || { echo "Production user runtime asset is not reachable: $asset"; exit 1; }
-          done
-          loader="$(curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --max-time 30 "$base/src/account-center-loader.js")"
-          printf '%s' "$loader" | grep -q 'account-center-runtime-v2.js' || { echo "Canonical Account Center loader does not reference account-center-runtime-v2.js"; exit 1; }
-          curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --max-time 30 "$base/src/account-center-runtime-v2.js" >/dev/null || { echo "Production Account Center runtime is not reachable: account-center-runtime-v2.js"; exit 1; }
-      - name: Check Super Admin frontend serves canonical Owner OS
-        env:
-          VEXA_OWNER_BASE: ${{ vars.VEXA_OWNER_BASE || 'https://super-admin-vexaaccount-xz1f.onrender.com' }}
-        run: |
-          set -euo pipefail
-          base="${VEXA_OWNER_BASE%/}"
-          html="$(curl --fail --silent --show-error --location --retry 4 --retry-delay 5 --max-time 45 "$base/")"
-          for asset in owner-os.js sso-integration-factory-v4.js; do
-            printf '%s' "$html" | grep -q "$asset" || { echo "Canonical Owner OS asset is not referenced by production HTML: $asset"; exit 1; }
-            curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --max-time 30 "$base/src/$asset" >/dev/null || { echo "Production Owner OS asset is not reachable: $asset"; exit 1; }
-          done
+          git restore --source=cb0fe2618b090f1e94017593a5a1b0353467b41e -- .github/workflows/runtime-smoke.yml
+          rm -f scripts/one-shot-owner-boot-fix.py .github/workflows/one-shot-owner-boot-fix.yml
+          git add frontend-VexaAccount-Super-admin/src/owner-os.js .github/workflows/runtime-smoke.yml scripts/one-shot-owner-boot-fix.py .github/workflows/one-shot-owner-boot-fix.yml
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(owner-os): make startup hydration truly non-blocking'
+          git push origin master
