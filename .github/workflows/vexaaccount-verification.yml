@@ -42,7 +42,7 @@ jobs:
           NODE
       - name: Verify no global fetch replacement or document-wide input observer
         run: |
-          if grep -RInE 'window\\.fetch\\s*=|new MutationObserver' frontend-VexaAccount-Super-admin/src; then
+          if grep -RInE 'window\\.fetch[[:space:]]*=|new MutationObserver' frontend-VexaAccount-Super-admin/src; then
             echo 'Unsafe global runtime hook detected'; exit 1;
           fi
       - name: Verify durable operation service
