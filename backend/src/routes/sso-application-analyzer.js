@@ -13,6 +13,13 @@ router.post('/plan', auditAdminAction('sso.application_analyzer.plan','sso_appli
 router.post('/analyze/async', auditAdminAction('sso.application_analyzer.analyze_async','sso_application_analyzer'), (req,res,next)=>{try{const body=req.body||{};const operation=ownerOperation.create({type:'repository-analysis',label:'Repository analysis',run:async ctx=>{const result=await analyze(body,ctx);ctx.progress('ANALYSIS COMPLETE',`Inspected ${result.summary?.sourceFilesInspected??result.files?.length??0} source files and detected the target stack.`,100);return result;}});res.status(202).json({success:true,operation});}catch(e){next(e);}});
 router.post('/plan/async', auditAdminAction('sso.application_analyzer.plan_async','sso_application_analyzer'), (req,res,next)=>{try{const body=req.body||{};const operation=ownerOperation.create({type:'source-review-plan',label:'Source review plan',run:async ctx=>plan(body,ctx)});res.status(202).json({success:true,operation});}catch(e){next(e);}});
 
+router.get('/operations', (req,res)=>{
+  const includeTerminal=String(req.query.includeTerminal ?? 'true').toLowerCase() !== 'false';
+  const limit=Math.max(1,Math.min(100,Number(req.query.limit)||50));
+  res.set('Cache-Control','no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.json({success:true,operations:ownerOperation.list({includeTerminal,limit})});
+});
+
 router.get('/operations/:operationId', (req,res)=>{
   const operation=ownerOperation.get(req.params.operationId);
   if(!operation)return res.status(404).json({success:false,message:'Owner operation not found or expired'});
