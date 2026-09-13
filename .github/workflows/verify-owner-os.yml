@@ -37,9 +37,10 @@ jobs:
           for(const p of [runtime,...files]){if(!fs.existsSync(p)){console.error('Missing runtime:',p);process.exit(1)}}
           const index=fs.readFileSync('frontend-VexaAccount-Super-admin/index.html','utf8');
           if(/owner-process-console\.js/.test(index)){console.error('Legacy process console must not load');process.exit(1)}
-          for(const p of files){const s=fs.readFileSync(p,'utf8');if(/window\.fetch\s*=/.test(s)){console.error('Global fetch replacement is forbidden:',p);process.exit(1)}}
+          const assignment=/\bwindow\.fetch\s*=/;
+          for(const p of files){const s=fs.readFileSync(p,'utf8');if(assignment.test(s)){console.error('Global fetch replacement is forbidden:',p);process.exit(1)}}
           const s=fs.readFileSync(runtime,'utf8');
-          if(/window\.fetch\s*=/.test(s.replace(/\/window\\\.fetch\\s\*=\//g,''))){console.error('Unexpected fetch assignment in operation runtime');process.exit(1)}
+          if(assignment.test(s.replace(/\\/g,'/'))){console.error('Unexpected fetch assignment in operation runtime');process.exit(1)}
           NODE
       - name: Verify async analyzer and planner API contracts
         run: |
