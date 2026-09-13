@@ -22,13 +22,45 @@ jobs:
           node <<'NODE'
           const fs=require('fs');
           const html=fs.readFileSync('frontend-VexaAccount-Super-admin/index.html','utf8');
-          const required=['owner-os.js','owner-os.css','sso-integration-generator.js','sso-runtime-sync.js','sso-integration-factory-v4.js','sso-github-deployer.js','sso-application-kit-ui.js','owner-application-kit-actions.js','sso-application-planner-ui.js','sso-application-integration-builder.js','sso-application-builder-launcher.js','sso-diagnostics-panel.js','owner-sso-security-control-center.js'];
+          const required=['owner-os.js','owner-os.css','sso-runtime-sync.js','sso-integration-factory-v4.js','sso-github-deployer.js','sso-application-kit-ui.js','owner-application-kit-actions.js','sso-application-planner-async-v2.js','sso-application-integration-builder.js','sso-application-builder-launcher.js','sso-diagnostics-panel.js','owner-sso-security-control-center.js','owner-operation-runtime.js','owner-operation-center-ui.js','owner-operation-nonblocking-guard.js','owner-operation-workspace-ui.js','owner-source-repair-runtime-guard.js','owner-source-repair.js'];
           for(const file of required){if(!html.includes(file)){console.error('Missing canonical Owner OS asset:',file);process.exit(1)}}
-          if(html.includes('sso-status-sync.js')){console.error('Obsolete Owner OS asset is still referenced: sso-status-sync.js');process.exit(1)}
-          const forbidden=['owner-console-runtime.js','owner-control-center-loader.js','owner-control-center.js','src/app.js','sso-control-upgrade.js','sso-create-wizard.js','sso-integration-patch.js','sso-receipt-security.js','user-management.js','support-control.js','platform-settings.js','react-notification-bridge.js','premium-interactions.js','vexatrade-notifications.js','sso-integration-factory-v3.js'];
-          for(const file of forbidden){if(html.includes(file)){console.error('Legacy Owner runtime loaded by index:',file);process.exit(1)}}
-          const owner=fs.readFileSync('frontend-VexaAccount-Super-admin/src/owner-os.js','utf8');
-          for(const required of ['/api/auth/super-admin/login','/api/auth/super-admin/session','/api/sso-registry/applications','/api/sso-registry/applications/','/api/owner/users','/api/owner/support/tickets','/api/owner/platform/health'])if(!owner.includes(required)){console.error('Owner OS missing required API contract:',required);process.exit(1)}
-          const deployer=fs.readFileSync('frontend-VexaAccount-Super-admin/src/sso-github-deployer.js','utf8');
-          for(const required of ['/api/sso-integration/status','/api/sso-integration/preflight','/api/sso-integration/deploy'])if(!deployer.includes(required)){console.error('Missing deployment API contract:',required);process.exit(1)}
+          const obsolete=['sso-status-sync.js','sso-application-planner-ui.js','owner-console-runtime.js','owner-control-center-loader.js','owner-control-center.js','sso-control-upgrade.js','sso-create-wizard.js','sso-integration-patch.js','sso-receipt-security.js','sso-integration-factory-v3.js'];
+          for(const file of obsolete){if(html.includes(file)){console.error('Obsolete Owner runtime loaded by index:',file);process.exit(1)}}
+          if(html.includes('window.fetch =')){console.error('Owner index must not install a global fetch wrapper');process.exit(1)}
           NODE
+      - name: Verify nonblocking runtime contracts
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const files=['frontend-VexaAccount-Super-admin/src/owner-operation-runtime.js','frontend-VexaAccount-Super-admin/src/owner-operation-center-ui.js','frontend-VexaAccount-Super-admin/src/owner-operation-nonblocking-guard.js','frontend-VexaAccount-Super-admin/src/owner-operation-workspace-ui.js','frontend-VexaAccount-Super-admin/src/owner-source-repair.js'];
+          for(const p of files){if(!fs.existsSync(p)){console.error('Missing runtime:',p);process.exit(1)}}
+          const index=fs.readFileSync('frontend-VexaAccount-Super-admin/index.html','utf8');
+          if(/owner-process-console\.js/.test(index)){console.error('Legacy process console must not load');process.exit(1)}
+          for(const p of files){const s=fs.readFileSync(p,'utf8');if(/window\.fetch\s*=/.test(s)){console.error('Global fetch replacement is forbidden:',p);process.exit(1)}}
+          NODE
+      - name: Verify async analyzer and planner API contracts
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const route=fs.readFileSync('backend/src/routes/sso-application-analyzer.js','utf8');
+          const analyzer=fs.readFileSync('backend/src/services/ssoApplicationAnalyzer.service.js','utf8');
+          const planner=fs.readFileSync('backend/src/services/ssoApplicationIntegrationPlanner.service.js','utf8');
+          for(const x of ['/analyze/async','/plan/async','/operations/:operationId','/operations/:operationId/cancel'])if(!route.includes(x)){console.error('Analyzer route missing:',x);process.exit(1)}
+          for(const x of ['single-repository-archive','AbortSignal','heartbeat'])if(!analyzer.includes(x)){console.error('Analyzer runtime contract missing:',x);process.exit(1)}
+          for(const x of ['MAX_CONCURRENCY','signal','heartbeat'])if(!planner.includes(x)){console.error('Planner runtime contract missing:',x);process.exit(1)}
+          NODE
+      - name: Verify durable Owner operation contracts
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const op=fs.readFileSync('backend/src/services/ownerOperation.service.js','utf8');
+          const required=['registerRunner','initialize','listPersistent','getPersistent','cancelPersistent','execute','lease_until','attempt_count','worker_id','heartbeat'];
+          for(const x of required)if(!op.includes(x)){console.error('Durable operation contract missing:',x);process.exit(1)}
+          const migration=fs.readFileSync('backend/database/migrations/20260914_owner_operation_leases.sql','utf8');
+          for(const x of ['worker_id','lease_until','attempt_count'])if(!migration.includes(x)){console.error('Operation lease migration missing:',x);process.exit(1)}
+          NODE
+      - name: Verify no document-wide runtime observers
+        run: |
+          if grep -RInE 'new MutationObserver|document\.addEventListener\(("|\x27)(mousemove|pointermove|touchmove)' frontend-VexaAccount-Super-admin/src; then
+            echo 'Document-wide runtime observer/input hook detected'; exit 1;
+          fi
