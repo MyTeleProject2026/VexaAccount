@@ -31,13 +31,20 @@ function snapshot(operation) {
   const copy = { ...operation };
   delete copy.controller;
   copy.events = operation.events.slice(-SNAPSHOT_EVENTS);
-  // Large analysis/review results are only transferred after the worker reaches a terminal state.
   if (!terminal(operation.status)) copy.result = null;
   return JSON.parse(JSON.stringify(copy));
 }
 function get(operationId) {
   const operation = jobs.get(String(operationId || ''));
   return operation ? snapshot(operation) : null;
+}
+function list({ includeTerminal = true, limit = 50 } = {}) {
+  const max = Math.max(1, Math.min(100, Number(limit) || 50));
+  return [...jobs.values()]
+    .filter(operation => includeTerminal || !terminal(operation.status))
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    .slice(0, max)
+    .map(snapshot);
 }
 
 function emit(operation, phase, detail, progress = operation.progress, kind = 'event') {
@@ -210,4 +217,4 @@ setInterval(() => {
   }
 }, 15 * 60 * 1000).unref();
 
-module.exports = { create, get, cancel, subscribe };
+module.exports = { create, get, list, cancel, subscribe };
