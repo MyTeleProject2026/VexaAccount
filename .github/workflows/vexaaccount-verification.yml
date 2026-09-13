@@ -28,7 +28,8 @@ jobs:
           const html=fs.readFileSync('frontend-VexaAccount-user/index.html','utf8');
           const required=['account-center-fetch-guard.js','app.js','auth-session-bridge.js','account-center-toast-guard.js','vexa-notify-bridge.js','functional-runtime-bridge.js','sso-frontend.js','account-center-loader.js','account-workflow-bridge.js','notification-live-runtime.js','pwa.js'];
           for(const x of required)if(!html.includes(x)){console.error('Missing canonical user runtime:',x);process.exit(1)}
-          if((html.match(/account-center-fetch-guard\\.js/g)||[]).length!==1){console.error('User fetch guard must load exactly once');process.exit(1)}
+          const scriptTags=[...html.matchAll(/<script\b[^>]*\bsrc=["']([^"']*account-center-fetch-guard\.js(?:\?[^"']*)?)["'][^>]*>/gi)];
+          if(scriptTags.length!==1){console.error('User fetch guard script tag must load exactly once; found',scriptTags.length);process.exit(1)}
           NODE
       - name: Verify canonical Owner operation runtime
         run: |
@@ -42,7 +43,7 @@ jobs:
           NODE
       - name: Verify no global fetch replacement or document-wide input observer
         run: |
-          if grep -RInE 'window\\.fetch[[:space:]]*=|new MutationObserver' frontend-VexaAccount-Super-admin/src; then
+          if grep -RInE 'window\.fetch[[:space:]]*=|new MutationObserver' frontend-VexaAccount-Super-admin/src; then
             echo 'Unsafe global runtime hook detected'; exit 1;
           fi
       - name: Verify durable operation service
