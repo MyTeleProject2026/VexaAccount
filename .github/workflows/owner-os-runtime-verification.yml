@@ -21,7 +21,7 @@ jobs:
           const html=fs.readFileSync('frontend-VexaAccount-Super-admin/index.html','utf8');
           const required=['owner-os.js','owner-os.css','sso-runtime-sync.js','sso-integration-factory-v4.js','sso-github-deployer.js','sso-application-kit-ui.js','owner-application-kit-actions.js','owner-operation-center-ui.js','owner-operation-center.css','sso-application-planner-async-v2.js','sso-application-integration-builder.js','sso-application-builder-launcher.js','sso-diagnostics-panel.js','owner-sso-security-control-center.js','owner-source-repair.js'];
           for(const file of required) if(!html.includes(file)) throw new Error(`Missing canonical Owner OS asset: ${file}`);
-          const forbidden=['sso-status-sync.js','sso-application-planner-ui.js','owner-console-runtime.js','owner-control-center-loader.js','owner-control-center.js','sso-integration-factory-v3.js'];
+          const forbidden=['sso-status-sync.js','sso-application-planner-ui.js','owner-console-runtime.js','owner-control-center-loader.js','owner-control-center.js','sso-integration-factory-v3.js','owner-process-console.js','owner-process-console.css'];
           for(const file of forbidden) if(html.includes(file)) throw new Error(`Obsolete Owner runtime referenced: ${file}`);
           const planner=fs.readFileSync('frontend-VexaAccount-Super-admin/src/sso-application-planner-async-v2.js','utf8');
           for(const contract of ['/api/sso-application-analyzer/analyze/async','/api/sso-application-analyzer/plan/async','/api/sso-application-analyzer/operations/','opId']) if(!planner.includes(contract)) throw new Error(`Async planner contract missing: ${contract}`);
@@ -35,7 +35,7 @@ jobs:
           const runtime=fs.readFileSync('frontend-VexaAccount-Super-admin/src/owner-operation-runtime.js','utf8');
           for(const contract of ['/api/sso-application-analyzer/operations/','cancel','watch']) if(!runtime.includes(contract)) throw new Error(`Operation runtime contract missing: ${contract}`);
           const service=fs.readFileSync('backend/src/services/ownerOperation.service.js','utf8');
-          if(!service.includes('function list(')||!service.includes('module.exports = { create, get, list, cancel, subscribe }')) throw new Error('Owner operation inventory service contract missing');
+          for(const contract of ['registerRunner','initialize','listPersistent','getPersistent','cancelPersistent','execute','worker_id','lease_until','attempt_count','heartbeat']) if(!service.includes(contract)) throw new Error(`Durable Owner operation contract missing: ${contract}`);
           const route=fs.readFileSync('backend/src/routes/sso-application-analyzer.js','utf8');
           if(!route.includes("router.get('/operations',")||!route.includes('ownerOperation.list')) throw new Error('Authenticated operation inventory route missing');
           const boot=fs.readFileSync('frontend-VexaAccount-Super-admin/src/owner-os.js','utf8');
