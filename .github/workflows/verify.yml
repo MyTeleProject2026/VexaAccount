@@ -125,7 +125,7 @@ jobs:
           for(const file of required){if(!html.includes(file)){console.error('Missing canonical user runtime script:',file);process.exit(1)}}
           const forbidden=['app-v3.js','app-fixed.js','auth-flow-fix.js','account-center-runtime.js','account-center-full-workflows.js','account-center-runtime-bridge.js','account-center-runtime-fix.js','account-center-network-guard.js','account-center-hotfix.js','account-center-live-metrics.js','account-center-ui-stability.js','notification-runtime.js','react-account-center-loader.js','react-account-center.js','vexatrade-toast-runtime.js','vexatrade-toast-compat.js','account-center-action-wiring.js','account-center-enhancements.js'];
           for(const file of forbidden){if(html.includes(file)){console.error('Legacy runtime loaded by user index:',file);process.exit(1)}}
-          if((html.match(/account-center-fetch-guard\.js/g)||[]).length!==1){console.error('Fetch guard must load exactly once');process.exit(1)}
+          if((html.match(/account-center-fetch-guard\\.js/g)||[]).length!==1){console.error('Fetch guard must load exactly once');process.exit(1)}
           const bridge=fs.readFileSync('frontend-VexaAccount-user/src/auth-session-bridge.js','utf8');
           if(!bridge.includes("credentials:'include'")){console.error('Session bridge must send credentials for HttpOnly cookie sessions');process.exit(1)}
           if(!bridge.includes('/api/auth/session')){console.error('Session bridge must validate the canonical session endpoint');process.exit(1)}
@@ -135,14 +135,15 @@ jobs:
           node <<'NODE'
           const fs=require('fs');
           const html=fs.readFileSync('frontend-VexaAccount-Super-admin/index.html','utf8');
-          const required=['owner-os.js','owner-os.css','sso-integration-generator.js','sso-runtime-sync.js','sso-status-sync.js','sso-integration-factory-v4.js','sso-github-deployer.js','sso-application-kit-ui.js','owner-application-kit-actions.js','sso-application-planner-ui.js','sso-application-integration-builder.js','sso-application-builder-launcher.js','sso-diagnostics-panel.js','owner-sso-security-control-center.js'];
+          const required=['owner-os.js','owner-os.css','sso-integration-generator.js','sso-runtime-sync.js','sso-integration-factory-v4.js','sso-github-deployer.js','sso-application-kit-ui.js','owner-application-kit-actions.js','sso-application-planner-ui.js','sso-application-integration-builder.js','sso-application-builder-launcher.js','sso-diagnostics-panel.js','owner-sso-security-control-center.js'];
           for(const file of required){if(!html.includes(file)){console.error('Missing canonical Owner OS SSO asset:',file);process.exit(1)}}
+          if(html.includes('sso-status-sync.js')){console.error('Obsolete Owner OS asset is still referenced: sso-status-sync.js');process.exit(1)}
           const forbidden=['owner-console-runtime.js','owner-control-center-loader.js','owner-control-center.js','src/app.js','sso-control-upgrade.js','sso-create-wizard.js','sso-integration-patch.js','sso-receipt-security.js','user-management.js','support-control.js','platform-settings.js','react-notification-bridge.js','premium-interactions.js','vexatrade-notifications.js','vexatrade-notifications.css','user-management.css','sso-integration-factory-v3.js'];
           for(const file of forbidden){if(html.includes(file)){console.error('Legacy Owner runtime loaded by index:',file);process.exit(1)}}
           const owner=fs.readFileSync('frontend-VexaAccount-Super-admin/src/owner-os.js','utf8');
           for(const required of ['/api/auth/super-admin/login','/api/auth/super-admin/session','/api/sso-registry/applications','/api/sso-registry/applications/','/api/owner/users','/api/owner/support/tickets','/api/owner/platform/health'])if(!owner.includes(required)){console.error('Owner OS missing required API contract:',required);process.exit(1)}
-          if(/localStorage\.(setItem|getItem)\([^)]*clientSecret|sessionStorage\.(setItem|getItem)\([^)]*clientSecret/.test(owner)){console.error('Client secret must not be stored in browser storage');process.exit(1)}
-          if(/location\.(href|assign|replace)[^;\n]*clientSecret/.test(owner)){console.error('Client secret must not be placed in URLs');process.exit(1)}
+          if(/localStorage\\.(setItem|getItem)\\([^)]*clientSecret|sessionStorage\\.(setItem|getItem)\\([^)]*clientSecret/.test(owner)){console.error('Client secret must not be stored in browser storage');process.exit(1)}
+          if(/location\\.(href|assign|replace)[^;\\n]*clientSecret/.test(owner)){console.error('Client secret must not be placed in URLs');process.exit(1)}
           const deployer=fs.readFileSync('frontend-VexaAccount-Super-admin/src/sso-github-deployer.js','utf8');
           for(const required of ['/api/sso-integration/status','/api/sso-integration/preflight','/api/sso-integration/deploy'])if(!deployer.includes(required)){console.error('Missing deployment API contract:',required);process.exit(1)}
           NODE
@@ -159,11 +160,11 @@ jobs:
           node <<'NODE'
           const fs=require('fs');
           const html=fs.readFileSync('frontend-VexaAccount-Super-admin/index.html','utf8');
-          const scripts=[...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)];
+          const scripts=[...html.matchAll(/<script\\b([^>]*)>([\\s\\S]*?)<\\/script>/gi)];
           for(const m of scripts){
             const attrs=m[1]||'';
             const body=(m[2]||'').trim();
-            if(!/\bsrc=/.test(attrs)&&body){
+            if(!/\\bsrc=/.test(attrs)&&body){
               console.error('Owner index must not contain inline JavaScript');
               process.exit(1);
             }
@@ -171,7 +172,7 @@ jobs:
           const files=['owner-runtime-loader.js','owner-login-resilience.js','owner-auth-native-boundary.js','owner-os-runtime-guard.js'];
           for(const file of files){
             const s=fs.readFileSync('frontend-VexaAccount-Super-admin/src/'+file,'utf8');
-            if(/window\.fetch\s*=/.test(s)){
+            if(/window\\.fetch\\s*=/.test(s)){
               console.error('Stacked global fetch wrapper is forbidden:',file);
               process.exit(1);
             }
