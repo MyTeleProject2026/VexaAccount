@@ -7,18 +7,25 @@ on:
     - cron: '*/15 * * * *'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   runtime-smoke:
     runs-on: ubuntu-latest
     steps:
       - name: One-shot Owner OS boot patch
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           git clone --depth 2 --branch master "https://github.com/${GITHUB_REPOSITORY}.git" repo
           cd repo
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           python3 - <<'PY'
           from pathlib import Path
+          import subprocess
           path=Path('frontend-VexaAccount-Super-admin/src/owner-os.js')
           text=path.read_text(encoding='utf-8')
           old='''    // The authenticated Owner gateway is rendered immediately. Slow operational
@@ -66,9 +73,7 @@ jobs:
               raise SystemExit('Expected Owner OS boot block was not found; refusing to modify the file.')
           path.write_text(text.replace(old,new,1),encoding='utf-8')
           Path('.github/workflows/one-shot-owner-boot-fix.yml').unlink(missing_ok=True)
-          Path('.github/workflows/runtime-smoke.yml').unlink()
-          import subprocess
-          subprocess.run(['git','restore','--source=HEAD^','--','.github/workflows/runtime-smoke.yml'],check=True)
+          subprocess.run(['git','restore','--source=cb0fe2618b090f1e94017593a5a1b0353467b41e','--','.github/workflows/runtime-smoke.yml'],check=True)
           subprocess.run(['git','config','user.name','github-actions[bot]'],check=True)
           subprocess.run(['git','config','user.email','41898282+github-actions[bot]@users.noreply.github.com'],check=True)
           subprocess.run(['git','add','frontend-VexaAccount-Super-admin/src/owner-os.js','.github/workflows/one-shot-owner-boot-fix.yml','.github/workflows/runtime-smoke.yml'],check=True)
