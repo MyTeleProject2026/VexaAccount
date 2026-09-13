@@ -2,33 +2,29 @@ name: VexaAccount production runtime smoke
 
 on:
   push:
-    branches: [master]
-  workflow_dispatch:
+    branches: [fix/owner-os-startup-nonblocking]
 
 permissions:
   contents: write
 
 jobs:
-  runtime-smoke:
+  patch-owner-os:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 10
-          ref: master
+          fetch-depth: 20
+          ref: fix/owner-os-startup-nonblocking
       - name: Apply Owner OS startup hydration fix
         run: python3 scripts/one-shot-owner-boot-fix.py
-      - name: Stage source fix on dedicated branch
+      - name: Commit only the source fix
         shell: bash
         run: |
           set -euo pipefail
-          git fetch origin cb0fe2618b090f1e94017593a5a1b0353467b41e --depth=1
-          git restore --source=cb0fe2618b090f1e94017593a5a1b0353467b41e -- .github/workflows/runtime-smoke.yml
           rm -f scripts/one-shot-owner-boot-fix.py .github/workflows/one-shot-owner-boot-fix.yml
-          git add frontend-VexaAccount-Super-admin/src/owner-os.js .github/workflows/runtime-smoke.yml scripts/one-shot-owner-boot-fix.py .github/workflows/one-shot-owner-boot-fix.yml
+          git add frontend-VexaAccount-Super-admin/src/owner-os.js scripts/one-shot-owner-boot-fix.py .github/workflows/one-shot-owner-boot-fix.yml
           git diff --cached --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'fix(owner-os): make startup hydration truly non-blocking'
-          git branch -f fix/owner-os-startup-nonblocking HEAD
-          git push --force origin HEAD:refs/heads/fix/owner-os-startup-nonblocking
+          git push origin HEAD:fix/owner-os-startup-nonblocking
