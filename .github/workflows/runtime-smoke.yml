@@ -18,7 +18,7 @@ jobs:
           ref: master
       - name: Apply Owner OS startup hydration fix
         run: python3 scripts/one-shot-owner-boot-fix.py
-      - name: Commit source fix and restore smoke workflow
+      - name: Stage source fix on dedicated branch
         shell: bash
         run: |
           set -euo pipefail
@@ -30,4 +30,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'fix(owner-os): make startup hydration truly non-blocking'
-          git push origin master
+          git branch -f fix/owner-os-startup-nonblocking HEAD
+          git push --force origin HEAD:refs/heads/fix/owner-os-startup-nonblocking
