@@ -9,8 +9,11 @@ function clearRuntimeOverlay(){
  const el=document.querySelector('#vexa-owner-process');
  if(el){el.classList.remove('show');el.setAttribute('aria-hidden','true');el.style.pointerEvents='none'}
  const op=document.querySelector('#vexa-owner-live-operation');
- if(op){op.classList.remove('visible','owner-operation-full-open');op.style.pointerEvents='none';op.querySelector('.vo-shell')?.style.setProperty('pointer-events','auto','important')}
- document.body?.classList.remove('owner-processing','is-loading','loading');
+ if(op){op.classList.remove('visible','owner-operation-full-open','min');op.setAttribute('aria-hidden','true');op.style.pointerEvents='none';op.querySelector('.vo-shell')?.style.setProperty('pointer-events','auto','important')}
+ const center=document.querySelector('#vexa-owner-operation-center');
+ if(center){center.classList.remove('visible');center.setAttribute('aria-hidden','true');center.style.pointerEvents='none'}
+ document.documentElement?.classList.remove('voc-open');
+ document.body?.classList.remove('owner-processing','is-loading','loading','voc-open');
 }
 function showRecovery(message){
  if(shown)return;
@@ -22,7 +25,7 @@ function showRecovery(message){
  const retry=document.getElementById('owner-os-retry');
  const signin=document.getElementById('owner-os-signin');
  if(retry)retry.onclick=()=>{shown=false;recoveryAttempted=false;window.__VEXA_OWNER_BOOTING__=false;window.__VEXA_OWNER_BOOT_STATE__='retrying';clearRuntimeOverlay();window.vexaOwnerOS?.reload?.()};
- if(signin)signin.onclick=()=>{shown=false;recoveryAttempted=false;clearRuntimeOverlay();window.__VEXA_OWNER_BOOTING__=false;window.__VEXA_OWNER_BOOT_STATE__='signin';location.replace(location.pathname+'?owner_session_reset='+Date.now())};
+ if(signin)signin.onclick=()=>{shown=false;recoveryAttempted=false;clearRuntimeOverlay();window.__VEXA_OWNER_BOOTING__=false;window.__VEXA_OWNER_BOOT_STATE__='signin';if(window.vexaOwnerOS?.showLogin){window.vexaOwnerOS.showLogin('Sign in to continue to Owner OS.')}else location.replace(location.pathname+'?owner_session_reset='+Date.now())};
 }
 async function recover(reason){
  if(!loading()||recoveryAttempted)return;
@@ -46,14 +49,13 @@ async function recover(reason){
    }
    return;
   }
-  // A genuine unauthenticated response should return to the normal Owner login,
-  // not trap the first-time device in a recovery screen.
   if(r.status===401||r.status===403){
    shown=false;
    window.__VEXA_OWNER_BOOTING__=false;
    window.__VEXA_OWNER_BOOT_STATE__='unauthenticated';
-   window.vexaOwnerOS?.showLogin?.();
-   if(!document.querySelector('#owner-login'))window.location.replace(location.pathname+'?owner_session_reset='+Date.now());
+   clearRuntimeOverlay();
+   if(window.vexaOwnerOS?.showLogin)window.vexaOwnerOS.showLogin('Your Owner session is not active on this device. Sign in to continue.');
+   else window.location.replace(location.pathname+'?owner_session_reset='+Date.now());
    return;
   }
   showRecovery(d?.message||`Owner session verification failed (${r.status}).`);
@@ -63,8 +65,6 @@ async function recover(reason){
 }
 function watchdog(){
  if(watchdogTimer)clearTimeout(watchdogTimer);
- // Render/backend cold starts can legitimately take more than 8 seconds. Do not
- // launch a competing session request while the primary Owner boot request is alive.
  if(loading())watchdogTimer=setTimeout(()=>void recover('The Owner session check is taking longer than expected.'),12000);
 }
 window.addEventListener('error',event=>{if(loading()&&!shown)showRecovery('Owner OS frontend error: '+(event?.error?.message||event?.message||'runtime error'))});
