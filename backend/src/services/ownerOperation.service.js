@@ -26,19 +26,21 @@ function registerRunner(type, runner) {
   runners.set(String(type), runner);
 }
 
-async function persist(operation) {
-  try {
-    await pool.execute(`INSERT INTO owner_operations
-      (id,type,label,status,phase,progress,detail,events_json,result_json,error_json,payload_json,created_at,started_at,completed_at,last_heartbeat_at,cancel_requested,worker_id,lease_until,attempt_count,last_error_code)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-      ON DUPLICATE KEY UPDATE type=VALUES(type),label=VALUES(label),status=VALUES(status),phase=VALUES(phase),progress=VALUES(progress),detail=VALUES(detail),events_json=VALUES(events_json),result_json=VALUES(result_json),error_json=VALUES(error_json),payload_json=VALUES(payload_json),created_at=VALUES(created_at),started_at=VALUES(started_at),completed_at=VALUES(completed_at),last_heartbeat_at=VALUES(last_heartbeat_at),cancel_requested=VALUES(cancel_requested),worker_id=VALUES(worker_id),lease_until=VALUES(lease_until),attempt_count=VALUES(attempt_count),last_error_code=VALUES(last_error_code)`,
-      [operation.id, operation.type, operation.label, operation.status, operation.phase, operation.progress, operation.detail,
-        json(operation.events), json(operation.result), json(operation.error), json(operation.payload), sqlDate(operation.createdAt),
-        sqlDate(operation.startedAt), sqlDate(operation.completedAt), sqlDate(operation.lastHeartbeatAt), operation.cancelRequested ? 1 : 0,
-        operation.workerId || null, sqlDate(operation.leaseUntil), Number(operation.attemptCount || 0), operation.lastErrorCode || null]);
-  } catch (error) {
-    console.error('Owner operation persistence failed:', error.message);
-  }
+function persist(operation) {
+  const write = async () => {
+    try {
+      await pool.execute(`INSERT INTO owner_operations
+        (id,type,label,status,phase,progress,detail,events_json,result_json,error_json,payload_json,created_at,started_at,completed_at,last_heartbeat_at,cancel_requested,worker_id,lease_until,attempt_count,last_error_code)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON DUPLICATE KEY UPDATE type=VALUES(type),label=VALUES(label),status=VALUES(status),phase=VALUES(phase),progress=VALUES(progress),detail=VALUES(detail),events_json=VALUES(events_json),result_json=VALUES(result_json),error_json=VALUES(error_json),payload_json=VALUES(payload_json),created_at=VALUES(created_at),started_at=VALUES(started_at),completed_at=VALUES(completed_at),last_heartbeat_at=VALUES(last_heartbeat_at),cancel_requested=VALUES(cancel_requested),worker_id=VALUES(worker_id),lease_until=VALUES(lease_until),attempt_count=VALUES(attempt_count),last_error_code=VALUES(last_error_code)`,
+        [operation.id, operation.type, operation.label, operation.status, operation.phase, operation.progress, operation.detail,
+          json(operation.events), json(operation.result), json(operation.error), json(operation.payload), sqlDate(operation.createdAt),
+          sqlDate(operation.startedAt), sqlDate(operation.completedAt), sqlDate(operation.lastHeartbeatAt), operation.cancelRequested ? 1 : 0,
+          operation.workerId || null, sqlDate(operation.leaseUntil), Number(operation.attemptCount || 0), operation.lastErrorCode || null]);
+    } catch (error) { console.error('Owner operation persistence failed:', error.message); }
+  };
+  operation.persistChain = (operation.persistChain || Promise.resolve()).then(write, write);
+  return operation.persistChain;
 }
 
 function fromRow(row) {
@@ -52,7 +54,8 @@ function fromRow(row) {
     lastHeartbeatAt: row.last_heartbeat_at ? new Date(row.last_heartbeat_at).toISOString() : null,
     cancelRequested: Boolean(row.cancel_requested), workerId: row.worker_id || null,
     leaseUntil: row.lease_until ? new Date(row.lease_until).toISOString() : null,
-    attemptCount: Number(row.attempt_count || 0), lastErrorCode: row.last_error_code || null, controller: null
+    attemptCount: Number(row.attempt_count || 0), lastErrorCode: row.last_error_code || null,
+    controller: null, persistChain: Promise.resolve()
   };
 }
 
@@ -60,6 +63,7 @@ function snapshot(operation) {
   const copy = { ...operation };
   delete copy.controller;
   delete copy.payload;
+  delete copy.persistChain;
   copy.events = operation.events.slice(-SNAPSHOT_EVENTS);
   if (!terminal(operation.status)) copy.result = null;
   return JSON.parse(JSON.stringify(copy));
@@ -72,75 +76,47 @@ function create({ type, label = type, payload = null, run, runnerKey = type }) {
     progress: 0, detail: 'Queued', events: [], result: null, error: null, payload,
     runnerKey: clean(runnerKey, type), createdAt: new Date().toISOString(), startedAt: null, completedAt: null,
     lastHeartbeatAt: null, cancelRequested: false, workerId: null, leaseUntil: null, attemptCount: 0,
-    lastErrorCode: null, controller: new AbortController()
+    lastErrorCode: null, controller: new AbortController(), persistChain: Promise.resolve()
   };
   jobs.set(operation.id, operation);
-  void persist(operation);
   const runner = typeof run === 'function' ? async (payloadValue, ctx) => run(ctx) : runners.get(operation.runnerKey);
-  setImmediate(() => execute(operation, runner));
+  setImmediate(async () => { await persist(operation); await execute(operation, runner); });
   return snapshot(operation);
 }
 
-function get(operationId) {
-  const operation = jobs.get(String(operationId || ''));
-  return operation ? snapshot(operation) : null;
-}
-
+function get(operationId) { const operation = jobs.get(String(operationId || '')); return operation ? snapshot(operation) : null; }
 function list({ includeTerminal = true, limit = 50 } = {}) {
   const max = Math.max(1, Math.min(100, Number(limit) || 50));
-  return [...jobs.values()].filter(o => includeTerminal || !terminal(o.status))
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, max).map(snapshot);
+  return [...jobs.values()].filter(o => includeTerminal || !terminal(o.status)).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, max).map(snapshot);
 }
-
 async function listPersistent({ includeTerminal = true, limit = 50 } = {}) {
   const max = Math.max(1, Math.min(100, Number(limit) || 50));
   const where = includeTerminal ? '' : "WHERE status NOT IN ('completed','failed','cancelled','stalled')";
   const [rows] = await pool.query(`SELECT * FROM owner_operations ${where} ORDER BY created_at DESC LIMIT ${max}`);
   return rows.map(fromRow).map(snapshot);
 }
-
 async function getPersistent(operationId) {
-  const local = get(operationId);
-  if (local) return local;
+  const local = get(operationId); if (local) return local;
   const [rows] = await pool.query('SELECT * FROM owner_operations WHERE id=? LIMIT 1', [String(operationId || '')]);
   return rows.length ? snapshot(fromRow(rows[0])) : null;
 }
 
 function emit(operation, phase, detail, progress = operation.progress, kind = 'event') {
-  const event = { at: new Date().toISOString(), phase: clean(phase, operation.phase || 'RUNNING').toUpperCase(), detail: clean(detail, 'Working…'),
-    progress: Number.isFinite(Number(progress)) ? Math.max(0, Math.min(100, Number(progress))) : operation.progress, kind };
-  operation.events.push(event);
-  if (operation.events.length > MAX_EVENTS) operation.events.splice(0, operation.events.length - MAX_EVENTS);
+  const event = { at: new Date().toISOString(), phase: clean(phase, operation.phase || 'RUNNING').toUpperCase(), detail: clean(detail, 'Working…'), progress: Number.isFinite(Number(progress)) ? Math.max(0, Math.min(100, Number(progress))) : operation.progress, kind };
+  operation.events.push(event); if (operation.events.length > MAX_EVENTS) operation.events.splice(0, operation.events.length - MAX_EVENTS);
   void persist(operation);
-  const listeners = subscribers.get(operation.id);
-  if (listeners) for (const listener of [...listeners]) { try { listener(snapshot(operation), event); } catch (_) {} }
+  const listeners = subscribers.get(operation.id); if (listeners) for (const listener of [...listeners]) { try { listener(snapshot(operation), event); } catch (_) {} }
 }
-
 function heartbeat(operation, detail, emitEvent = false) {
-  operation.lastHeartbeatAt = new Date().toISOString();
-  operation.leaseUntil = new Date(Date.now() + LEASE_MS).toISOString();
-  void persist(operation);
+  operation.lastHeartbeatAt = new Date().toISOString(); operation.leaseUntil = new Date(Date.now() + LEASE_MS); void persist(operation);
   if (emitEvent) emit(operation, operation.phase || 'HEARTBEAT', detail || 'Server worker is alive.', operation.progress, 'heartbeat');
 }
-
 function context(operation) {
   return {
     id: operation.id, signal: operation.controller.signal,
-    progress(phase, detail, progress) {
-      if (operation.cancelRequested || operation.controller.signal.aborted) throw Object.assign(new Error('Owner operation cancelled'), { code: 'OWNER_OPERATION_CANCELLED' });
-      operation.status = 'running'; operation.phase = clean(phase, operation.phase || 'RUNNING').toUpperCase(); operation.detail = clean(detail, 'Working…');
-      if (Number.isFinite(Number(progress))) operation.progress = Math.max(0, Math.min(100, Number(progress)));
-      heartbeat(operation); emit(operation, operation.phase, operation.detail, operation.progress);
-    },
-    event(phase, detail, progress) {
-      if (operation.cancelRequested || operation.controller.signal.aborted) throw Object.assign(new Error('Owner operation cancelled'), { code: 'OWNER_OPERATION_CANCELLED' });
-      if (Number.isFinite(Number(progress))) operation.progress = Math.max(0, Math.min(100, Number(progress)));
-      heartbeat(operation); emit(operation, phase, detail, operation.progress);
-    },
-    heartbeat(detail) {
-      if (operation.cancelRequested || operation.controller.signal.aborted) throw Object.assign(new Error('Owner operation cancelled'), { code: 'OWNER_OPERATION_CANCELLED' });
-      heartbeat(operation, detail, Boolean(detail));
-    },
+    progress(phase, detail, progress) { if (operation.cancelRequested || operation.controller.signal.aborted) throw Object.assign(new Error('Owner operation cancelled'), { code: 'OWNER_OPERATION_CANCELLED' }); operation.status = 'running'; operation.phase = clean(phase, operation.phase || 'RUNNING').toUpperCase(); operation.detail = clean(detail, 'Working…'); if (Number.isFinite(Number(progress))) operation.progress = Math.max(0, Math.min(100, Number(progress))); heartbeat(operation); emit(operation, operation.phase, operation.detail, operation.progress); },
+    event(phase, detail, progress) { if (operation.cancelRequested || operation.controller.signal.aborted) throw Object.assign(new Error('Owner operation cancelled'), { code: 'OWNER_OPERATION_CANCELLED' }); if (Number.isFinite(Number(progress))) operation.progress = Math.max(0, Math.min(100, Number(progress))); heartbeat(operation); emit(operation, phase, detail, operation.progress); },
+    heartbeat(detail) { if (operation.cancelRequested || operation.controller.signal.aborted) throw Object.assign(new Error('Owner operation cancelled'), { code: 'OWNER_OPERATION_CANCELLED' }); heartbeat(operation, detail, Boolean(detail)); },
     isCancelled() { return operation.cancelRequested || operation.controller.signal.aborted; }
   };
 }
@@ -151,66 +127,36 @@ async function acquireLease(operation) {
     await connection.beginTransaction();
     const [rows] = await connection.query('SELECT status,cancel_requested,lease_until,attempt_count FROM owner_operations WHERE id=? FOR UPDATE', [operation.id]);
     if (!rows.length) { await connection.rollback(); return false; }
-    const row = rows[0];
-    const now = Date.now();
-    const leaseUntil = row.lease_until ? Date.parse(new Date(row.lease_until).toISOString()) : 0;
-    if (['completed','failed','cancelled','stalled'].includes(row.status) || row.cancel_requested || (leaseUntil > now && operation.workerId !== WORKER_ID)) {
-      await connection.rollback();
-      return false;
-    }
-    const nextAttempt = Number(row.attempt_count || 0) + 1;
-    const nextLease = new Date(now + LEASE_MS);
-    await connection.query("UPDATE owner_operations SET worker_id=?,lease_until=?,attempt_count=?,status='running',started_at=COALESCE(started_at,?),last_heartbeat_at=? WHERE id=?",
-      [WORKER_ID, nextLease, nextAttempt, new Date(), new Date(), operation.id]);
+    const row = rows[0], now = Date.now(), leaseUntil = row.lease_until ? Date.parse(new Date(row.lease_until).toISOString()) : 0;
+    if (terminal(row.status) || row.cancel_requested || (leaseUntil > now && operation.workerId !== WORKER_ID)) { await connection.rollback(); return false; }
+    const nextAttempt = Number(row.attempt_count || 0) + 1, nextLease = new Date(now + LEASE_MS);
+    await connection.query("UPDATE owner_operations SET worker_id=?,lease_until=?,attempt_count=?,status='running',started_at=COALESCE(started_at,?),last_heartbeat_at=? WHERE id=?", [WORKER_ID, nextLease, nextAttempt, new Date(), new Date(), operation.id]);
     await connection.commit();
-    operation.workerId = WORKER_ID; operation.leaseUntil = nextLease.toISOString(); operation.attemptCount = nextAttempt;
-    operation.status = 'running'; operation.startedAt = operation.startedAt || new Date().toISOString(); operation.lastHeartbeatAt = new Date().toISOString();
+    operation.workerId = WORKER_ID; operation.leaseUntil = nextLease.toISOString(); operation.attemptCount = nextAttempt; operation.status = 'running'; operation.startedAt = operation.startedAt || new Date().toISOString(); operation.lastHeartbeatAt = new Date().toISOString();
     return true;
-  } catch (error) {
-    await connection.rollback();
-    console.error('Owner operation lease acquisition failed:', error.message);
-    return false;
-  } finally { connection.release(); }
+  } catch (error) { await connection.rollback(); console.error('Owner operation lease acquisition failed:', error.message); return false; } finally { connection.release(); }
 }
-
-async function releaseLease(operation, terminalState = false) {
-  try {
-    if (terminalState) await pool.execute('UPDATE owner_operations SET worker_id=NULL,lease_until=NULL WHERE id=? AND worker_id=?', [operation.id, WORKER_ID]);
-    else await pool.execute('UPDATE owner_operations SET lease_until=? WHERE id=? AND worker_id=?', [new Date(Date.now() + LEASE_MS), operation.id, WORKER_ID]);
-  } catch (error) { console.error('Owner operation lease release failed:', error.message); }
+async function releaseLease(operation) {
+  try { await pool.execute('UPDATE owner_operations SET worker_id=NULL,lease_until=NULL WHERE id=? AND worker_id=?', [operation.id, WORKER_ID]); } catch (error) { console.error('Owner operation lease release failed:', error.message); }
 }
 
 async function cancel(operationId) {
-  const idValue = String(operationId || '');
-  const operation = jobs.get(idValue);
-  if (!operation) return cancelPersistent(idValue);
-  if (terminal(operation.status)) return snapshot(operation);
+  const idValue = String(operationId || ''), operation = jobs.get(idValue);
+  if (!operation) return cancelPersistent(idValue); if (terminal(operation.status)) return snapshot(operation);
   operation.cancelRequested = true; operation.controller.abort(new Error('Owner operation cancelled')); void persist(operation);
-  if (operation.status === 'queued') {
-    operation.status = 'cancelled'; operation.phase = 'CANCELLED'; operation.detail = 'Cancelled before execution started'; operation.completedAt = new Date().toISOString();
-    emit(operation, 'CANCELLED', operation.detail, operation.progress);
-  } else emit(operation, 'CANCELLATION REQUESTED', 'Cancellation requested; aborting the active server task.', operation.progress);
+  if (operation.status === 'queued') { operation.status = 'cancelled'; operation.phase = 'CANCELLED'; operation.detail = 'Cancelled before execution started'; operation.completedAt = new Date().toISOString(); emit(operation, 'CANCELLED', operation.detail, operation.progress); }
+  else emit(operation, 'CANCELLATION REQUESTED', 'Cancellation requested; aborting the active server task.', operation.progress);
   return snapshot(operation);
 }
-
 async function cancelPersistent(operationId) {
-  const idValue = String(operationId || '');
-  const local = jobs.get(idValue);
-  if (local) return cancel(idValue);
-  const [rows] = await pool.query('SELECT * FROM owner_operations WHERE id=? LIMIT 1', [idValue]);
-  if (!rows.length) return null;
-  const operation = fromRow(rows[0]);
-  if (terminal(operation.status)) return snapshot(operation);
-  operation.cancelRequested = true; operation.status = 'cancelled'; operation.phase = 'CANCELLED';
-  operation.detail = 'Cancellation requested while worker was disconnected'; operation.completedAt = new Date().toISOString();
-  operation.workerId = null; operation.leaseUntil = null; await persist(operation); return snapshot(operation);
+  const idValue = String(operationId || ''), local = jobs.get(idValue); if (local) return cancel(idValue);
+  const [rows] = await pool.query('SELECT * FROM owner_operations WHERE id=? LIMIT 1', [idValue]); if (!rows.length) return null;
+  const operation = fromRow(rows[0]); if (terminal(operation.status)) return snapshot(operation);
+  operation.cancelRequested = true; operation.status = 'cancelled'; operation.phase = 'CANCELLED'; operation.detail = 'Cancellation requested while worker was disconnected'; operation.completedAt = new Date().toISOString(); operation.workerId = null; operation.leaseUntil = null; await persist(operation); return snapshot(operation);
 }
-
 function subscribe(operationId, listener) {
-  const operation = jobs.get(String(operationId || ''));
-  if (!operation || typeof listener !== 'function') return () => {};
-  const key = operation.id; if (!subscribers.has(key)) subscribers.set(key, new Set()); subscribers.get(key).add(listener);
-  try { listener(snapshot(operation), null); } catch (_) {}
+  const operation = jobs.get(String(operationId || '')); if (!operation || typeof listener !== 'function') return () => {};
+  const key = operation.id; if (!subscribers.has(key)) subscribers.set(key, new Set()); subscribers.get(key).add(listener); try { listener(snapshot(operation), null); } catch (_) {}
   return () => { const set = subscribers.get(key); if (!set) return; set.delete(listener); if (!set.size) subscribers.delete(key); };
 }
 
@@ -221,40 +167,20 @@ async function execute(operation, run) {
   const watchdog = setInterval(() => {
     if (terminal(operation.status)) return;
     const now = Date.now(), heartbeatAge = now - Date.parse(operation.lastHeartbeatAt || operation.startedAt || operation.createdAt), runtimeAge = now - Date.parse(operation.startedAt || operation.createdAt);
-    if (heartbeatAge > STALL_MS) {
-      operation.status = 'stalled'; operation.phase = 'STALLED'; operation.detail = `No worker heartbeat received for ${Math.round(heartbeatAge / 1000)}s`;
-      operation.error = { message: operation.detail, status: 504, code: 'OWNER_OPERATION_STALLED' }; operation.lastErrorCode = 'OWNER_OPERATION_STALLED'; operation.completedAt = new Date().toISOString();
-      operation.controller.abort(new Error(operation.detail)); emit(operation, 'STALLED', operation.detail, operation.progress, 'terminal'); return;
-    }
-    if (runtimeAge > MAX_RUNTIME_MS) {
-      operation.status = 'failed'; operation.phase = 'TIMEOUT'; operation.detail = `Owner operation exceeded the ${Math.round(MAX_RUNTIME_MS / 60000)} minute runtime limit`;
-      operation.error = { message: operation.detail, status: 504, code: 'OWNER_OPERATION_TIMEOUT' }; operation.lastErrorCode = 'OWNER_OPERATION_TIMEOUT'; operation.completedAt = new Date().toISOString();
-      operation.controller.abort(new Error(operation.detail)); emit(operation, 'TIMEOUT', operation.detail, operation.progress, 'terminal');
-    }
+    if (heartbeatAge > STALL_MS) { operation.status = 'stalled'; operation.phase = 'STALLED'; operation.detail = `No worker heartbeat received for ${Math.round(heartbeatAge / 1000)}s`; operation.error = { message: operation.detail, status: 504, code: 'OWNER_OPERATION_STALLED' }; operation.lastErrorCode = 'OWNER_OPERATION_STALLED'; operation.completedAt = new Date().toISOString(); operation.controller.abort(new Error(operation.detail)); emit(operation, 'STALLED', operation.detail, operation.progress, 'terminal'); return; }
+    if (runtimeAge > MAX_RUNTIME_MS) { operation.status = 'failed'; operation.phase = 'TIMEOUT'; operation.detail = `Owner operation exceeded the ${Math.round(MAX_RUNTIME_MS / 60000)} minute runtime limit`; operation.error = { message: operation.detail, status: 504, code: 'OWNER_OPERATION_TIMEOUT' }; operation.lastErrorCode = 'OWNER_OPERATION_TIMEOUT'; operation.completedAt = new Date().toISOString(); operation.controller.abort(new Error(operation.detail)); emit(operation, 'TIMEOUT', operation.detail, operation.progress, 'terminal'); }
   }, HEARTBEAT_MS); watchdog.unref?.();
   try {
     const result = await run(operation.payload, context(operation));
     if (terminal(operation.status)) return;
-    if (operation.cancelRequested || operation.controller.signal.aborted) {
-      operation.status = 'cancelled'; operation.phase = 'CANCELLED'; operation.detail = 'Operation cancelled at a safe server checkpoint'; operation.completedAt = new Date().toISOString();
-      emit(operation, operation.phase, operation.detail, operation.progress, 'terminal'); return;
-    }
-    operation.status = 'completed'; operation.phase = 'COMPLETE'; operation.progress = 100; operation.detail = `${operation.label} completed successfully`;
-    operation.result = result ?? null; operation.completedAt = new Date().toISOString(); operation.lastHeartbeatAt = operation.completedAt;
-    emit(operation, operation.phase, operation.detail, 100, 'terminal');
+    if (operation.cancelRequested || operation.controller.signal.aborted) { operation.status = 'cancelled'; operation.phase = 'CANCELLED'; operation.detail = 'Operation cancelled at a safe server checkpoint'; operation.completedAt = new Date().toISOString(); emit(operation, operation.phase, operation.detail, operation.progress, 'terminal'); return; }
+    operation.status = 'completed'; operation.phase = 'COMPLETE'; operation.progress = 100; operation.detail = `${operation.label} completed successfully`; operation.result = result ?? null; operation.completedAt = new Date().toISOString(); operation.lastHeartbeatAt = operation.completedAt; emit(operation, operation.phase, operation.detail, 100, 'terminal');
   } catch (error) {
     if (operation.status === 'stalled' || operation.status === 'failed') return;
-    if (error?.code === 'OWNER_OPERATION_CANCELLED' || operation.cancelRequested || operation.controller.signal.aborted) {
-      operation.status = 'cancelled'; operation.phase = 'CANCELLED'; operation.detail = 'Operation cancelled by Owner';
-    } else {
-      operation.status = 'failed'; operation.phase = 'ERROR'; operation.detail = clean(error?.message || 'Owner operation failed');
-      operation.error = { message: clean(error?.message || 'Owner operation failed'), status: Number(error?.status) || 500, code: clean(error?.code || 'OWNER_OPERATION_FAILED', 'OWNER_OPERATION_FAILED') };
-      operation.lastErrorCode = operation.error.code;
-    }
+    if (error?.code === 'OWNER_OPERATION_CANCELLED' || operation.cancelRequested || operation.controller.signal.aborted) { operation.status = 'cancelled'; operation.phase = 'CANCELLED'; operation.detail = 'Operation cancelled by Owner'; }
+    else { operation.status = 'failed'; operation.phase = 'ERROR'; operation.detail = clean(error?.message || 'Owner operation failed'); operation.error = { message: clean(error?.message || 'Owner operation failed'), status: Number(error?.status) || 500, code: clean(error?.code || 'OWNER_OPERATION_FAILED', 'OWNER_OPERATION_FAILED') }; operation.lastErrorCode = operation.error.code; }
     operation.completedAt = new Date().toISOString(); emit(operation, operation.phase, operation.detail, operation.progress, 'terminal');
-  } finally {
-    clearInterval(watchdog); await releaseLease(operation, terminal(operation.status));
-  }
+  } finally { clearInterval(watchdog); await releaseLease(operation); }
 }
 
 async function initialize() {
@@ -262,18 +188,10 @@ async function initialize() {
     const [rows] = await pool.query("SELECT * FROM owner_operations WHERE status IN ('queued','running') ORDER BY created_at ASC LIMIT 100");
     for (const row of rows) {
       const operation = fromRow(row);
-      if (operation.cancelRequested) {
-        operation.status = 'cancelled'; operation.phase = 'CANCELLED'; operation.detail = 'Cancelled while Owner OS worker was offline'; operation.completedAt = new Date().toISOString();
-        await persist(operation); continue;
-      }
+      if (operation.cancelRequested) { operation.status = 'cancelled'; operation.phase = 'CANCELLED'; operation.detail = 'Cancelled while Owner OS worker was offline'; operation.completedAt = new Date().toISOString(); await persist(operation); continue; }
       const runner = runners.get(operation.type);
-      if (!runner) {
-        operation.status = 'failed'; operation.phase = 'RECOVERY ERROR'; operation.detail = `No registered worker for operation type ${operation.type}`;
-        operation.error = { message: operation.detail, status: 500, code: 'OWNER_OPERATION_RUNNER_MISSING' }; operation.lastErrorCode = 'OWNER_OPERATION_RUNNER_MISSING'; operation.completedAt = new Date().toISOString();
-        await persist(operation); continue;
-      }
-      operation.controller = new AbortController(); operation.status = 'queued'; operation.phase = 'RECOVERING'; operation.detail = 'Recovered from durable Owner operation store';
-      operation.workerId = null; operation.leaseUntil = null; jobs.set(operation.id, operation); await persist(operation); setImmediate(() => execute(operation, runner));
+      if (!runner) { operation.status = 'failed'; operation.phase = 'RECOVERY ERROR'; operation.detail = `No registered worker for operation type ${operation.type}`; operation.error = { message: operation.detail, status: 500, code: 'OWNER_OPERATION_RUNNER_MISSING' }; operation.lastErrorCode = 'OWNER_OPERATION_RUNNER_MISSING'; operation.completedAt = new Date().toISOString(); await persist(operation); continue; }
+      operation.controller = new AbortController(); operation.status = 'queued'; operation.phase = 'RECOVERING'; operation.detail = 'Recovered from durable Owner operation store'; operation.workerId = null; operation.leaseUntil = null; jobs.set(operation.id, operation); await persist(operation); setImmediate(() => execute(operation, runner));
     }
     console.log(`Owner operation store initialized (${rows.length} recoverable operations)`);
   } catch (error) { console.error('Owner operation store initialization failed:', error.message); }
