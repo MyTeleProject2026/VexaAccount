@@ -68,7 +68,7 @@ jobs:
           curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --max-time 30 "$base/src/account-center-runtime-v2.js" >/dev/null || { echo "Production Account Center runtime is not reachable: account-center-runtime-v2.js"; exit 1; }
       - name: Check Super Admin frontend serves canonical Owner OS
         env:
-          VEXA_OWNER_BASE: ${{ vars.VEXA_OWNER_BASE || 'https://super-admin-vexaaccount.onrender.com' }}
+          VEXA_OWNER_BASE: ${{ vars.VEXA_OWNER_BASE || 'https://super-admin-vexaaccount-xz1f.onrender.com' }}
         run: |
           set -euo pipefail
           base="${VEXA_OWNER_BASE%/}"
