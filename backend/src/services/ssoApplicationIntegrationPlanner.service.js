@@ -1,7 +1,7 @@
 const axios = require('axios');
 const crypto = require('crypto');
 const { create: createPlanToken } = require('./ssoIntegrationPlanToken.service');
-const { getSnapshot } = require('./ssoApplicationAnalyzer.service');
+const { getSnapshot, getLatestSnapshot } = require('./ssoApplicationAnalyzer.service');
 const API = String(process.env.GITHUB_API_URL || 'https://api.github.com').replace(/\/$/, '');
 const TOKEN = String(process.env.GITHUB_SSO_ANALYZE_TOKEN || process.env.GITHUB_SSO_DEPLOY_TOKEN || '').trim();
 const ALLOWED = String(process.env.GITHUB_SSO_ALLOWED_REPOSITORIES || '').split(',').map(v => v.trim().toLowerCase()).filter(Boolean);
@@ -29,36 +29,23 @@ async function plan(input={},ctx={}){
   const hasAdminFrontend=input.hasAdminFrontend===undefined?true:(input.hasAdminFrontend===true||String(input.hasAdminFrontend).toLowerCase()==='true');
   const topology={backend:true,frontendUser:true,frontendAdmin:hasAdminFrontend};
   const revision=String(input.revision||input.analyzedRevision||'').trim();
-  const cached=revision?getSnapshot(repository,branch,revision):null;
+  const cached=(revision?getSnapshot(repository,branch,revision):null)||getLatestSnapshot(repository,branch);
   let acquisition='github-contents-api';
+  let effectiveRevision=revision;
   let reviewed;
   const eligible=selected.filter(path=>!SECRET_FILE.test(path));
   if(!eligible.length)fail('No eligible source files remain after security filtering');
   if(cached){
-    acquisition='analyzer-snapshot-cache';
-    ctx.progress?.('SOURCE REVIEW',`Reviewing ${eligible.length} selected files from the analyzed ${revision.slice(0,12)} snapshot.`,10);
-    reviewed=eligible.map((path,i)=>{
-      if(ctx.isCancelled?.())throw new Error('Operation cancelled');
-      const item=cached.entries.get(path);
-      if(!item)return null;
-      const text=item.text;
-      if(Buffer.byteLength(text,'utf8')>MAX_FILE_BYTES)return null;
-      ctx.heartbeat?.('snapshot-source-review');
-      ctx.progress?.('SOURCE REVIEW',`Inspected ${i+1}/${eligible.length}: ${path}`,10+Math.round(((i+1)/eligible.length)*75));
-      return{path,blobSha:item.sha,sourceSha256:sha256(text),size:text.length,anchors:anchors(path,text),...actionFor(path,text,stack)};
-    });
+    acquisition='analyzer-snapshot-cache'; effectiveRevision=cached.revision;
+    ctx.progress?.('SOURCE REVIEW',`Reviewing ${eligible.length} selected files from analyzed revision ${cached.revision.slice(0,12)}.`,10);
+    reviewed=eligible.map((path,i)=>{if(ctx.isCancelled?.())throw new Error('Operation cancelled');const item=cached.entries.get(path);if(!item)return null;const text=item.text;if(Buffer.byteLength(text,'utf8')>MAX_FILE_BYTES)return null;ctx.heartbeat?.('snapshot-source-review');ctx.progress?.('SOURCE REVIEW',`Inspected ${i+1}/${eligible.length}: ${path}`,10+Math.round(((i+1)/eligible.length)*75));return{path,blobSha:item.sha,sourceSha256:sha256(text),size:text.length,anchors:anchors(path,text),...actionFor(path,text,stack)};});
     const missing=reviewed.reduce((count,item)=>count+(item?0:1),0);
     if(missing){
       ctx.progress?.('SOURCE REVIEW',`${missing} selected file${missing===1?'':'s'} not present in the analyzed snapshot; fetching only those files from GitHub.`,85);
       const missingPaths=eligible.filter((_,i)=>!reviewed[i]);
-      const fetched=await mapConcurrent(missingPaths,MAX_CONCURRENCY,async(path,i)=>{
-        ctx.heartbeat?.('github-source-fallback');
-        const data=await request(`/repos/${repository}/contents/${path}?ref=${encodeURIComponent(branch)}`,ctx);
-        if(Number(data.size||0)>MAX_FILE_BYTES)return null;
-        const text=decode(data.content);return{path,blobSha:data.sha,sourceSha256:sha256(text),size:text.length,anchors:anchors(path,text),...actionFor(path,text,stack)};
-      });
-      const byPath=new Map(fetched.filter(Boolean).map(item=>[item.path,item]));
-      reviewed=reviewed.map((item,i)=>item||byPath.get(missingPaths[missingPaths.indexOf(eligible[i])])||null);
+      const fetched=await mapConcurrent(missingPaths,MAX_CONCURRENCY,async(path)=>{ctx.heartbeat?.('github-source-fallback');const data=await request(`/repos/${repository}/contents/${path}?ref=${encodeURIComponent(branch)}`,ctx);if(Number(data.size||0)>MAX_FILE_BYTES)return null;const text=decode(data.content);return{path,blobSha:data.sha,sourceSha256:sha256(text),size:text.length,anchors:anchors(path,text),...actionFor(path,text,stack)};});
+      const byPath=new Map(fetched.filter(Boolean).map(item=>[item.path,item])); reviewed=reviewed.map(item=>item||byPath.get(eligible.find(path=>!item&&missingPaths.includes(path)))||null);
+      const stillMissing=reviewed.filter(Boolean).length<eligible.length;if(stillMissing) reviewed=eligible.map((path,i)=>reviewed[i]||byPath.get(path)||null);
     }
   } else {
     ctx.progress?.('SOURCE REVIEW',`Reviewing ${eligible.length} selected source files with bounded parallel GitHub reads.`,10);
@@ -66,7 +53,7 @@ async function plan(input={},ctx={}){
   }
   const valid=reviewed.filter(Boolean);if(!valid.length)fail('No eligible source files remain after security filtering');
   ctx.progress?.('PLAN BUILD',`Building SHA-bound integration plan for ${valid.length} files.`,90);
-  const planToken=createPlanToken({repository,branch,revision:revision||null,stack,topology,reviewedFiles:valid.map(f=>({path:f.path,blobSha:f.blobSha,sourceSha256:f.sourceSha256}))});
+  const planToken=createPlanToken({repository,branch,revision:effectiveRevision||null,stack,topology,reviewedFiles:valid.map(f=>({path:f.path,blobSha:f.blobSha,sourceSha256:f.sourceSha256}))});
   ctx.progress?.('PLAN READY',`Signed review plan created for ${valid.length} files using ${acquisition}.`,100);
-  return{success:true,mode:'read-only',repository:{name:repository,branch,url:meta.html_url,revision:revision||null},stack,topology,reviewedFiles:valid,planToken,acquisition,generatedFiles:['backend/src/integrations/vexaaccount-sso.js','backend/src/routes/vexaaccount-auth.js','frontend-user/src/integrations/vexaaccount.js',...(hasAdminFrontend?['frontend-admin/src/integrations/vexaaccount.js']:[]),'backend/.env.vexaaccount.example','VEXAACCOUNT_SSO_INTEGRATION.md'],installationGuard:'Before any replacement or patch is applied, the current target blob SHA must exactly match this plan. A mismatch requires a new read-only plan.',replacementPolicy:'No automatic whole-file replacement. Owner approval is required after source, SHA, anchors, and generated replacement are reviewed.',warnings:['No target repository files were modified.','Secrets and credential files are excluded.','The application remains the owner of its existing authentication/session behavior.','No third-party browser cookies or raw third-party tokens are copied.','This source plan is cryptographically signed and expires after 15 minutes.','Admin frontend integration is optional; when disabled, no admin frontend source is generated or installed.']};}
+  return{success:true,mode:'read-only',repository:{name:repository,branch,url:meta.html_url,revision:effectiveRevision||null},stack,topology,reviewedFiles:valid,planToken,acquisition,generatedFiles:['backend/src/integrations/vexaaccount-sso.js','backend/src/routes/vexaaccount-auth.js','frontend-user/src/integrations/vexaaccount.js',...(hasAdminFrontend?['frontend-admin/src/integrations/vexaaccount.js']:[]),'backend/.env.vexaaccount.example','VEXAACCOUNT_SSO_INTEGRATION.md'],installationGuard:'Before any replacement or patch is applied, the current target blob SHA must exactly match this plan. A mismatch requires a new read-only plan.',replacementPolicy:'No automatic whole-file replacement. Owner approval is required after source, SHA, anchors, and generated replacement are reviewed.',warnings:['No target repository files were modified.','Secrets and credential files are excluded.','The application remains the owner of its existing authentication/session behavior.','No third-party browser cookies or raw third-party tokens are copied.','This source plan is cryptographically signed and expires after 15 minutes.','Admin frontend integration is optional; when disabled, no admin frontend source is generated or installed.']};}
 module.exports={plan,repoName};
