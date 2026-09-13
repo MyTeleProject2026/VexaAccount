@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS owner_operations (
+  id VARCHAR(64) NOT NULL,
+  type VARCHAR(120) NOT NULL,
+  label VARCHAR(255) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  phase VARCHAR(120) NOT NULL,
+  progress DECIMAL(5,2) NOT NULL DEFAULT 0,
+  detail VARCHAR(500) NOT NULL,
+  events_json LONGTEXT NULL,
+  result_json LONGTEXT NULL,
+  error_json LONGTEXT NULL,
+  payload_json LONGTEXT NULL,
+  created_at DATETIME(3) NOT NULL,
+  started_at DATETIME(3) NULL,
+  completed_at DATETIME(3) NULL,
+  last_heartbeat_at DATETIME(3) NULL,
+  cancel_requested TINYINT(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (id),
+  KEY idx_owner_operations_created (created_at),
+  KEY idx_owner_operations_status (status),
+  KEY idx_owner_operations_type (type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
