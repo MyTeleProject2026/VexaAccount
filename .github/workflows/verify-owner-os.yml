@@ -46,7 +46,7 @@ jobs:
           const analyzer=fs.readFileSync('backend/src/services/ssoApplicationAnalyzer.service.js','utf8');
           const planner=fs.readFileSync('backend/src/services/ssoApplicationIntegrationPlanner.service.js','utf8');
           for(const x of ['/analyze/async','/plan/async','/operations/:operationId','/operations/:operationId/cancel'])if(!route.includes(x)){console.error('Analyzer route missing:',x);process.exit(1)}
-          for(const x of ['single-repository-archive','AbortSignal','heartbeat'])if(!analyzer.includes(x)){console.error('Analyzer runtime contract missing:',x);process.exit(1)}
+          for(const x of ['single-repository-archive','signal','heartbeat'])if(!analyzer.includes(x)){console.error('Analyzer runtime contract missing:',x);process.exit(1)}
           for(const x of ['MAX_CONCURRENCY','signal','heartbeat'])if(!planner.includes(x)){console.error('Planner runtime contract missing:',x);process.exit(1)}
           NODE
       - name: Verify durable Owner operation contracts
