@@ -24,7 +24,6 @@ jobs:
         shell: python
         run: |
           from pathlib import Path
-          import re
 
           path = Path('frontend-VexaAccount-Super-admin/src/owner-os.js')
           text = path.read_text(encoding='utf-8')
@@ -74,11 +73,8 @@ jobs:
 
           if old not in text:
               raise SystemExit('Expected Owner OS boot block was not found; refusing to modify the file.')
-          text = text.replace(old, new, 1)
-          path.write_text(text, encoding='utf-8')
-
-          wf = Path('.github/workflows/one-shot-owner-boot-fix.yml')
-          wf.unlink()
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          Path('.github/workflows/one-shot-owner-boot-fix.yml').unlink()
 
       - name: Commit exact source fix and remove one-shot workflow
         run: |
@@ -86,6 +82,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add frontend-VexaAccount-Super-admin/src/owner-os.js .github/workflows/one-shot-owner-boot-fix.yml
           git diff --cached --check
-          git diff --cached -- frontend-VexaAccount-Super-admin/src/owner-os.js
           git commit -m "fix(owner-os): make startup hydration truly non-blocking"
           git push origin master
