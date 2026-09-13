@@ -1,8 +1,10 @@
 from pathlib import Path
-import subprocess
 
 path = Path('frontend-VexaAccount-Super-admin/src/owner-os.js')
 text = path.read_text(encoding='utf-8')
+if 'Startup hydration runs in the background and never re-renders the gateway.' in text:
+    print('Owner OS startup hydration fix is already present.')
+    raise SystemExit(0)
 old = '''    // The authenticated Owner gateway is rendered immediately. Slow operational
     // data must update the UI later and must never hold the whole page on its
     // loading screen.
@@ -47,6 +49,4 @@ new = '''    // The gateway is interactive immediately after authentication.
 if old not in text:
     raise SystemExit('Expected Owner OS boot block was not found; refusing to modify the file.')
 path.write_text(text.replace(old, new, 1), encoding='utf-8')
-subprocess.run(['git','config','user.name','github-actions[bot]'], check=True)
-subprocess.run(['git','config','user.email','41898282+github-actions[bot]@users.noreply.github.com'], check=True)
-# The caller removes this script/workflow and commits the actual source change.
+print('Owner OS startup hydration patch applied.')
