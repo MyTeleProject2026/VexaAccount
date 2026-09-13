@@ -24,12 +24,42 @@ router.post('/plan/async', auditAdminAction('sso.application_analyzer.plan_async
 router.get('/operations', async (req,res,next)=>{try{const includeTerminal=String(req.query.includeTerminal ?? 'true').toLowerCase() !== 'false';const limit=Math.max(1,Math.min(100,Number(req.query.limit)||50));res.set('Cache-Control','no-store, no-cache, must-revalidate, proxy-revalidate');res.json({success:true,operations:await ownerOperation.listPersistent({includeTerminal,limit})});}catch(e){next(e);}});
 router.get('/operations/:operationId', async (req,res,next)=>{try{const operation=await ownerOperation.getPersistent(req.params.operationId);if(!operation)return res.status(404).json({success:false,message:'Owner operation not found or expired'});res.set('Cache-Control','no-store, no-cache, must-revalidate, proxy-revalidate');res.json({success:true,operation});}catch(e){next(e);}});
 
-router.get('/operations/:operationId/stream', (req,res)=>{
-  const operationId=String(req.params.operationId||''); const operation=ownerOperation.get(operationId);
-  if(!operation)return res.status(404).json({success:false,message:'Owner operation not found or expired'});
+router.get('/operations/:operationId/stream', async (req,res)=>{
+  const operationId=String(req.params.operationId||'');
+  const localOperation=ownerOperation.get(operationId);
+  const persistentOperation=localOperation || await ownerOperation.getPersistent(operationId).catch(()=>null);
+  if(!persistentOperation)return res.status(404).json({success:false,message:'Owner operation not found or expired'});
+
   res.status(200);res.set({'Content-Type':'text/event-stream; charset=utf-8','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no-cache'});if(typeof res.flushHeaders==='function')res.flushHeaders();
-  let closed=false,keepAlive=null,unsubscribe=()=>{};const terminalStatus=status=>['completed','failed','cancelled','stalled'].includes(String(status||'').toLowerCase());const close=()=>{if(closed)return;closed=true;if(keepAlive)clearInterval(keepAlive);unsubscribe();try{res.end();}catch(_){}};const flush=()=>{try{if(typeof res.flush==='function')res.flush();}catch(_){}};const send=(snapshot,event)=>{if(closed)return;try{res.write(`event: ${event?.kind||'state'}\ndata: ${JSON.stringify({operation:snapshot,event:event||null})}\n\n`);flush();}catch(_){close();}};
-  unsubscribe=ownerOperation.subscribe(operationId,(snapshot,event)=>{send(snapshot,event);if(terminalStatus(snapshot.status))close();});if(closed)return;keepAlive=setInterval(()=>{if(closed)return;try{res.write(': heartbeat\n\n');flush();}catch(_){close();}},15000);keepAlive.unref?.();req.on('close',close);res.on('close',close);
+  let closed=false,keepAlive=null,pollTimer=null,unsubscribe=()=>{},lastFingerprint='';
+  const terminalStatus=status=>['completed','failed','cancelled','stalled'].includes(String(status||'').toLowerCase());
+  const close=()=>{if(closed)return;closed=true;if(keepAlive)clearInterval(keepAlive);if(pollTimer)clearInterval(pollTimer);unsubscribe();try{res.end();}catch(_){}};
+  const flush=()=>{try{if(typeof res.flush==='function')res.flush();}catch(_){}};
+  const fingerprint=(snapshot,event)=>JSON.stringify({status:snapshot?.status,phase:snapshot?.phase,progress:snapshot?.progress,detail:snapshot?.detail,lastHeartbeatAt:snapshot?.lastHeartbeatAt,attemptCount:snapshot?.attemptCount,leaseUntil:snapshot?.leaseUntil,lastEvent:event||snapshot?.events?.[snapshot.events.length-1]||null});
+  const send=(snapshot,event)=>{if(closed||!snapshot)return;try{res.write(`event: ${event?.kind||'state'}\ndata: ${JSON.stringify({operation:snapshot,event:event||null})}\n\n`);flush();lastFingerprint=fingerprint(snapshot,event);if(terminalStatus(snapshot.status))close();}catch(_){close();}};
+
+  if(localOperation){
+    unsubscribe=ownerOperation.subscribe(operationId,(snapshot,event)=>send(snapshot,event));
+  } else {
+    send(persistentOperation,null);
+    pollTimer=setInterval(async()=>{
+      if(closed)return;
+      try{
+        const snapshot=await ownerOperation.getPersistent(operationId);
+        if(!snapshot){close();return;}
+        const nextFingerprint=fingerprint(snapshot,null);
+        if(nextFingerprint!==lastFingerprint)send(snapshot,null);
+        if(terminalStatus(snapshot.status))close();
+      }catch(_){
+        // Keep the stream alive through transient database/network failures; the client can reconnect.
+      }
+    },1500);
+    pollTimer.unref?.();
+  }
+
+  if(closed)return;
+  keepAlive=setInterval(()=>{if(closed)return;try{res.write(': heartbeat\n\n');flush();}catch(_){close();}},15000);keepAlive.unref?.();
+  req.on('close',close);res.on('close',close);
 });
 
 router.post('/operations/:operationId/cancel', auditAdminAction('sso.owner.operation.cancel','sso_owner_operation'), async (req,res,next)=>{try{const operation=await ownerOperation.cancelPersistent(req.params.operationId);if(!operation)return res.status(404).json({success:false,message:'Owner operation not found or expired'});res.json({success:true,operation});}catch(e){next(e);}});
