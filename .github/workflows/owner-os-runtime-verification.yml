@@ -19,13 +19,17 @@ jobs:
           node <<'NODE'
           const fs=require('fs');
           const html=fs.readFileSync('frontend-VexaAccount-Super-admin/index.html','utf8');
-          const required=['owner-os.js','owner-os.css','sso-runtime-sync.js','sso-integration-factory-v4.js','sso-github-deployer.js','sso-application-kit-ui.js','owner-application-kit-actions.js','owner-operation-center-ui.js','owner-operation-center.css','sso-application-planner-async-v2.js','sso-application-integration-builder.js','sso-application-builder-launcher.js','sso-diagnostics-panel.js','owner-sso-security-control-center.js'];
+          const required=['owner-os.js','owner-os.css','sso-runtime-sync.js','sso-integration-factory-v4.js','sso-github-deployer.js','sso-application-kit-ui.js','owner-application-kit-actions.js','owner-operation-center-ui.js','owner-operation-center.css','sso-application-planner-async-v2.js','sso-application-integration-builder.js','sso-application-builder-launcher.js','sso-diagnostics-panel.js','owner-sso-security-control-center.js','owner-source-repair.js'];
           for(const file of required) if(!html.includes(file)) throw new Error(`Missing canonical Owner OS asset: ${file}`);
           const forbidden=['sso-status-sync.js','sso-application-planner-ui.js','owner-console-runtime.js','owner-control-center-loader.js','owner-control-center.js','sso-integration-factory-v3.js'];
           for(const file of forbidden) if(html.includes(file)) throw new Error(`Obsolete Owner runtime referenced: ${file}`);
           const planner=fs.readFileSync('frontend-VexaAccount-Super-admin/src/sso-application-planner-async-v2.js','utf8');
-          for(const contract of ['/api/sso-application-analyzer/analyze/async','/api/sso-application-analyzer/plan/async','/api/sso-application-analyzer/operations/','operationId']) if(!planner.includes(contract)) throw new Error(`Async planner contract missing: ${contract}`);
+          for(const contract of ['/api/sso-application-analyzer/analyze/async','/api/sso-application-analyzer/plan/async','/api/sso-application-analyzer/operations/','opId']) if(!planner.includes(contract)) throw new Error(`Async planner contract missing: ${contract}`);
           if(/window\.fetch\s*=/.test(planner)) throw new Error('Async planner must not replace global fetch');
+          const repair=fs.readFileSync('frontend-VexaAccount-Super-admin/src/owner-source-repair.js','utf8');
+          for(const contract of ['/api/sso-application-analyzer/analyze/async','/api/sso-application-analyzer/plan/async','/api/sso-application-kit/generate-target-replacements/async','/api/sso-integration/preflight/async','/api/sso-integration/deploy/async','Continue to source repair','Analyze sources','cache:\'no-store\'']) if(!repair.includes(contract)) throw new Error(`Source repair contract missing: ${contract}`);
+          if(/localStorage\./.test(repair)||/sessionStorage\./.test(repair)) throw new Error('Source repair must not persist browser operation/cache state');
+          if(/setInterval\(inject/.test(repair)) throw new Error('Source repair must not run a periodic DOM injection loop');
           const center=fs.readFileSync('frontend-VexaAccount-Super-admin/src/owner-operation-center-ui.js','utf8');
           for(const contract of ['/api/sso-application-analyzer/operations?includeTerminal=true&limit=50','data-cancel','credentials:\'include\'']) if(!center.includes(contract)) throw new Error(`Operation center contract missing: ${contract}`);
           const runtime=fs.readFileSync('frontend-VexaAccount-Super-admin/src/owner-operation-runtime.js','utf8');
