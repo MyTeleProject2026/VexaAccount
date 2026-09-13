@@ -31,7 +31,7 @@ jobs:
           node --check frontend-VexaAccount-Super-admin/src/sso-github-deployer.js
           node --check frontend-VexaAccount-Super-admin/src/owner-runtime-loader.js
           node --check frontend-VexaAccount-Super-admin/src/sso-application-kit-replacements-ui.js
-      - name: Verify optional Admin Frontend generator contract
+      - name: Verify optional Admin Frontend and ready-to-use page pack contract
         run: |
           node <<'NODE'
           const {validateInput,generate}=require('./backend/src/services/ssoApplicationKit.service');
@@ -41,12 +41,16 @@ jobs:
           const generated=generate({...base,hasAdminFrontend:false,frontendAdminUrl:null});
           const paths=generated.files.map(f=>f.path);
           if(paths.includes('frontend-admin/src/integrations/vexaaccount.js'))throw Error('Admin frontend source was generated for no-admin topology');
-          if(paths.length!==5)throw Error(`Expected 5 files for backend+user topology, received ${paths.length}`);
+          const requiredPages=['UserLoginPages.html','UserContinueWithVexaAccountSSOPages.html','UserRegisterVexaAccountSSOpages.html','UserHelpwithLoginSSOVexaAccountPage.html','UserForgottenPasswordVexaAccountSSOPages.html','UserResendOTPVexaAccountSSOPages.html','UserVerifyOTP-CodeForRegisteredCompleteVexaAccontSSOPages.html','UserAccountSecurityVexaAccountSSOPage.html'];
+          for(const page of requiredPages)if(!paths.includes('vexaaccount-sso-pages/'+page))throw Error('Missing generated page: '+page);
+          if(!paths.includes('vexaaccount-sso-package.json'))throw Error('Missing generated package manifest');
+          if(!paths.includes('VEXAACCOUNT_SSO_INTEGRATION.md'))throw Error('Missing generated integration guide');
           if(!generated.manifest.topology||generated.manifest.topology.frontendAdmin!==false)throw Error('Generated manifest does not record frontendAdmin=false');
+          if(generated.manifest.generatedFiles.length!==paths.length)throw Error('Generated manifest/file list mismatch');
           let rejected=false;
           try{validateInput({...base,hasAdminFrontend:true,frontendAdminUrl:''});}catch(e){rejected=/frontendAdminUrl/.test(e.message);}
           if(!rejected)throw Error('Admin-enabled topology accepted a missing HTTPS admin URL');
-          console.log('Optional Admin Frontend topology contract passed');
+          console.log(`Ready-to-use SSO page/package contract passed: ${paths.length} files`);
           NODE
       - name: Verify backend SSO application kit route chain
         run: |
@@ -66,7 +70,7 @@ jobs:
           for(const x of ["router.post('/preflight'","router.post('/deploy'",'expectedHeadSha','reviewedFiles','planToken','generatedManifestToken'])if(!deployer.includes(x))throw Error('Deployment route contract missing: '+x)
           for(const x of ['GITHUB_SSO_ANALYZE_TOKEN','GITHUB_SSO_DEPLOY_TOKEN','GITHUB_SSO_ALLOWED_REPOSITORIES','MAX_FILES','MAX_FILE_BYTES','Analysis is read-only'])if(!analyzerService.includes(x))throw Error('Analyzer service safety contract missing: '+x)
           for(const x of ['sourceSha256','blobSha','createPlanToken','No automatic whole-file replacement','15 minutes','hasAdminFrontend','frontendAdmin'])if(!plannerService.includes(x))throw Error('Planner safety/topology contract missing: '+x)
-          for(const x of ['hasAdminFrontend','frontendAdminUrl','topology','frontend-admin/src/integrations/vexaaccount.js'])if(!kitService.includes(x))throw Error('Kit builder topology contract missing: '+x)
+          for(const x of ['hasAdminFrontend','frontendAdminUrl','topology','frontend-admin/src/integrations/vexaaccount.js','UserLoginPages.html','UserForgottenPasswordVexaAccountSSOPages.html','vexaaccount-sso-package.json'])if(!kitService.includes(x))throw Error('Kit builder page/package contract missing: '+x)
           for(const x of ['verifySignedPlan','verifyGeneratedManifest','verifyReviewedFiles','expectedHeadSha','force:false','GITHUB_SSO_ALLOWED_REPOSITORIES'])if(!deployService.includes(x))throw Error('Deployment safety contract missing: '+x)
           if(kit.includes('/repair-status')||deployer.includes('/repair-status')||analyzerService.includes('/repair-status')||plannerService.includes('/repair-status'))throw Error('Deprecated repair-status endpoint remains in SSO application kit chain')
           NODE
