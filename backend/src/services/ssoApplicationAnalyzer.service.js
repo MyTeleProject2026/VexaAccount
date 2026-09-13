@@ -12,6 +12,10 @@ const SOURCE_EXT = /\.(js|jsx|ts|tsx|mjs|cjs|json|py|rb|php|go|java|kt|cs|rs|vue
 const SKIP_PATH = /(^|\/)(node_modules|\.git|dist|build|coverage|vendor|\.next|out|target|bin|obj)(\/|$)/i;
 const REQUEST_TIMEOUT_MS = 15_000;
 const REQUEST_HEARTBEAT_MS = 2_000;
+const SNAPSHOT_CACHE_TTL_MS = 10 * 60 * 1000;
+const SNAPSHOT_CACHE_MAX_BYTES = 20 * 1024 * 1024;
+const snapshotCache = new Map();
+let snapshotCacheBytes = 0;
 
 function fail(message, status = 400) { throw Object.assign(new Error(message), { status }); }
 function repoName(value) {
@@ -76,6 +80,33 @@ function buildPlan(files, detected) {
   if (['React/Vite','Next.js','Vue','Svelte'].includes(detected.frontend)) operations.push({ path: 'frontend auth/login entry', action: 'wire-generated-login-adapter', reason: 'Use backend redirect; never expose client secret or application JWT secret.' });
   return { strategy: 'additive-first', detected, authenticationCandidates: auth.slice(0,30), routeCandidates: routes.slice(0,30), configurationCandidates: config.slice(0,20), filesToAdd: add, filesToReviewBeforeReplacement: review, operations, replacementPolicy: 'No automatic whole-file replacement. A target file may be replaced only after its current contents, hash, and integration anchors are reviewed and the Owner explicitly approves installation.', warnings: ['Analysis is read-only; no target repository files are changed by this endpoint.','Existing authentication files should be patched only after Owner review because the target application owns its session/JWT model.','Client secrets must remain server-side and the target application JWT secret must never be sent to VexaAccount.','Third-party browser cookies or raw third-party access tokens are never copied.'] };
 }
+function cacheKey(repository, branch, revision) { return `${repository.toLowerCase()}@${branch}@${revision}`; }
+function cacheSnapshot(repository, branch, revision, sourceFiles) {
+  const key = cacheKey(repository, branch, revision);
+  const entries = new Map();
+  let bytes = 0;
+  for (const file of sourceFiles) {
+    if (!file?.path || !file?.text || file.text.length > MAX_FILE_BYTES) continue;
+    entries.set(file.path, { text: file.text, size: file.size, sha: file.sha || null });
+    bytes += Buffer.byteLength(file.text, 'utf8');
+  }
+  if (!entries.size || bytes > SNAPSHOT_CACHE_MAX_BYTES) return;
+  const previous = snapshotCache.get(key);
+  if (previous) snapshotCacheBytes -= previous.bytes;
+  snapshotCache.set(key, { repository, branch, revision, entries, bytes, createdAt: Date.now(), lastUsedAt: Date.now() });
+  snapshotCacheBytes += bytes;
+  while (snapshotCacheBytes > SNAPSHOT_CACHE_MAX_BYTES && snapshotCache.size) {
+    const oldest = [...snapshotCache.entries()].sort((a,b) => a[1].lastUsedAt - b[1].lastUsedAt)[0];
+    snapshotCache.delete(oldest[0]); snapshotCacheBytes -= oldest[1].bytes;
+  }
+}
+function getSnapshot(repository, branch, revision) {
+  const key = cacheKey(repository, branch, revision); const cached = snapshotCache.get(key);
+  if (!cached) return null;
+  if (Date.now() - cached.createdAt > SNAPSHOT_CACHE_TTL_MS) { snapshotCache.delete(key); snapshotCacheBytes -= cached.bytes; return null; }
+  cached.lastUsedAt = Date.now();
+  return { repository: cached.repository, branch: cached.branch, revision: cached.revision, entries: cached.entries };
+}
 
 async function analyze(input = {}, ctx) {
   const repository = repoName(input.repository);
@@ -98,7 +129,7 @@ async function analyze(input = {}, ctx) {
   if (archive.length > MAX_ARCHIVE_BYTES) fail(`Repository snapshot exceeds the ${Math.round(MAX_ARCHIVE_BYTES / 1_000_000)}MB analysis limit`, 413);
 
   ctx?.progress?.('SCAN', 'Extracting and indexing source files locally…', 25);
-  const zip = new AdmZip(archive); const entries = zip.getEntries(); const files = []; const manifestTexts = [];
+  const zip = new AdmZip(archive); const entries = zip.getEntries(); const files = []; const manifestTexts = []; const sourceSnapshot = [];
   const candidates = entries.filter(entry => !entry.isDirectory && entry.entryName && SOURCE_EXT.test(entry.entryName) && !SECRET_FILE.test(entry.entryName) && !SKIP_PATH.test(entry.entryName)).slice(0, MAX_FILES);
   for (let i = 0; i < candidates.length; i += 1) {
     if (ctx?.isCancelled?.()) throw Object.assign(new Error('Owner operation cancelled'), { code: 'OWNER_OPERATION_CANCELLED' });
@@ -106,12 +137,14 @@ async function analyze(input = {}, ctx) {
     if (raw.length > MAX_FILE_BYTES) continue;
     const text = raw.toString('utf8'); const findings = classify(path, text);
     files.push({ path, size: raw.length, findings });
+    sourceSnapshot.push({ path, size: raw.length, text });
     if (/(^|\/)(package\.json|requirements\.txt|pyproject\.toml|go\.mod|pom\.xml|build\.gradle|Cargo\.toml)$/i.test(path)) manifestTexts.push(text);
     if (i % 5 === 0 || i === candidates.length - 1) ctx?.progress?.('SCAN', `Inspected ${files.length}/${candidates.length} source candidates locally: ${path}`, 25 + Math.round(((i + 1) / Math.max(1, candidates.length)) * 55));
   }
 
   ctx?.progress?.('ANALYSIS', `Classifying authentication, routing and runtime findings for ${files.length} inspected files…`, 85);
   const detected = frameworkFrom(null, files.map(x => x.path), manifestTexts);
+  cacheSnapshot(repository, branch, treeSha, sourceSnapshot);
   const result = {
     success: true,
     repository: { name: repository, private: Boolean(meta.private), defaultBranch: meta.default_branch, analyzedBranch: branch, revision: treeSha, url: meta.html_url },
@@ -119,9 +152,11 @@ async function analyze(input = {}, ctx) {
     summary: { sourceFilesInspected: files.length, treeEntries: entries.length, treeTruncated: false, acquisition: 'single-repository-archive' },
     detected,
     files,
-    plan: buildPlan(files, detected)
+    plan: buildPlan(files, detected),
+    sourceSnapshot: { availableForOwnerPlanning: true, ttlSeconds: SNAPSHOT_CACHE_TTL_MS / 1000, repositoryRevision: treeSha }
   };
   ctx?.progress?.('FINDINGS', `Analysis findings assembled: ${files.length} source files inspected; stack ${detected.backend}/${detected.frontend}.`, 97);
   return result;
 }
-module.exports = { analyze, repoName };
+
+module.exports = { analyze, repoName, getSnapshot };
