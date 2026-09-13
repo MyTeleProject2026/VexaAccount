@@ -11,8 +11,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const ownerReady=()=>{
  if(authReady)return true;
  const state=String(window.__VEXA_OWNER_BOOT_STATE__||'').toLowerCase();
- if(['ready','authenticated','rendered-gateway'].includes(state))return true;
- return false;
+ return ['ready','authenticated','rendered-gateway'].includes(state);
 };
 const api=async(path,opt={})=>{const ctl=new AbortController();const timer=setTimeout(()=>ctl.abort(),6000);try{const r=await fetch(API+path,{credentials:'include',cache:'no-store',...opt,signal:ctl.signal,headers:{Accept:'application/json',...(opt.headers||{})}});const d=await r.json().catch(()=>({}));if(r.status===401||r.status===403){const e=Error('Owner session is not authenticated');e.code='AUTH_REQUIRED';throw e}if(!r.ok||d.success===false)throw Error(d.message||d.error||`Request failed (${r.status})`);return d}finally{clearTimeout(timer)}};
 const formatElapsed=o=>{const start=Date.parse(o.startedAt||o.createdAt),end=Date.parse(o.completedAt||new Date().toISOString());if(!Number.isFinite(start))return '—';let n=Math.max(0,Math.floor((end-start)/1000));const h=Math.floor(n/3600),m=Math.floor((n%3600)/60),s=n%60;return [h,m,s].map(v=>String(v).padStart(2,'0')).join(':')};
@@ -29,7 +28,22 @@ async function refresh(forceFull=false){if(pollInFlight)return;if(!ownerReady())
 async function loadSelected(id){if(!ownerReady()){renderAuthWait();scheduleAuthRetry();return}try{const d=await api('/api/sso-application-analyzer/operations/'+encodeURIComponent(id));if(d.operation)operations.set(id,d.operation);renderList()}catch(e){if(e?.code==='AUTH_REQUIRED'){authReady=false;renderAuthWait();scheduleAuthRetry()}}}
 async function cancel(id){try{await api('/api/sso-application-analyzer/operations/'+encodeURIComponent(id)+'/cancel',{method:'POST'});selected=id;await loadSelected(id);await refresh(false)}catch(e){if(e?.code==='AUTH_REQUIRED'){authReady=false;renderAuthWait();scheduleAuthRetry();return}alert(e.message||'Unable to cancel operation')}}
 function close(){open=false;renderVisibility();clearTimeout(pollTimer);clearTimeout(authRetryTimer);selected='';}
-function onClick(e){if(e.target.closest('[data-close]')){e.preventDefault();e.stopPropagation();close();return}if(e.target.closest('[data-signin]')){e.preventDefault();e.stopPropagation();window.vexaOwnerOS?.showLogin?.('Sign in to continue to Owner OS.');return}if(e.target.closest('[data-refresh]')){refresh(true);return}const c=e.target.closest('[data-cancel]');if(c){cancel(c.dataset.cancel);return}const o=e.target.closest('[data-open]');if(o){selected=selected===o.dataset.open?'':o.dataset.open;if(selected)loadSelected(selected);else renderList();return}const s=e.target.closest('[data-select]');if(s){selected=selected===s.dataset.select?'':s.dataset.select;if(selected)loadSelected(selected);else renderList()}}
+function openOwnerSignIn(){
+ close();
+ window.__VEXA_OWNER_BOOTING__=false;
+ window.__VEXA_OWNER_BOOT_STATE__='unauthenticated';
+ window.dispatchEvent(new CustomEvent('vexa-owner-session-lost',{detail:{source:'operation-center-signin'}}));
+ if(typeof window.vexaOwnerOS?.showLogin==='function'){
+  window.vexaOwnerOS.showLogin('Sign in to continue to Owner OS.');
+  return;
+ }
+ // The current Owner OS exposes reload/getState but not showLogin. A clean reload
+ // is the authoritative fallback: boot checks the real session and renders Owner Access.
+ const url=new URL(window.location.href);
+ url.searchParams.set('owner_session_reset',String(Date.now()));
+ window.location.replace(url.toString());
+}
+function onClick(e){if(e.target.closest('[data-close]')){e.preventDefault();e.stopPropagation();close();return}if(e.target.closest('[data-signin]')){e.preventDefault();e.stopPropagation();openOwnerSignIn();return}if(e.target.closest('[data-refresh]')){refresh(true);return}const c=e.target.closest('[data-cancel]');if(c){cancel(c.dataset.cancel);return}const o=e.target.closest('[data-open]');if(o){selected=selected===o.dataset.open?'':o.dataset.open;if(selected)loadSelected(selected);else renderList();return}const s=e.target.closest('[data-select]');if(s){selected=selected===s.dataset.select?'':s.dataset.select;if(selected)loadSelected(selected);else renderList()}}
 button();ensure();
 window.addEventListener('vexa-owner-auth-ready',()=>{authReady=true;if(open)refresh(true)},{passive:true});
 window.addEventListener('vexa-owner-session-lost',()=>{authReady=false;if(open)renderAuthWait()},{passive:true});
