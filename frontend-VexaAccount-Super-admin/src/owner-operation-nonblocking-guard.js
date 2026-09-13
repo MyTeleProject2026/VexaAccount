@@ -8,7 +8,6 @@ const apply=()=>{
   const root=document.getElementById(ROOT_ID);
   if(!root)return;
   root.style.setProperty('pointer-events','none','important');
-  const backdrop=root.querySelector(':scope:before');
   const shell=root.querySelector('.vo-shell');
   if(shell){
     shell.style.setProperty('pointer-events','auto','important');
@@ -26,7 +25,11 @@ const apply=()=>{
     }
   }
 };
-const schedule=()=>window.requestAnimationFrame(apply);
+let raf=0;
+const schedule=()=>{
+  if(raf)return;
+  raf=window.requestAnimationFrame(()=>{raf=0;apply()});
+};
 new MutationObserver(schedule).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class','style']});
 window.addEventListener('resize',schedule,{passive:true});
 window.addEventListener('orientationchange',schedule,{passive:true});
