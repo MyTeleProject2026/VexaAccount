@@ -1,7 +1,7 @@
 const axios = require('axios');
 const crypto = require('crypto');
 const { create: createPlanToken } = require('./ssoIntegrationPlanToken.service');
-const { getSnapshot, getLatestSnapshot } = require('./ssoApplicationAnalyzer.service');
+const { getSnapshot } = require('./ssoApplicationAnalyzer.service');
 const API = String(process.env.GITHUB_API_URL || 'https://api.github.com').replace(/\/$/, '');
 const TOKEN = String(process.env.GITHUB_SSO_ANALYZE_TOKEN || process.env.GITHUB_SSO_DEPLOY_TOKEN || '').trim();
 const ALLOWED = String(process.env.GITHUB_SSO_ALLOWED_REPOSITORIES || '').split(',').map(v => v.trim().toLowerCase()).filter(Boolean);
@@ -23,7 +23,12 @@ async function plan(input={},ctx={}){
   const branch=String(input.branch||meta.default_branch||'main').trim();if(!/^[A-Za-z0-9._\/-]{1,100}$/.test(branch)||branch.includes('..'))fail('Invalid target branch');
   const selected=Array.isArray(input.files)?input.files.map(v=>String(v).trim()).filter(Boolean).slice(0,MAX_FILES):[];if(!selected.length)fail('At least one source file must be selected for precise planning');
   const stack={frontend:String(input.detected?.frontend||'unknown'),backend:String(input.detected?.backend||'unknown'),language:String(input.detected?.language||'unknown')};const hasAdminFrontend=input.hasAdminFrontend===undefined?true:(input.hasAdminFrontend===true||String(input.hasAdminFrontend).toLowerCase()==='true');const topology={backend:true,frontendUser:true,frontendAdmin:hasAdminFrontend};
-  const revision=String(input.revision||input.analyzedRevision||'').trim();const cached=(revision?getSnapshot(repository,branch,revision):null)||getLatestSnapshot(repository,branch);let acquisition='github-contents-api';let effectiveRevision=revision;let reviewed;
+  const revision=String(input.revision||input.analyzedRevision||'').trim();
+  // A plan may use the analyzer snapshot only when the caller supplies the exact
+  // revision it wants reviewed. Without that revision, always read the target
+  // repository again so a stale server snapshot can never become the authority.
+  const cached=revision?getSnapshot(repository,branch,revision):null;
+  let acquisition='github-contents-api';let effectiveRevision=revision;let reviewed;
   const eligible=selected.filter(path=>!SECRET_FILE.test(path));if(!eligible.length)fail('No eligible source files remain after security filtering');
   if(cached){
     acquisition='analyzer-snapshot-cache';effectiveRevision=cached.revision;ctx.progress?.('SOURCE REVIEW',`Reviewing ${eligible.length} selected files from analyzed revision ${cached.revision.slice(0,12)}.`,10);
