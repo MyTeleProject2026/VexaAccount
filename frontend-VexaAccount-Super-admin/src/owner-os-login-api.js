@@ -1,22 +1,25 @@
 (()=>{'use strict';
-if(window.__VEXA_OWNER_LOGIN_API_V1__)return;
-window.__VEXA_OWNER_LOGIN_API_V1__=true;
+if(window.__VEXA_OWNER_LOGIN_API_V2__)return;
+window.__VEXA_OWNER_LOGIN_API_V2__=true;
 const API=(window.VEXA_ACCOUNT_ADMIN_API_BASE||'https://api-vexaaccount.onrender.com').replace(/\/$/,'');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function clearOverlays(){
- document.querySelector('#vexa-owner-operation-center')?.classList.remove('visible');
- document.querySelector('#vexa-owner-operation-center')?.setAttribute('aria-hidden','true');
+ const center=document.querySelector('#vexa-owner-operation-center');
+ if(center){center.classList.remove('visible');center.setAttribute('aria-hidden','true');center.remove()}
  document.querySelector('#vexa-owner-live-operation')?.classList.remove('visible','owner-operation-full-open','min');
  document.documentElement.classList.remove('voc-open');
  document.body.classList.remove('owner-processing','is-loading','loading','voc-open');
+ const trigger=document.querySelector('#vexa-operation-center-trigger');
+ if(trigger){trigger.hidden=true;trigger.setAttribute('aria-hidden','true');trigger.tabIndex=-1}
 }
 function showLogin(message=''){
  window.__VEXA_OWNER_BOOTING__=false;
  window.__VEXA_OWNER_BOOT_STATE__='unauthenticated';
  clearOverlays();
+ window.dispatchEvent(new CustomEvent('vexa-owner-session-lost',{detail:{source:'owner-access'}}));
  const app=document.querySelector('#app');
  if(!app)return;
- app.innerHTML=`<main class="os-login"><section class="os-login-card"><span class="os-mark">V</span><p class="os-eyebrow">VEXAACCOUNT ECOSYSTEM</p><h1>Owner Access</h1><p class="os-muted">Secure authentication for the Owner OS.</p>${message?`<p class="os-error">${esc(message)}</p>`:''}<form class="os-form" id="owner-login"><label>Email<input id="login-email" type="email" autocomplete="username" required></label><label>Password<input id="login-password" type="password" autocomplete="current-password" required></label><button class="os-btn os-primary" type="submit">Enter Owner OS</button></form></section></main>`;
+ app.innerHTML=`<main class="os-login" data-owner-auth-screen="true"><section class="os-login-card"><span class="os-mark">V</span><p class="os-eyebrow">VEXAACCOUNT ECOSYSTEM</p><h1>Owner Access</h1><p class="os-muted">Secure authentication for the Owner OS.</p>${message?`<p class="os-error">${esc(message)}</p>`:''}<form class="os-form" id="owner-login"><label>Email<input id="login-email" type="email" autocomplete="username" required></label><label>Password<input id="login-password" type="password" autocomplete="current-password" required></label><button class="os-btn os-primary" type="submit">Enter Owner OS</button></form></section></main>`;
  const form=document.querySelector('#owner-login');
  form?.addEventListener('submit',async e=>{
   e.preventDefault();
