@@ -10,9 +10,6 @@ const router = express.Router();
 const REGISTRY_LIST_TIMEOUT_MS = 8000;
 router.use(requireSuperAdmin);
 
-// Fast registry listing used by the Owner OS bootstrap.
-// The application profile and current Cloudinary icon are included so every
-// application has one central, provider-backed identity record.
 router.get('/applications', auditAdminAction('sso.registry.list', 'sso_application'), async (req, res, next) => {
   try {
     const [rows] = await withDeadline(pool.query({
@@ -58,9 +55,29 @@ router.get('/applications', auditAdminAction('sso.registry.list', 'sso_applicati
   }
 });
 
-// Application profile + Cloudinary asset management lives under the same
-// protected Owner registry surface so future applications do not require
-// another VexaAccount source-code integration.
+router.patch('/applications/:clientId', auditAdminAction('sso.registry.application.update', 'sso_application'), async (req, res, next) => {
+  try {
+    const clientId = String(req.params.clientId || '').trim();
+    if (!clientId) return res.status(400).json({ success: false, message: 'Client ID is required' });
+    const allowed = ['display_name', 'owner_label', 'environment', 'description', 'status'];
+    const updates = [];
+    const values = [];
+    for (const field of allowed) {
+      if (req.body?.[field] !== undefined) {
+        const value = String(req.body[field] ?? '').trim();
+        if (field === 'status' && !['pending','active','disabled','maintenance','rejected','revoked'].includes(value)) return res.status(400).json({ success:false,message:'Invalid application status' });
+        updates.push(`${field}=?`);
+        values.push(value || null);
+      }
+    }
+    if (!updates.length) return res.status(400).json({ success:false,message:'No supported application fields supplied' });
+    values.push(clientId);
+    const [result] = await pool.query(`UPDATE sso_client_registry SET ${updates.join(',')},updated_at=CURRENT_TIMESTAMP WHERE client_id=?`, values);
+    if (!result.affectedRows) return res.status(404).json({ success:false,message:'SSO application not found' });
+    res.json({success:true,message:'SSO application updated',clientId});
+  } catch (e) { next(e); }
+});
+
 router.use('/', applicationAssetsRoutes);
 
 module.exports = router;
