@@ -1,18 +1,14 @@
 (()=>{
 'use strict';
-if(window.__VEXA_OWNER_OPERATION_CENTER_UI_V2__)return;
-window.__VEXA_OWNER_OPERATION_CENTER_UI_V2__=true;
+if(window.__VEXA_OWNER_OPERATION_CENTER_UI_V3__)return;
+window.__VEXA_OWNER_OPERATION_CENTER_UI_V3__=true;
 const API=(window.VEXA_ACCOUNT_ADMIN_API_BASE||'https://api-vexaaccount.onrender.com').replace(/\/$/,'');
 const TERMINAL=new Set(['completed','failed','cancelled','stalled']);
 const ACTIVE_POLL_MS=5000,IDLE_POLL_MS=30000,AUTH_RETRY_MS=2500;
 let open=false,pollTimer=null,pollInFlight=false,selected='',hasLoaded=false,operations=new Map(),authReady=false,authRetryTimer=null;
 const $=(s,r=document)=>r.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const ownerReady=()=>{
- if(authReady)return true;
- const state=String(window.__VEXA_OWNER_BOOT_STATE__||'').toLowerCase();
- return ['ready','authenticated','rendered-gateway'].includes(state);
-};
+const ownerReady=()=>{if(authReady)return true;const state=String(window.__VEXA_OWNER_BOOT_STATE__||'').toLowerCase();return ['ready','authenticated','rendered-gateway'].includes(state)};
 const api=async(path,opt={})=>{const ctl=new AbortController();const timer=setTimeout(()=>ctl.abort(),6000);try{const r=await fetch(API+path,{credentials:'include',cache:'no-store',...opt,signal:ctl.signal,headers:{Accept:'application/json',...(opt.headers||{})}});const d=await r.json().catch(()=>({}));if(r.status===401||r.status===403){const e=Error('Owner session is not authenticated');e.code='AUTH_REQUIRED';throw e}if(!r.ok||d.success===false)throw Error(d.message||d.error||`Request failed (${r.status})`);return d}finally{clearTimeout(timer)}};
 const formatElapsed=o=>{const start=Date.parse(o.startedAt||o.createdAt),end=Date.parse(o.completedAt||new Date().toISOString());if(!Number.isFinite(start))return '—';let n=Math.max(0,Math.floor((end-start)/1000));const h=Math.floor(n/3600),m=Math.floor((n%3600)/60),s=n%60;return [h,m,s].map(v=>String(v).padStart(2,'0')).join(':')};
 const ensure=()=>{let root=$('#vexa-owner-operation-center');if(root)return root;root=document.createElement('section');root.id='vexa-owner-operation-center';root.setAttribute('aria-hidden','true');root.innerHTML=`<div class="voc-panel" role="dialog" aria-label="Owner background operations"><header class="voc-head"><div><span class="voc-kicker">OWNER OS · BACKGROUND TASKS</span><h2>Operation Center</h2><small>Server-side jobs continue while you navigate Owner OS.</small></div><button type="button" class="voc-close" data-close aria-label="Close Operation Center">×</button></header><div class="voc-toolbar"><span data-count>0 operations</span><button type="button" data-refresh>Refresh</button></div><div class="voc-list" data-list><div class="voc-empty">Waiting for Owner session…</div></div></div>`;document.body.appendChild(root);root.addEventListener('click',onClick);return root};
@@ -33,15 +29,12 @@ function openOwnerSignIn(){
  window.__VEXA_OWNER_BOOTING__=false;
  window.__VEXA_OWNER_BOOT_STATE__='unauthenticated';
  window.dispatchEvent(new CustomEvent('vexa-owner-session-lost',{detail:{source:'operation-center-signin'}}));
- if(typeof window.vexaOwnerOS?.showLogin==='function'){
-  window.vexaOwnerOS.showLogin('Sign in to continue to Owner OS.');
-  return;
- }
- // The current Owner OS exposes reload/getState but not showLogin. A clean reload
- // is the authoritative fallback: boot checks the real session and renders Owner Access.
- const url=new URL(window.location.href);
- url.searchParams.set('owner_session_reset',String(Date.now()));
- window.location.replace(url.toString());
+ const app=document.querySelector('#app');
+ if(!app)return;
+ app.innerHTML=`<main class="os-login"><section class="os-login-card"><span class="os-mark">V</span><p class="os-eyebrow">VEXAACCOUNT ECOSYSTEM</p><h1>Owner Access</h1><p class="os-muted">Secure authentication for the Owner OS.</p><p class="os-error" id="voc-login-error" hidden></p><form class="os-form" id="voc-owner-login"><label>Email<input id="voc-login-email" type="email" autocomplete="username" required></label><label>Password<input id="voc-login-password" type="password" autocomplete="current-password" required></label><button class="os-btn os-primary" type="submit">Enter Owner OS</button></form></section></main>`;
+ const form=$('#voc-owner-login'),btn=form?.querySelector('button'),err=$('#voc-login-error');
+ form?.addEventListener('submit',async e=>{e.preventDefault();if(!btn)return;btn.disabled=true;if(err)err.hidden=true;try{const d=await api('/api/auth/super-admin/login',{method:'POST',body:JSON.stringify({email:$('#voc-login-email').value.trim(),password:$('#voc-login-password').value})});if(!d?.success)throw Error(d?.message||'Owner sign-in failed');window.__VEXA_OWNER_BOOTING__=false;window.__VEXA_OWNER_BOOT_STATE__='signed-in';if(window.vexaOwnerOS?.reload){await window.vexaOwnerOS.reload()}else{window.location.reload()}}catch(x){if(err){err.textContent=x?.message||'Owner sign-in failed';err.hidden=false}btn.disabled=false}});
+ setTimeout(()=>$('#voc-login-email')?.focus(),0);
 }
 function onClick(e){if(e.target.closest('[data-close]')){e.preventDefault();e.stopPropagation();close();return}if(e.target.closest('[data-signin]')){e.preventDefault();e.stopPropagation();openOwnerSignIn();return}if(e.target.closest('[data-refresh]')){refresh(true);return}const c=e.target.closest('[data-cancel]');if(c){cancel(c.dataset.cancel);return}const o=e.target.closest('[data-open]');if(o){selected=selected===o.dataset.open?'':o.dataset.open;if(selected)loadSelected(selected);else renderList();return}const s=e.target.closest('[data-select]');if(s){selected=selected===s.dataset.select?'':s.dataset.select;if(selected)loadSelected(selected);else renderList()}}
 button();ensure();
