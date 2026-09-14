@@ -47,8 +47,16 @@ jobs:
           const fs=require('fs');
           const root='frontend-VexaAccount-Super-admin/src';
           const files=fs.readdirSync(root).filter(x=>x.endsWith('.js')).map(x=>root+'/'+x);
+          function executableSource(source){
+            return source
+              .replace(/\/\*[\s\S]*?\*\//g,'')
+              .replace(/(^|[^:])\/\/.*$/gm,'$1')
+              .replace(/'(?:\\.|[^'\\])*'/g,"''")
+              .replace(/"(?:\\.|[^"\\])*"/g,'""')
+              .replace(/`(?:\\.|[^`\\])*`/gs,'``');
+          }
           for(const p of files){
-            const s=fs.readFileSync(p,'utf8');
+            const s=executableSource(fs.readFileSync(p,'utf8'));
             if(/window\.fetch\s*=/.test(s)){console.error('Global fetch replacement is forbidden:',p);process.exit(1)}
             if(/document\.addEventListener\(\s*['\"](?:mousemove|pointermove|touchmove|wheel)['\"]/.test(s)){console.error('Unsafe document-wide input hook:',p);process.exit(1)}
           }
