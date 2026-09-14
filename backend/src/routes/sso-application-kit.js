@@ -1,4 +1,6 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const { requireSuperAdmin } = require('../middleware/superAdminAuth');
 const { auditAdminAction } = require('../middleware/adminAudit');
 const { generate, validateInput } = require('../services/ssoApplicationKit.service');
@@ -10,6 +12,7 @@ const router = express.Router();
 router.use((req, res, next) => { if (req.body !== undefined) return next(); return express.json({ limit: '10mb', type: '*/*' })(req, res, next); });
 router.use(express.urlencoded({ extended: true, limit: '10mb' }));
 router.use(requireSuperAdmin);
+router.get('/documentation', auditAdminAction('sso.application_kit.documentation','sso_application_kit'), (req,res,next)=>{try{const file=path.resolve(__dirname,'../../../README_SSO_APPLICATION_KIT.md');const documentation=fs.readFileSync(file,'utf8');res.set('Cache-Control','no-store, no-cache, must-revalidate, proxy-revalidate');res.json({success:true,documentation,source:'README_SSO_APPLICATION_KIT.md'});}catch(e){next(e);}});
 router.get('/catalog', auditAdminAction('sso.application_kit.catalog','sso_application_kit'), (req,res) => res.json({ success:true, generatorVersion:'1.4.0', targets:['backend','frontend-user','frontend-admin'], topologies:[{key:'backend-user-admin',backend:true,frontendUser:true,frontendAdmin:true},{key:'backend-user-only',backend:true,frontendUser:true,frontendAdmin:false}], security:['Authorization Code','S256 PKCE','encrypted stateless PKCE transaction','server-side client secret','application-owned JWT session','no third-party cookie/token copying','signed expiring source-review plan','signed generated-file manifest','exact reviewed-blob SHA replacement guard'], workflow:['read-only source analysis','cryptographically signed precise source plan','target-specific source reconstruction','target-specific replacement candidates','generated additive kit','cryptographically signed generated-file manifest','explicit Owner review before replacement','exact-blob preflight','explicit deployment action','background-owner-operation-jobs'], replacementPolicy:'Target-specific replacement candidates are generated only from the exact source revision that was reviewed. Deterministic anchors are required; files without a safe anchor are preserved unchanged rather than guessed.' }));
 function generation(req) {
   const input=validateInput(req.body||{}); const token=verifyPlanToken(req.body?.planToken);
