@@ -1,75 +1,22 @@
 (()=>{
 'use strict';
-if(window.__VEXA_OWNER_OPERATION_NONBLOCKING_GUARD_V4__)return;
+if(window.__VEXA_OWNER_OPERATION_NONBLOCKING_GUARD_V5__)return;
+window.__VEXA_OWNER_OPERATION_NONBLOCKING_GUARD_V5__=true;
 window.__VEXA_OWNER_OPERATION_NONBLOCKING_GUARD_V4__=true;
 const ROOT_ID='vexa-owner-live-operation';
-const TERMINAL=new Set(['completed','failed','cancelled','stalled']);
-let rootRef=null,observer=null,raf=0;
+let rootRef=null,observer=null,raf=0,retryTimer=null,retries=0;
+const MAX_RETRIES=300;
 const qs=(s,r=document)=>r.querySelector(s);
 const opId=root=>String(qs('[data-id]',root)?.textContent||'').trim();
-const elapsedSeconds=root=>{
- const text=String(qs('[data-elapsed]',root)?.textContent||'00:00:00');
- const m=text.match(/^(\d+):(\d{2}):(\d{2})$/);return m?(Number(m[1])*3600+Number(m[2])*60+Number(m[3])):0;
-};
-const status=root=>String(qs('[data-status]',root)?.textContent||'').trim().toLowerCase();
-const hideRoot=(root)=>{
- root.classList.remove('visible','owner-operation-full');
- document.documentElement.classList.remove('owner-operation-full-open');
- root.style.setProperty('display','none','important');
-};
-const apply=()=>{
- const root=document.getElementById(ROOT_ID);if(!root)return false;
- rootRef=root;
- root.style.setProperty('pointer-events','none','important');
- root.style.setProperty('background','transparent','important');
- const shell=qs('.vo-shell',root);if(!shell)return false;
- shell.style.setProperty('pointer-events','auto','important');
- shell.style.setProperty('inset','auto 18px 18px auto','important');
- shell.style.setProperty('width','min(680px,calc(100vw - 36px))','important');
- shell.style.setProperty('height','min(430px,calc(100vh - 36px))','important');
- shell.style.setProperty('max-height','calc(100vh - 36px)','important');
- shell.style.setProperty('border-radius','14px','important');
- if(window.matchMedia('(max-width:700px)').matches){
-  shell.style.setProperty('inset','auto 8px 8px auto','important');
-  shell.style.setProperty('width','min(340px,calc(100vw - 16px))','important');
-  shell.style.setProperty('height','min(300px,48vh)','important');
-  shell.style.setProperty('max-height','48vh','important');
- }
- const id=opId(root);
- if(id&&root.dataset.closedOperation&&root.dataset.closedOperation!==id)delete root.dataset.closedOperation;
- if(root.dataset.closedOperation===id&&id){hideRoot(root);return true;}
- if(root.classList.contains('visible'))root.style.setProperty('display','block','important');
- else root.style.setProperty('display','none','important');
- return true;
-};
+const elapsedSeconds=root=>{const text=String(qs('[data-elapsed]',root)?.textContent||'00:00:00');const m=text.match(/^(\d+):(\d{2}):(\d{2})$/);return m?(Number(m[1])*3600+Number(m[2])*60+Number(m[3])):0};
+const hideRoot=root=>{root.classList.remove('visible','owner-operation-full');document.documentElement.classList.remove('owner-operation-full-open');root.style.setProperty('display','none','important');root.style.setProperty('pointer-events','none','important')};
+const apply=()=>{const root=document.getElementById(ROOT_ID);if(!root)return false;rootRef=root;root.style.setProperty('pointer-events','none','important');root.style.setProperty('background','transparent','important');const shell=qs('.vo-shell',root);if(!shell)return false;shell.style.setProperty('pointer-events','auto','important');shell.style.setProperty('inset','auto 18px 18px auto','important');shell.style.setProperty('width','min(680px,calc(100vw - 36px))','important');shell.style.setProperty('height','min(430px,calc(100vh - 36px))','important');shell.style.setProperty('max-height','calc(100vh - 36px)','important');shell.style.setProperty('border-radius','14px','important');if(window.matchMedia('(max-width:700px)').matches){shell.style.setProperty('inset','auto 8px 8px auto','important');shell.style.setProperty('width','min(340px,calc(100vw - 16px))','important');shell.style.setProperty('height','min(300px,48vh)','important');shell.style.setProperty('max-height','48vh','important')}const id=opId(root);if(id&&root.dataset.closedOperation&&root.dataset.closedOperation!==id)delete root.dataset.closedOperation;if(root.dataset.closedOperation===id&&id){hideRoot(root);return true}if(root.classList.contains('visible'))root.style.setProperty('display','block','important');else root.style.setProperty('display','none','important');return true};
 const schedule=()=>{if(raf)return;raf=requestAnimationFrame(()=>{raf=0;apply()})};
-const attach=()=>{
- const root=document.getElementById(ROOT_ID);if(!root||root===rootRef)return false;
- rootRef=root;apply();
- root.addEventListener('click',e=>{
-  const close=e.target.closest('[data-close]');
-  if(close){const id=opId(root);if(id)root.dataset.closedOperation=id;hideRoot(root);}
- },true);
- observer?.disconnect();
- observer=new MutationObserver(schedule);
- observer.observe(root,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
- setTimeout(()=>{
-  if(root.classList.contains('visible')&&!root.dataset.closedOperation&&elapsedSeconds(root)>2){
-   root.dataset.startupSuppressed=opId(root)||'1';
-   hideRoot(root);
-  }
- },1400);
- return true;
-};
-window.vexaOwnerOperationOpenWorkspace=()=>{
- const root=document.getElementById(ROOT_ID);if(!root)return false;
- delete root.dataset.closedOperation;delete root.dataset.startupSuppressed;
- root.classList.add('visible');root.style.setProperty('display','block','important');apply();return true;
-};
-if(!attach()){
- const bootstrap=new MutationObserver(()=>{if(attach())bootstrap.disconnect()});
- bootstrap.observe(document.body||document.documentElement,{childList:true,subtree:true});
-}
+const attach=()=>{const root=document.getElementById(ROOT_ID);if(!root)return false;if(root!==rootRef){rootRef=root;root.addEventListener('click',e=>{const close=e.target.closest('[data-close]');if(close){const id=opId(root);if(id)root.dataset.closedOperation=id;hideRoot(root)}},true);observer?.disconnect();observer=new MutationObserver(schedule);observer.observe(root,{subtree:true,childList:true,attributes:true,attributeFilter:['class']})}apply();setTimeout(()=>{if(root.classList.contains('visible')&&!root.dataset.closedOperation&&elapsedSeconds(root)>2){root.dataset.startupSuppressed=opId(root)||'1';hideRoot(root)}},1400);return true};
+const retryAttach=()=>{if(attach()||retries>=MAX_RETRIES){retryTimer=null;return}retries++;retryTimer=setTimeout(retryAttach,100)};
+window.vexaOwnerOperationOpenWorkspace=()=>{const root=document.getElementById(ROOT_ID);if(!root)return false;delete root.dataset.closedOperation;delete root.dataset.startupSuppressed;root.classList.add('visible');root.style.setProperty('display','block','important');apply();return true};
+if(!attach())retryAttach();
 window.addEventListener('resize',schedule,{passive:true});
 window.addEventListener('orientationchange',schedule,{passive:true});
+window.addEventListener('beforeunload',()=>{clearTimeout(retryTimer);observer?.disconnect()},{once:true});
 })();
