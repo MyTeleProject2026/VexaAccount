@@ -3,7 +3,11 @@ const { pool } = require('../config/database');
 const { withDeadline } = require('../utils/requestDeadline');
 const JWT_SECRET = process.env.JWT_SECRET;
 const DB_AUTH_TIMEOUT_MS = 8000;
-const OWNER_AUTH_CACHE_MS = Math.max(1000, Number(process.env.OWNER_AUTH_CACHE_MS || 5000));
+// Owner UI navigation can issue several protected requests in a short burst.
+// Keep the verified JWT authorization result briefly so every click does not
+// queue another database lookup. JWT signature/expiry is still verified on
+// every request; this cache only avoids repeating the role-row lookup.
+const OWNER_AUTH_CACHE_MS = Math.max(1000, Number(process.env.OWNER_AUTH_CACHE_MS || 30000));
 const OWNER_SESSION_COOKIE = 'vexa_owner_session';
 const authCache = new Map();
 
@@ -30,8 +34,11 @@ function cachedAdmin(key) {
 function cacheAdmin(key, value) {
   authCache.set(key, { value, expiresAt: Date.now() + OWNER_AUTH_CACHE_MS });
   if (authCache.size > 100) {
-    const oldest = authCache.keys().next().value;
-    if (oldest) authCache.delete(oldest);
+    const now = Date.now();
+    for (const [k, entry] of authCache) {
+      if (entry.expiresAt <= now) authCache.delete(k);
+      if (authCache.size <= 80) break;
+    }
   }
 }
 
@@ -67,7 +74,7 @@ async function requireSuperAdmin(req, res, next) {
     req.superAdmin = { ...claims, ...authorization };
     next();
   } catch (error) {
-    if (error?.code === 'PROTOCOL_SEQUENCE_TIMEOUT' || error?.code === 'VEXA_REQUEST_TIMEOUT' || /timeout/i.test(String(error?.message||''))) {
+    if (error?.code === 'PROTOCOL_SEQUENCE_TIMEOUT' || error?.code === 'VEXA_REQUEST_TIMEOUT' || /timeout/i.test(String(error?.message || ''))) {
       return res.status(503).json({ success: false, message: 'Administrator session verification timed out' });
     }
     return res.status(401).json({ success: false, message: 'Invalid or expired administrator session' });
