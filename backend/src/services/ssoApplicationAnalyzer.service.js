@@ -29,25 +29,27 @@ function headers() {
   return { Authorization: `Bearer ${TOKEN}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'VexaAccount-Owner-SSO-Analyzer' };
 }
 async function request(method, path, ctx, detail = 'Waiting for GitHub…', maxContentLength = 2_000_000) {
-  let ticker; let hardTimeout; let timedOut = false;
-  const controller = new AbortController();
-  const parentSignal = ctx?.signal;
-  const abortFromParent = () => controller.abort(parentSignal?.reason || new Error('Owner operation cancelled'));
-  if (parentSignal) { if (parentSignal.aborted) abortFromParent(); else parentSignal.addEventListener('abort', abortFromParent, { once: true }); }
+  let ticker; let timedOut = false;
   try {
+    if (ctx?.isCancelled?.()) throw Object.assign(new Error('Owner operation cancelled'), { code: 'OWNER_OPERATION_CANCELLED' });
     ctx?.heartbeat?.(`GitHub request active: ${detail}`);
     ticker = setInterval(() => { try { ctx?.heartbeat?.(`GitHub request active: ${detail}`); } catch (_) {} }, REQUEST_HEARTBEAT_MS);
-    hardTimeout = setTimeout(() => { timedOut = true; controller.abort(new Error(`GitHub request exceeded ${REQUEST_TIMEOUT_MS / 1000}s`)); }, REQUEST_TIMEOUT_MS);
-    const r = await axios({ method, url: API + path, headers: headers(), timeout: REQUEST_TIMEOUT_MS, maxContentLength, maxBodyLength: maxContentLength, responseType: 'arraybuffer', signal: controller.signal });
+    // Do not attach the Owner operation AbortSignal to the GitHub transport.
+    // The previous signal chaining could turn a normal request/proxy disconnect
+    // into Axios' opaque "signal is aborted without reason" error. The operation
+    // remains cancellable at safe checkpoints while the GitHub request has its
+    // own bounded Axios timeout.
+    const r = await axios({ method, url: API + path, headers: headers(), timeout: REQUEST_TIMEOUT_MS, maxContentLength, maxBodyLength: maxContentLength, responseType: 'arraybuffer' });
     ctx?.heartbeat?.(`GitHub request completed: ${detail}`);
+    if (ctx?.isCancelled?.()) throw Object.assign(new Error('Owner operation cancelled'), { code: 'OWNER_OPERATION_CANCELLED' });
     return r;
   } catch (e) {
-    if (parentSignal?.aborted || (e?.code === 'ERR_CANCELED' && ctx?.isCancelled?.())) throw Object.assign(new Error('Owner operation cancelled'), { code: 'OWNER_OPERATION_CANCELLED' });
-    if (timedOut || e?.code === 'ECONNABORTED' || e?.code === 'ETIMEDOUT' || /timeout|exceeded/i.test(String(e?.message || ''))) throw Object.assign(new Error(`GitHub source analysis: request timed out after ${REQUEST_TIMEOUT_MS / 1000}s while ${detail}`), { status: 504, code: 'GITHUB_REQUEST_TIMEOUT' });
+    if (e?.code === 'OWNER_OPERATION_CANCELLED') throw e;
+    if (e?.code === 'ECONNABORTED' || e?.code === 'ETIMEDOUT' || /timeout|exceeded/i.test(String(e?.message || ''))) throw Object.assign(new Error(`GitHub source analysis: request timed out after ${REQUEST_TIMEOUT_MS / 1000}s while ${detail}`), { status: 504, code: 'GITHUB_REQUEST_TIMEOUT' });
     const status = e.response?.status || 502; let message = e.message || 'GitHub API request failed';
     try { const body = Buffer.from(e.response?.data || '').toString('utf8'); const parsed = JSON.parse(body); message = parsed.message || message; } catch (_) {}
     throw Object.assign(new Error(`GitHub source analysis: ${message}`), { status });
-  } finally { if (ticker) clearInterval(ticker); if (hardTimeout) clearTimeout(hardTimeout); if (parentSignal) parentSignal.removeEventListener('abort', abortFromParent); }
+  } finally { if (ticker) clearInterval(ticker); }
 }
 function jsonData(response) { try { return JSON.parse(Buffer.from(response.data).toString('utf8')); } catch (_) { return null; } }
 function classify(path, text) {
