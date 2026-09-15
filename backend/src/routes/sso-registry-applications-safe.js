@@ -59,22 +59,96 @@ router.patch('/applications/:clientId', auditAdminAction('sso.registry.applicati
   try {
     const clientId = String(req.params.clientId || '').trim();
     if (!clientId) return res.status(400).json({ success: false, message: 'Client ID is required' });
-    const allowed = ['display_name', 'owner_label', 'environment', 'description', 'status'];
+
+    const body = req.body || {};
+    const registryAllowed = ['display_name', 'owner_label', 'environment', 'description', 'status'];
     const updates = [];
     const values = [];
-    for (const field of allowed) {
-      if (req.body?.[field] !== undefined) {
-        const value = String(req.body[field] ?? '').trim();
-        if (field === 'status' && !['pending','active','disabled','maintenance','rejected','revoked'].includes(value)) return res.status(400).json({ success:false,message:'Invalid application status' });
+    for (const field of registryAllowed) {
+      if (body[field] !== undefined) {
+        const value = String(body[field] ?? '').trim();
+        if (field === 'status' && !['pending','active','disabled','maintenance','rejected','revoked'].includes(value)) {
+          return res.status(400).json({ success: false, message: 'Invalid application status' });
+        }
         updates.push(`${field}=?`);
         values.push(value || null);
       }
     }
-    if (!updates.length) return res.status(400).json({ success:false,message:'No supported application fields supplied' });
-    values.push(clientId);
-    const [result] = await pool.query(`UPDATE sso_client_registry SET ${updates.join(',')},updated_at=CURRENT_TIMESTAMP WHERE client_id=?`, values);
-    if (!result.affectedRows) return res.status(404).json({ success:false,message:'SSO application not found' });
-    res.json({success:true,message:'SSO application updated',clientId});
+
+    const hasRedirectUris = body.redirectUris !== undefined || body.redirect_uris !== undefined;
+    const hasAllowedScopes = body.allowedScopes !== undefined || body.allowed_scopes !== undefined;
+    const redirectUris = body.redirectUris !== undefined ? body.redirectUris : body.redirect_uris;
+    const allowedScopes = body.allowedScopes !== undefined ? body.allowedScopes : body.allowed_scopes;
+
+    if (hasRedirectUris) {
+      if (!Array.isArray(redirectUris)) return res.status(400).json({ success: false, message: 'redirectUris must be an array' });
+      const normalized = [...new Set(redirectUris.map(v => String(v || '').trim()).filter(Boolean))];
+      if (!normalized.length) return res.status(400).json({ success: false, message: 'At least one redirect URI is required' });
+      for (const uri of normalized) {
+        try {
+          const u = new URL(uri);
+          if (u.protocol !== 'https:' || u.username || u.password || u.hash) throw new Error('unsafe redirect URI');
+        } catch (_) {
+          return res.status(400).json({ success: false, message: `Invalid redirect URI: ${uri}` });
+        }
+      }
+    }
+
+    if (hasAllowedScopes) {
+      if (!Array.isArray(allowedScopes)) return res.status(400).json({ success: false, message: 'allowedScopes must be an array' });
+      const supportedScopes = new Set(['openid','profile','email','account','session','applications','notifications']);
+      const normalized = [...new Set(allowedScopes.map(v => String(v || '').trim()).filter(Boolean))];
+      const unsupported = normalized.filter(scope => !supportedScopes.has(scope));
+      if (unsupported.length) return res.status(400).json({ success: false, message: `Unsupported scope(s): ${unsupported.join(', ')}` });
+      if (!normalized.includes('openid')) normalized.unshift('openid');
+    }
+
+    if (!updates.length && !hasRedirectUris && !hasAllowedScopes) {
+      return res.status(400).json({ success: false, message: 'No supported application fields supplied' });
+    }
+
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      if (updates.length) {
+        values.push(clientId);
+        const [result] = await connection.query(`UPDATE sso_client_registry SET ${updates.join(',')},updated_at=CURRENT_TIMESTAMP WHERE client_id=?`, values);
+        if (!result.affectedRows) {
+          await connection.rollback();
+          return res.status(404).json({ success: false, message: 'SSO application not found' });
+        }
+      } else {
+        const [exists] = await connection.query('SELECT client_id FROM sso_client_registry WHERE client_id=? LIMIT 1', [clientId]);
+        if (!exists.length) {
+          await connection.rollback();
+          return res.status(404).json({ success: false, message: 'SSO application not found' });
+        }
+      }
+      if (hasRedirectUris || hasAllowedScopes) {
+        const clientUpdates = [];
+        const clientValues = [];
+        if (hasRedirectUris) { clientUpdates.push('redirect_uris=?'); clientValues.push(JSON.stringify([...new Set(redirectUris.map(v => String(v || '').trim()).filter(Boolean))])); }
+        if (hasAllowedScopes) {
+          const scopes = [...new Set(allowedScopes.map(v => String(v || '').trim()).filter(Boolean))];
+          if (!scopes.includes('openid')) scopes.unshift('openid');
+          clientUpdates.push('allowed_scopes=?'); clientValues.push(JSON.stringify(scopes));
+        }
+        clientValues.push(clientId);
+        const [result] = await connection.query(`UPDATE sso_clients SET ${clientUpdates.join(',')},updated_at=CURRENT_TIMESTAMP WHERE client_id=?`, clientValues);
+        if (!result.affectedRows) {
+          await connection.rollback();
+          return res.status(404).json({ success: false, message: 'SSO client record not found for application' });
+        }
+      }
+      await connection.commit();
+    } catch (error) {
+      try { await connection.rollback(); } catch (_) {}
+      throw error;
+    } finally {
+      connection.release();
+    }
+
+    res.json({ success: true, message: 'SSO application updated', clientId, ...(hasRedirectUris ? { redirectUris: [...new Set(redirectUris.map(v => String(v || '').trim()).filter(Boolean))] } : {}), ...(hasAllowedScopes ? { allowedScopes: [...new Set(allowedScopes.map(v => String(v || '').trim()).filter(Boolean)).length ? [...new Set(allowedScopes.map(v => String(v || '').trim()).filter(Boolean))] : ['openid'] } : {}) });
   } catch (e) { next(e); }
 });
 
