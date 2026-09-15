@@ -1,0 +1,36 @@
+/* Owner SSO Kit workspace is a child task surface, never a page-wide modal. */
+#vexa-kit-overlay.kit-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483000 !important;
+  pointer-events: none !important;
+  overflow: visible !important;
+  background: transparent !important;
+}
+#vexa-kit-overlay .kit-modal {
+  position: absolute !important;
+  right: 16px !important;
+  bottom: 16px !important;
+  inset: auto 16px 16px auto !important;
+  width: min(860px, calc(100vw - 32px)) !important;
+  max-height: min(78vh, 820px) !important;
+  overflow: auto !important;
+  pointer-events: auto !important;
+  border-radius: 16px !important;
+}
+#vexa-kit-overlay .kit-modal button,
+#vexa-kit-overlay .kit-modal input,
+#vexa-kit-overlay .kit-modal select,
+#vexa-kit-overlay .kit-modal textarea {
+  pointer-events: auto !important;
+}
+@media (max-width: 700px) {
+  #vexa-kit-overlay .kit-modal {
+    right: 8px !important;
+    bottom: 8px !important;
+    inset: auto 8px 8px 8px !important;
+    width: auto !important;
+    max-height: 76vh !important;
+    border-radius: 14px !important;
+  }
+}
