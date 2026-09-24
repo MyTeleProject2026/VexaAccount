@@ -3,7 +3,7 @@ VALUES (
  'vexamail-user',
  'PUBLIC',
  'VexaMail User',
- JSON_ARRAY('https://vexamail-user.onrender.com/'),
+ JSON_ARRAY('https://vexamail.onrender.com/'),
  JSON_ARRAY('openid','profile','email','account','session'),
  1
 )
