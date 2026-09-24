@@ -39,3 +39,20 @@ The app includes a web manifest, service worker, responsive mobile navigation an
 ## Important production boundary
 
 Sending mail is implemented through the existing server-side SMTP service. Receiving arbitrary external email into VexaMail is **not** implemented by the static frontend; it requires an inbound mail/IMAP ingestion service and domain/mailbox configuration.
+
+## VexaAccount SSO
+
+VexaMail now uses the VexaAccount OAuth/OIDC-style authorization-code flow with S256 PKCE as the browser login mechanism. The registered public client is `vexamail-user`, with the production redirect URI `https://vexamail-user.onrender.com/`.
+
+The browser never receives a confidential VexaAccount client secret; `PUBLIC` identifies this PKCE public client. Access and refresh tokens are stored by the VexaMail browser session and the mail API accepts the VexaMail SSO access token only for `/api/mail`.
+
+## Current mailbox capabilities
+
+- VexaAccount SSO with PKCE
+- Cloud-synced inbox, sent, drafts, starred, spam and trash
+- Internal VexaAccount-to-VexaAccount delivery
+- External SMTP sending through the existing VexaAccount email service
+- Search, read/unread, star/unstar, spam, trash/restore and permanent delete
+- Responsive mobile/desktop glass UI and PWA shell
+
+The remaining production mail-system work is inbound Internet mail routing/receiving, MIME/attachment handling, provider delivery/bounce processing, mailbox/domain provisioning, and production anti-spam/DKIM/SPF/DMARC infrastructure.
