@@ -99,14 +99,6 @@ router.patch('/drafts/:id',async(req,res,next)=>{try{
  params.push(req.params.id,uid(req));const [r]=await pool.query('UPDATE vexamail_messages SET '+sets.join(',')+' WHERE id=? AND user_id=? AND folder="drafts" AND is_trashed=0',[...params]);if(!r.affectedRows)return res.status(404).json({success:false,message:'Draft not found'});res.json({success:true,id:req.params.id});
 }catch(e){next(e)}});
 
-router.post('/drafts/:id/send',async(req,res,next)=>{try{
- const [rows]=await pool.query('SELECT * FROM vexamail_messages WHERE id=? AND user_id=? AND folder="drafts" LIMIT 1',[req.params.id,uid(req)]);if(!rows.length)return res.status(404).json({success:false,message:'Draft not found'});
- const d=rows[0];
- req.body={to:d.to_address,cc:d.cc_address,bcc:d.bcc_address,subject:d.subject,body:d.body,html:d.body_html,thread_id:d.thread_id};
- await pool.query('DELETE FROM vexamail_messages WHERE id=? AND user_id=?',[d.id,uid(req)]);
- return router.handle(req,res,next);
-}catch(e){next(e)}});
-
 router.patch('/messages/:id/read',async(req,res,next)=>{try{const read=req.body?.read===undefined?true:Boolean(req.body.read);const [r]=await pool.query('UPDATE vexamail_messages SET is_read=? WHERE id=? AND user_id=?',[read?1:0,req.params.id,uid(req)]);if(!r.affectedRows)return res.status(404).json({success:false,message:'Message not found'});res.json({success:true,read})}catch(e){next(e)}});
 
 router.patch('/messages/:id/star',async(req,res,next)=>{try{const starred=req.body?.starred===undefined?true:Boolean(req.body.starred);const [r]=await pool.query('UPDATE vexamail_messages SET starred=? WHERE id=? AND user_id=?',[starred?1:0,req.params.id,uid(req)]);if(!r.affectedRows)return res.status(404).json({success:false,message:'Message not found'});res.json({success:true,starred})}catch(e){next(e)}});
