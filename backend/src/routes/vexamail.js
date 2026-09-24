@@ -1,0 +1,34 @@
+const express=require('express');
+const {pool}=require('../config/database');
+const {authUser}=require('../middleware/auth');
+const {sendEmail}=require('../services/emailService');
+const router=express.Router();
+router.use(authUser);
+const uid=req=>req.user.id||req.user.sub;
+const clean=v=>String(v??'').trim();
+const esc=v=>clean(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+router.get('/messages',async(req,res,next)=>{try{
+ const folder=clean(req.query.folder||'inbox').toLowerCase(),userId=uid(req);
+ const allowed=['inbox','sent','drafts','starred','trash','spam']; if(!allowed.includes(folder))return res.status(400).json({success:false,message:'Invalid mailbox folder'});
+ let where='user_id=? AND deleted_at IS NULL',params=[userId];
+ if(folder==='inbox')where+=' AND folder="inbox" AND is_trashed=0 AND is_spam=0';
+ else if(folder==='sent')where+=' AND folder="sent" AND is_trashed=0';
+ else if(folder==='drafts')where+=' AND folder="drafts" AND is_trashed=0';
+ else if(folder==='starred')where+=' AND starred=1 AND is_trashed=0 AND is_spam=0';
+ else if(folder==='trash')where+=' AND is_trashed=1';
+ else if(folder==='spam')where+=' AND is_spam=1';
+ const [rows]=await pool.query(`SELECT id,thread_id,from_address AS \`from\`,to_address AS \`to\`,subject,body,folder,is_read AS \`read\`,starred,DATE_FORMAT(created_at,'%Y-%m-%d %H:%i') AS date FROM vexamail_messages WHERE ${where} ORDER BY created_at DESC LIMIT 200`,params);
+ res.json({success:true,messages:rows.map(m=>({...m,unread:!m.read,preview:clean(m.body).slice(0,180)}))});
+}catch(e){next(e)}});
+router.post('/send',async(req,res,next)=>{const c=await pool.getConnection();try{
+ const userId=uid(req),to=clean(req.body.to).toLowerCase(),subject=clean(req.body.subject),body=clean(req.body.body);
+ if(!to||!body)return res.status(400).json({success:false,message:'Recipient and message are required'});
+ const [u]=await c.query('SELECT email,name FROM store_users WHERE id=? AND is_active=1 LIMIT 1',[userId]);if(!u.length)return res.status(401).json({success:false,message:'Active VexaAccount session required'});
+ const from=u[0].email;
+ await sendEmail({to,subject:subject||'(no subject)',html:'<div style="font-family:Arial,sans-serif;line-height:1.6">'+esc(body).replace(/\n/g,'<br>')+'</div>'});
+ await c.query('INSERT INTO vexamail_messages(user_id,thread_id,from_address,to_address,subject,body,folder,is_read,starred,is_trashed,is_spam,created_at) VALUES(?,UUID(),?,?,?,?,1,1,0,0,0,NOW())',[userId,from,to,subject,body]);
+ res.json({success:true,message:'Message sent'});
+}catch(e){next(e)}finally{c.release()}});
+router.post('/messages/:id/read',async(req,res,next)=>{try{const [r]=await pool.query('UPDATE vexamail_messages SET is_read=1 WHERE id=? AND user_id=?',[req.params.id,uid(req)]);if(!r.affectedRows)return res.status(404).json({success:false,message:'Message not found'});res.json({success:true})}catch(e){next(e)}});
+router.post('/logout',async(req,res,next)=>{try{res.json({success:true})}catch(e){next(e)}});
+module.exports=router;
