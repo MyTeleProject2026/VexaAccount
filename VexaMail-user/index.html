@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#070811">
+<meta name="description" content="VexaMail — secure VexaAccount-connected webmail">
+<meta name="application-name" content="VexaMail">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./styles.css">
+<title>VexaMail</title>
+</head>
+<body>
+<div id="app" class="app-shell">
+  <div class="loading glass"><div class="logo">V</div><p>VexaMail</p><span>Loading secure mailbox…</span></div>
+</div>
+<script>window.VEXA_ACCOUNT_API_BASE=window.VEXA_ACCOUNT_API_BASE||'https://api-vexaaccount.onrender.com';window.VEXAMAIL_API_BASE=window.VEXAMAIL_API_BASE||'';</script>
+<script src="./app.js" defer></script>
+</body>
+</html>
