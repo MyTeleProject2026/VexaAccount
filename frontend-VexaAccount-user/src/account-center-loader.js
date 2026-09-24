@@ -13,8 +13,8 @@ const loadScript=(src,marker,timeout=12000)=>new Promise((resolve,reject)=>{cons
 let loading=false;
 async function ensureSession(){
   const t=token();
-  if(t)return true;
-  if(typeof window.vexaSessionFetch!=='function')return false;
+  if(!t&&typeof window.vexaSessionFetch!=='function')return false;
+  if(!t)return false;
   try{
     const d=await window.vexaSessionFetch();
     return d?.success===true&&!!d.user;
