@@ -62,3 +62,29 @@ The VexaAccount SSO client `vexamail-user` is registered for this exact origin. 
 - Responsive mobile/desktop glass UI and PWA shell
 
 The remaining production mail-system work is inbound Internet mail routing/receiving, MIME/attachment handling, provider delivery/bounce processing, mailbox/domain provisioning, and production anti-spam/DKIM/SPF/DMARC infrastructure.
+
+
+## Production inbound Internet mail
+
+VexaMail now includes a Brevo Inbound Parsing webhook endpoint at:
+
+`POST https://api-vexaaccount.onrender.com/api/mail/inbound/brevo`
+
+Brevo's Inbound Parsing service receives mail for a dedicated receiving domain/subdomain and posts structured messages to this webhook. Brevo documents that the receiving domain must be delegated to its inbound servers with MX records, and that inbound webhooks include message IDs, threading headers, HTML/text bodies, recipients and attachment download tokens. citeturn1search1turn1search0
+
+Configure the VexaAccount Render Web Service with:
+
+- `BREVO_API_KEY` — Brevo API key used to download inbound attachments.
+- `VEXAMAIL_BREVO_WEBHOOK_TOKEN` — long random secret placed in the Brevo webhook's custom header as `x-vexamail-brevo-token`.
+- Keep the existing `BREVO_SMTP_*` variables for outbound delivery.
+
+Brevo webhook configuration:
+
+- Type: `inbound`
+- Event: `inboundEmailProcessed`
+- URL: `https://api-vexaaccount.onrender.com/api/mail/inbound/brevo`
+- Receiving domain: a dedicated verified inbound domain/subdomain.
+
+Do not use the VexaMail web-app hostname itself as the receiving MX domain. Brevo's documentation recommends a separate receiving domain/subdomain from the sending domain. citeturn1search1
+
+Inbound attachments are stored as protected Brevo download tokens and are retrieved through the VexaAccount API using the Brevo API key; the browser is not given the Brevo API key. citeturn1search0
