@@ -1,0 +1,10 @@
+{
+  "name":"VexaMail",
+  "short_name":"VexaMail",
+  "start_url":"./",
+  "display":"standalone",
+  "background_color":"#070811",
+  "theme_color":"#070811",
+  "description":"VexaAccount-connected secure webmail",
+  "icons":[{"src":"./icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}
