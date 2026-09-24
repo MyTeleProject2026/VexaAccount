@@ -42,9 +42,15 @@ Sending mail is implemented through the existing server-side SMTP service. Recei
 
 ## VexaAccount SSO
 
-VexaMail now uses the VexaAccount OAuth/OIDC-style authorization-code flow with S256 PKCE as the browser login mechanism. The registered public client is `vexamail-user`, with the production redirect URI `https://vexamail-user.onrender.com/`.
+VexaMail now uses the VexaAccount OAuth/OIDC-style authorization-code flow with S256 PKCE as the browser login mechanism. The registered public client is `vexamail-user`, with the production redirect URI `https://vexamail.onrender.com/`.
 
 The browser never receives a confidential VexaAccount client secret; `PUBLIC` identifies this PKCE public client. Access and refresh tokens are stored by the VexaMail browser session and the mail API accepts the VexaMail SSO access token only for `/api/mail`.
+
+## Production deployment
+
+Production VexaMail Static Site: `https://vexamail.onrender.com/`
+
+The VexaAccount SSO client `vexamail-user` is registered for this exact origin. Render should use Root Directory `VexaMail-user`, Build Command empty, and Publish Directory `.`.
 
 ## Current mailbox capabilities
 
