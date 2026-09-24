@@ -26,7 +26,13 @@ function parseJsonArray(value, fallback = []) { if (Array.isArray(value)) return
 async function getUserSessionVersion(id, connection = pool) { const [rows] = await connection.query('SELECT session_version FROM store_users WHERE id=? AND is_active=1 LIMIT 1',[id]); return rows[0] ? Number(rows[0].session_version || 1) : null; }
 async function getClient(id, connection = pool) { const [rows] = await connection.query('SELECT id,client_id,client_secret_hash,name,redirect_uris,allowed_scopes,is_active FROM sso_clients WHERE client_id=? LIMIT 1',[id]); return rows[0] || null; }
 function redirectAllowed(client, uri) { return Boolean(client && Number(client.is_active) === 1 && uri && parseJsonArray(client.redirect_uris).some(value => String(value).trim() === String(uri).trim())); }
-function clientSecretValid(client, secret) { if (!client || !client.client_secret_hash || !secret) return false; const stored=String(client.client_secret_hash); return safeEqual(sha256(secret),stored) || safeEqual(legacySha256(secret),stored); }
+function clientSecretValid(client, secret) {
+ if (!client || !client.client_secret_hash) return false;
+ const stored=String(client.client_secret_hash);
+ if (stored === 'PUBLIC') return !secret || secret === 'PUBLIC';
+ if (!secret) return false;
+ return safeEqual(sha256(secret),stored) || safeEqual(legacySha256(secret),stored);
+}
 function requestedScopes(value) { return [...new Set(String(value || '').split(/\s+/).filter(Boolean))]; }
 async function getActiveConsent(connection, clientId, userId, requestedScope) { const [rows] = await connection.query('SELECT scopes,revoked_at FROM sso_consents WHERE client_id=? AND user_id=? LIMIT 1 FOR UPDATE',[clientId,userId]); if (!rows.length || rows[0].revoked_at) return null; const granted=new Set(requestedScopes(rows[0].scopes)); const scope=requestedScopes(requestedScope); if (scope.some(item=>!granted.has(item))) return null; return rows[0]; }
 
