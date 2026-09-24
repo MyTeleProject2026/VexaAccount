@@ -34,7 +34,18 @@ router.post('/attachments/upload',async(req,res,next)=>{try{
 router.get('/attachments/:id',async(req,res,next)=>{try{
  const [rows]=await pool.query('SELECT a.storage_key,a.filename,a.content_type FROM vexamail_attachments a JOIN vexamail_messages m ON m.id=a.message_id WHERE a.id=? AND m.user_id=? LIMIT 1',[req.params.id,uid(req)]);
  if(!rows.length)return res.status(404).json({success:false,message:'Attachment not found'});
- res.json({success:true,attachment:{url:rows[0].storage_key,filename:rows[0].filename,content_type:rows[0].content_type}});
+ const a=rows[0];
+ if(a.storage_key.startsWith('brevo://')){
+   const token=a.storage_key.slice('brevo://'.length);
+   const apiKey=clean(process.env.BREVO_API_KEY);
+   if(!apiKey)return res.status(503).json({success:false,message:'Brevo API key is not configured'});
+   const response=await axios.get('https://api.brevo.com/v3/inbound/attachments/'+encodeURIComponent(token),{headers:{'api-key':apiKey},responseType:'stream',timeout:30000});
+   res.setHeader('Content-Type',a.content_type||response.headers['content-type']||'application/octet-stream');
+   res.setHeader('Content-Disposition','attachment; filename="'+a.filename.replace(/["\\\r\n]/g,'_')+'"');
+   if(response.headers['content-length'])res.setHeader('Content-Length',response.headers['content-length']);
+   return response.data.pipe(res);
+ }
+ res.json({success:true,attachment:{url:a.storage_key,filename:a.filename,content_type:a.content_type}});
 }catch(e){next(e)}});
 
 router.delete('/attachments/:id',async(req,res,next)=>{try{
