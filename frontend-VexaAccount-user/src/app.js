@@ -20,7 +20,13 @@ window.fetch=async(input,init={})=>{
  const headers=new Headers(init.headers||{});const token=getToken();
  if(token&&/\/api\//.test(url)&&!headers.has('Authorization'))headers.set('Authorization','Bearer '+token);
  const response=await baseFetch(input,{...init,headers});
- if(/\/api\//.test(url)){try{const d=await response.clone().json();const fresh=pickToken(d);if(fresh)saveToken(String(fresh))}catch{}}
+ if(/\/api\//.test(url)){
+  if(response.status===401&&!/\/api\/auth\/(login|register|verify-otp|resend-otp|forgot-password|reset-password|twofa\/verify|verify-email-2fa)(?:\?|$)/.test(url)){
+   clearToken();
+   window.dispatchEvent(new CustomEvent('vexa-auth-expired',{detail:{url,status:401}}));
+  }
+  try{const d=await response.clone().json();const fresh=pickToken(d);if(fresh)saveToken(String(fresh))}catch{}
+ }
  if(/\/api\/auth\/logout(?:\?|$)/.test(url)&&response.ok){clearToken();window.dispatchEvent(new Event('vexa-auth-cleared'))}
  return response;
 };
@@ -49,6 +55,7 @@ function help(){auth('Get help signing in','Use the recovery options below to re
 function route(){const raw=location.hash||'#/login';const clean=raw.replace(/^#\//,'');const [path,query='']=clean.split('?');const params=new URLSearchParams(query);if(path==='login'||path==='signin')login();else if(path==='register')register();else if(path==='forgot-password')forgot();else if(path==='verify-email')verify(params.get('email')||'');else if(path==='reset-password')reset(params.get('token')||'');else if(path==='login-2fa')otp(params.get('type')==='email'?'email':'authenticator',params.get('userId')||'',params.get('email')||'');else if(path==='help')help()}
 function renderAuth(){if(AUTH.test(location.hash||'')){document.documentElement.classList.add('vexa-auth-route');if(q('#vexa-react-root'))q('#vexa-react-root').style.display='none';route()}}
 window.addEventListener('hashchange',renderAuth);
+window.addEventListener('vexa-auth-expired',()=>{if(!AUTH.test(location.hash||'')&&!/^#\/sso\/authorize/i.test(location.hash||''))location.hash='#/login';renderAuth()});
 window.addEventListener('vexa-auth-cleared',()=>{if(!AUTH.test(location.hash||''))location.hash='#/login';renderAuth()});
 window.addEventListener('vexa-auth-ready',()=>{if(AUTH.test(location.hash||''))return;window.dispatchEvent(new Event('vexa-account-route-change'))});
 try{const hash=location.hash||'';if(!getToken()&&!AUTH.test(hash)&&!hash.startsWith('#/sso/authorize'))location.hash='#/login';else if(AUTH.test(hash))renderAuth()}catch{}
