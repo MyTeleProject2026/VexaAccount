@@ -177,37 +177,64 @@ router.patch('/drafts/:id',async(req,res,next)=>{try{
  params.push(req.params.id,uid(req));const [r]=await pool.query('UPDATE vexamail_messages SET '+sets.join(',')+' WHERE id=? AND user_id=? AND folder="drafts" AND is_trashed=0',[...params]);if(!r.affectedRows)return res.status(404).json({success:false,message:'Draft not found'});res.json({success:true,id:req.params.id});
 }catch(e){next(e)}});
 
+async function createOutboundFromExisting({userId,user,source,kind,to,cc,bcc,subject,body,html}){
+ const recipients=allRecipients(to,cc,bcc);
+ if(!recipients.length||!body) throw Object.assign(new Error('Recipient and message body are required'),{statusCode:400});
+ const threadId=kind==='forward'?crypto.randomUUID():source.thread_id;
+ const messageId='<'+crypto.randomUUID()+'@vexamail>';
+ const refs=kind==='forward'?'':[source.references_header,source.message_id].filter(Boolean).join(' ');
+ const [r]=await pool.query(
+  'INSERT INTO vexamail_messages(user_id,thread_id,message_id,from_address,to_address,cc_address,bcc_address,reply_to,subject,body,body_html,folder,is_read,starred,is_trashed,is_spam,delivery_status,provider,in_reply_to,references_header) VALUES(?,?,?,?,?,?,?,?,?,?,?,"sent",1,0,0,0,"queued","brevo",?,?)',
+  [userId,threadId,messageId,user.email,splitAddresses(to).join(', '),splitAddresses(cc).join(', '),splitAddresses(bcc).join(', '),user.email,subject,body,html||null,kind==='forward'?null:source.message_id,refs||null]
+ );
+ const id=r.insertId; await writeRecipients(pool,id,recipients);
+ const attachments=kind==='forward'?await messageAttachments(source.id,userId):[];
+ try{
+  const info=await sendEmail({to:splitAddresses(to),cc:splitAddresses(cc),bcc:splitAddresses(bcc),subject:subject||'(no subject)',text:body,html:html||'<div style="font-family:Arial,sans-serif;line-height:1.6">'+esc(body).replace(/\n/g,'<br>')+'</div>',replyTo:user.email,messageId,inReplyTo:kind==='forward'?null:source.message_id,references:refs,attachments});
+  await pool.query('UPDATE vexamail_messages SET delivery_status="sent",provider_message_id=? WHERE id=?',[info.messageId||null,id]);
+  await pool.query('UPDATE vexamail_recipients SET delivery_status="sent" WHERE message_id=?',[id]);
+  await pool.query('INSERT INTO vexamail_delivery_events(message_id,provider,provider_message_id,event_type,payload) VALUES(?,"brevo",?,"sent",?)',[id,info.messageId||null,JSON.stringify({message_id:messageId})]);
+  for(const rr of recipients.filter(x=>x.type!=='bcc')){
+   const [users]=await pool.query('SELECT id FROM store_users WHERE email=? AND is_active=1 LIMIT 1',[rr.email]);
+   if(users.length&&Number(users[0].id)!==Number(userId)) await createInternalCopy(pool,{recipientUserId:users[0].id,threadId,from:user.email,to:splitAddresses(to).join(', '),cc:splitAddresses(cc).join(', '),subject,body,html,inReplyTo:messageId,references:[refs,messageId].filter(Boolean).join(' ')});
+  }
+  return {id,thread_id:threadId,provider_message_id:info.messageId||null};
+ }catch(error){
+  await pool.query('UPDATE vexamail_messages SET delivery_status="failed" WHERE id=?',[id]);
+  await pool.query('UPDATE vexamail_recipients SET delivery_status="failed" WHERE message_id=?',[id]);
+  throw Object.assign(error,{statusCode:502,message:'Message delivery failed'});
+ }
+}
+
 router.post('/messages/:id/reply',async(req,res,next)=>{try{
  const userId=uid(req),user=await currentUser(userId);if(!user)return res.status(401).json({success:false,message:'Active VexaAccount session required'});
  const [rows]=await pool.query('SELECT * FROM vexamail_messages WHERE id=? AND user_id=? AND deleted_at IS NULL LIMIT 1',[req.params.id,userId]);
  if(!rows.length)return res.status(404).json({success:false,message:'Message not found'});
- const m=rows[0],to=clean(req.body.to)||clean(m.from_address),subject=clean(req.body.subject)||(/^re:/i.test(m.subject)?m.subject:'Re: '+m.subject),body=clean(req.body.body),threadId=m.thread_id;
- if(!body)return res.status(400).json({success:false,message:'Reply body is required'});
- req.body={...req.body,to,cc:'',bcc:'',subject,body,html:clean(req.body.html),thread_id:threadId,in_reply_to:m.message_id,references_header:[m.references_header,m.message_id].filter(Boolean).join(' '),reply_to:user.email};
- return router.handle(req,res,next);
-}catch(e){next(e)}});
+ const m=rows[0],subject=clean(req.body.subject)||(/^re:/i.test(m.subject)?m.subject:'Re: '+m.subject);
+ const result=await createOutboundFromExisting({userId,user,source:m,kind:'reply',to:clean(req.body.to)||m.from_address,cc:'',bcc:'',subject,body:clean(req.body.body),html:clean(req.body.html)});
+ res.status(201).json({success:true,message:'Reply sent',...result});
+}catch(e){if(e.statusCode)return res.status(e.statusCode).json({success:false,message:e.message});next(e)}});
 
 router.post('/messages/:id/reply-all',async(req,res,next)=>{try{
  const userId=uid(req),user=await currentUser(userId);if(!user)return res.status(401).json({success:false,message:'Active VexaAccount session required'});
  const [rows]=await pool.query('SELECT * FROM vexamail_messages WHERE id=? AND user_id=? AND deleted_at IS NULL LIMIT 1',[req.params.id,userId]);
  if(!rows.length)return res.status(404).json({success:false,message:'Message not found'});
- const m=rows[0],to=[m.from_address,m.to_address].filter(Boolean).join(', '),cc=clean(m.cc_address),subject=clean(req.body.subject)||(/^re:/i.test(m.subject)?m.subject:'Re: '+m.subject),body=clean(req.body.body);
- if(!body)return res.status(400).json({success:false,message:'Reply body is required'});
- const uniqueTo=[...new Set(splitAddresses(to).filter(x=>x!==user.email))].join(', ');
- const uniqueCc=[...new Set(splitAddresses(cc).filter(x=>x!==user.email&&!splitAddresses(uniqueTo).includes(x)))].join(', ');
- req.body={...req.body,to:uniqueTo,cc:uniqueCc,bcc:'',subject,body,html:clean(req.body.html),thread_id:m.thread_id,in_reply_to:m.message_id,references_header:[m.references_header,m.message_id].filter(Boolean).join(' '),reply_to:user.email};
- return router.handle(req,res,next);
-}catch(e){next(e)}});
+ const m=rows[0],to=[...new Set(splitAddresses(m.from_address+', '+m.to_address).filter(x=>x!==user.email))].join(', ');
+ const cc=[...new Set(splitAddresses(m.cc_address).filter(x=>x!==user.email&&!splitAddresses(to).includes(x)))].join(', ');
+ const subject=clean(req.body.subject)||(/^re:/i.test(m.subject)?m.subject:'Re: '+m.subject);
+ const result=await createOutboundFromExisting({userId,user,source:m,kind:'reply',to,cc,bcc:'',subject,body:clean(req.body.body),html:clean(req.body.html)});
+ res.status(201).json({success:true,message:'Reply-all sent',...result});
+}catch(e){if(e.statusCode)return res.status(e.statusCode).json({success:false,message:e.message});next(e)}});
 
 router.post('/messages/:id/forward',async(req,res,next)=>{try{
  const userId=uid(req),user=await currentUser(userId);if(!user)return res.status(401).json({success:false,message:'Active VexaAccount session required'});
  const [rows]=await pool.query('SELECT * FROM vexamail_messages WHERE id=? AND user_id=? AND deleted_at IS NULL LIMIT 1',[req.params.id,userId]);
  if(!rows.length)return res.status(404).json({success:false,message:'Message not found'});
- const m=rows[0],to=clean(req.body.to),subject=clean(req.body.subject)||(/^fwd:/i.test(m.subject)?m.subject:'Fwd: '+m.subject),body=clean(req.body.body)+'\n\n---------- Forwarded message ----------\nFrom: '+m.from_address+'\nDate: '+m.created_at+'\nSubject: '+m.subject+'\nTo: '+m.to_address+'\n\n'+m.body;
- if(!splitAddresses(to).length)return res.status(400).json({success:false,message:'Forward recipient is required'});
- req.body={...req.body,to,cc:clean(req.body.cc),bcc:clean(req.body.bcc),subject,body,html:clean(req.body.html),thread_id:crypto.randomUUID(),reply_to:user.email};
- return router.handle(req,res,next);
-}catch(e){next(e)}});
+ const m=rows[0],subject=clean(req.body.subject)||(/^fwd:/i.test(m.subject)?m.subject:'Fwd: '+m.subject);
+ const body=clean(req.body.body)+'\n\n---------- Forwarded message ----------\nFrom: '+m.from_address+'\nDate: '+m.created_at+'\nSubject: '+m.subject+'\nTo: '+m.to_address+'\n\n'+m.body;
+ const result=await createOutboundFromExisting({userId,user,source:m,kind:'forward',to:clean(req.body.to),cc:clean(req.body.cc),bcc:clean(req.body.bcc),subject,body,html:clean(req.body.html)});
+ res.status(201).json({success:true,message:'Forwarded message sent',...result});
+}catch(e){if(e.statusCode)return res.status(e.statusCode).json({success:false,message:e.message});next(e)}});
 
 router.patch('/messages/:id/read',async(req,res,next)=>{try{const read=req.body?.read===undefined?true:Boolean(req.body.read);const [r]=await pool.query('UPDATE vexamail_messages SET is_read=? WHERE id=? AND user_id=?',[read?1:0,req.params.id,uid(req)]);if(!r.affectedRows)return res.status(404).json({success:false,message:'Message not found'});res.json({success:true,read})}catch(e){next(e)}});
 
