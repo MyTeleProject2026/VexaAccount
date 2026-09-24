@@ -1,41 +1,41 @@
 ALTER TABLE vexamail_messages
-  ADD COLUMN cc_address VARCHAR(2000) NOT NULL DEFAULT '' AFTER to_address;
+  ADD COLUMN IF NOT EXISTS cc_address VARCHAR(2000) NOT NULL DEFAULT '' AFTER to_address;
 
 ALTER TABLE vexamail_messages
-  ADD COLUMN bcc_address VARCHAR(2000) NOT NULL DEFAULT '' AFTER cc_address;
+  ADD COLUMN IF NOT EXISTS bcc_address VARCHAR(2000) NOT NULL DEFAULT '' AFTER cc_address;
 
 ALTER TABLE vexamail_messages
-  ADD COLUMN reply_to VARCHAR(320) NOT NULL DEFAULT '' AFTER bcc_address;
+  ADD COLUMN IF NOT EXISTS reply_to VARCHAR(320) NOT NULL DEFAULT '' AFTER bcc_address;
 
 ALTER TABLE vexamail_messages
-  ADD COLUMN message_id VARCHAR(255) NULL AFTER thread_id;
+  ADD COLUMN IF NOT EXISTS message_id VARCHAR(255) NULL AFTER thread_id;
 
 ALTER TABLE vexamail_messages
-  ADD COLUMN in_reply_to VARCHAR(255) NULL AFTER message_id;
+  ADD COLUMN IF NOT EXISTS in_reply_to VARCHAR(255) NULL AFTER message_id;
 
 ALTER TABLE vexamail_messages
-  ADD COLUMN references_header TEXT NULL AFTER in_reply_to;
+  ADD COLUMN IF NOT EXISTS references_header TEXT NULL AFTER in_reply_to;
 
 ALTER TABLE vexamail_messages
-  ADD COLUMN body_html LONGTEXT NULL AFTER body;
+  ADD COLUMN IF NOT EXISTS body_html LONGTEXT NULL AFTER body;
 
 ALTER TABLE vexamail_messages
-  ADD COLUMN delivery_status ENUM('draft','queued','sent','failed','delivered','bounced') NOT NULL DEFAULT 'sent' AFTER is_spam;
+  ADD COLUMN IF NOT EXISTS delivery_status ENUM('draft','queued','sent','failed','delivered','bounced') NOT NULL DEFAULT 'sent' AFTER is_spam;
 
 ALTER TABLE vexamail_messages
-  ADD COLUMN provider VARCHAR(64) NULL AFTER delivery_status;
+  ADD COLUMN IF NOT EXISTS provider VARCHAR(64) NULL AFTER delivery_status;
 
 ALTER TABLE vexamail_messages
-  ADD COLUMN provider_message_id VARCHAR(255) NULL AFTER provider;
+  ADD COLUMN IF NOT EXISTS provider_message_id VARCHAR(255) NULL AFTER provider;
 
-ALTER TABLE vexamail_messages
-  ADD UNIQUE KEY uq_vexamail_message_id(message_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_vexamail_message_id
+  ON vexamail_messages(message_id);
 
-ALTER TABLE vexamail_messages
-  ADD KEY idx_vexamail_thread(user_id,thread_id,created_at);
+CREATE INDEX IF NOT EXISTS idx_vexamail_thread
+  ON vexamail_messages(user_id,thread_id,created_at);
 
-ALTER TABLE vexamail_messages
-  ADD KEY idx_vexamail_delivery(user_id,delivery_status,created_at);
+CREATE INDEX IF NOT EXISTS idx_vexamail_delivery
+  ON vexamail_messages(user_id,delivery_status,created_at);
 
 CREATE TABLE IF NOT EXISTS vexamail_recipients (
  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
