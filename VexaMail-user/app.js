@@ -1,6 +1,6 @@
 (()=>{'use strict';
 const ACCOUNT_API=(window.VEXA_ACCOUNT_API_BASE||'https://api-vexaaccount.onrender.com').replace(/\/$/,'');
-const MAIL_API=(window.VEXAMAIL_API_BASE||'').replace(/\/$/,'');
+const MAIL_API=(window.VEXAMAIL_API_BASE||ACCOUNT_API).replace(/\/$/,'');
 const token=()=>window.vexaMailToken||localStorage.getItem('vexaaccount_access_token')||sessionStorage.getItem('vexaaccount_access_token');
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function accountSession(){const h={Accept:'application/json'};const t=token();if(t)h.Authorization='Bearer '+t;const r=await fetch(ACCOUNT_API+'/api/auth/session',{credentials:'include',headers:h});const d=await r.json().catch(()=>({}));if(r.status===401||!d?.success)return null;return d.user||null}
