@@ -91,7 +91,19 @@ function formatSmtpError(error) {
   return String(error?.response || error?.code || error?.message || 'Unknown SMTP error');
 }
 
-async function sendEmail({ to, subject, html }) {
+async function sendEmail({
+  to,
+  cc,
+  bcc,
+  subject,
+  html,
+  text,
+  replyTo,
+  messageId,
+  inReplyTo,
+  references,
+  attachments = []
+}) {
   if (!SMTP_USER || !SMTP_PASS || !FROM_EMAIL) {
     const missing = [];
     if (!SMTP_USER) missing.push('BREVO_SMTP_USER');
@@ -103,28 +115,38 @@ async function sendEmail({ to, subject, html }) {
     throw error;
   }
 
+  const mail = {
+    from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
+    to,
+    cc: cc || undefined,
+    bcc: bcc || undefined,
+    replyTo: replyTo || undefined,
+    subject,
+    text: text || undefined,
+    html,
+    messageId: messageId || undefined,
+    inReplyTo: inReplyTo || undefined,
+    references: references || undefined,
+    attachments: Array.isArray(attachments) ? attachments : []
+  };
+
   let lastError = null;
 
   for (const port of smtpPorts) {
     const transporter = getSmtpTransporter(port);
     try {
-      const info = await transporter.sendMail({
-        from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
-        to,
-        subject,
-        html
-      });
-
+      const info = await transporter.sendMail(mail);
       console.log(`Brevo SMTP email accepted on port ${port}:`, info.messageId || to);
-      return true;
+      return {
+        accepted: true,
+        messageId: info.messageId || messageId || null,
+        response: info.response || null,
+        envelope: info.envelope || null
+      };
     } catch (error) {
       lastError = error;
       const details = formatSmtpError(error);
       console.error(`Brevo SMTP email delivery failed on port ${port}:`, details);
-
-      // Authentication, sender, recipient, and other SMTP 4xx/5xx responses
-      // should not be retried against another port. Network timeouts/resets
-      // can safely try Brevo's alternate SMTP submission port.
       if (!isRetryableNetworkError(error)) break;
     }
   }
