@@ -17,5 +17,5 @@ CREATE TABLE IF NOT EXISTS vexamail_messages (
  PRIMARY KEY(id),
  KEY idx_vexamail_user_folder_created(user_id,folder,created_at),
  KEY idx_vexamail_user_flags(user_id,starred,is_trashed,is_spam),
- CONSTRAINT fk_vexamail_user FOREIGN KEY(user_id) REFERENCES store_users(id) ON DELETE CASCADE
+
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
