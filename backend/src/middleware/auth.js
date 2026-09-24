@@ -61,6 +61,20 @@ const authUser = async (req, res, next) => {
     const token = getToken(req);
     if (!token) return res.status(401).json({ success: false, message: 'Authentication required' });
     const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded.token_type === 'access' && decoded.iss === (process.env.VEXA_ACCOUNT_ISSUER || 'https://api-vexaaccount.onrender.com')) {
+      const ssoUserId = decoded.sub;
+      if (!ssoUserId) return res.status(401).json({ success: false, message: 'Invalid SSO identity' });
+      const [ssoRows] = await pool.query('SELECT id,email,name,is_active,session_version FROM store_users WHERE id=? AND is_active=1 LIMIT 1',[ssoUserId]);
+      if (!ssoRows.length || Number(decoded.sv || 1) !== Number(ssoRows[0].session_version || 1)) {
+        return res.status(401).json({ success: false, message: 'Invalid, inactive, or revoked SSO session' });
+      }
+      if (req.baseUrl === '/api/mail') {
+        req.user = { ...decoded, id: ssoRows[0].id, email: ssoRows[0].email, role: 'user' };
+        req.authenticatedUser = ssoRows[0];
+        return next();
+      }
+      return res.status(401).json({ success: false, message: 'SSO token is not valid for this endpoint' });
+    }
     const activeUser = await requireActiveUser(decoded);
     if (!activeUser || !(await legacyTokenIsCurrent(decoded, activeUser))) {
       res.clearCookie('vexaccount_session', {
