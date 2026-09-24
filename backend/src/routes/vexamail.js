@@ -26,7 +26,7 @@ router.post('/send',async(req,res,next)=>{const c=await pool.getConnection();try
  const [u]=await c.query('SELECT email,name FROM store_users WHERE id=? AND is_active=1 LIMIT 1',[userId]);if(!u.length)return res.status(401).json({success:false,message:'Active VexaAccount session required'});
  const from=u[0].email;
  await sendEmail({to,subject:subject||'(no subject)',html:'<div style="font-family:Arial,sans-serif;line-height:1.6">'+esc(body).replace(/\n/g,'<br>')+'</div>'});
- await c.query('INSERT INTO vexamail_messages(user_id,thread_id,from_address,to_address,subject,body,folder,is_read,starred,is_trashed,is_spam,created_at) VALUES(?,UUID(),?,?,?,?,1,1,0,0,0,NOW())',[userId,from,to,subject,body]);
+ await c.query('INSERT INTO vexamail_messages(user_id,thread_id,from_address,to_address,subject,body,folder,is_read,starred,is_trashed,is_spam,created_at) VALUES(?,UUID(),?,?,?,?, 'sent',1,0,0,0,NOW())',[userId,from,to,subject,body]);
  res.json({success:true,message:'Message sent'});
 }catch(e){next(e)}finally{c.release()}});
 router.post('/messages/:id/read',async(req,res,next)=>{try{const [r]=await pool.query('UPDATE vexamail_messages SET is_read=1 WHERE id=? AND user_id=?',[req.params.id,uid(req)]);if(!r.affectedRows)return res.status(404).json({success:false,message:'Message not found'});res.json({success:true})}catch(e){next(e)}});
