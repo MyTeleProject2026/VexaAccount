@@ -16,6 +16,6 @@ CREATE TABLE IF NOT EXISTS vexamail_messages (
  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
  PRIMARY KEY(id),
  KEY idx_vexamail_user_folder_created(user_id,folder,created_at),
- KEY idx_vexamail_user_flags(user_id,starred,is_trashed,is_spam),
+ KEY idx_vexamail_user_flags(user_id,starred,is_trashed,is_spam)
 
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
