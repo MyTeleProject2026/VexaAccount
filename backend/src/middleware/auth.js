@@ -68,6 +68,13 @@ const authUser = async (req, res, next) => {
       if (!ssoRows.length || Number(decoded.sv || 1) !== Number(ssoRows[0].session_version || 1)) {
         return res.status(401).json({ success: false, message: 'Invalid, inactive, or revoked SSO session' });
       }
+      if (decoded.sid) {
+        const [sessionRows] = await pool.query('SELECT id,revoked_at,expires_at FROM sso_sessions WHERE id=? AND client_id=? AND user_id=? LIMIT 1',[decoded.sid,decoded.client_id,ssoUserId]);
+        const ssoSession=sessionRows[0];
+        if (!ssoSession || ssoSession.revoked_at || new Date(ssoSession.expires_at) <= new Date()) {
+          return res.status(401).json({ success: false, message: 'SSO application session has been revoked or expired' });
+        }
+      }
       if (req.baseUrl === '/api/mail') {
         req.user = { ...decoded, id: ssoRows[0].id, email: ssoRows[0].email, role: 'user' };
         req.authenticatedUser = ssoRows[0];
