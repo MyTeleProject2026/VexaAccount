@@ -29,20 +29,6 @@ router.use((req, res, next) => {
 });
 
 async function ensure(userId) {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS vexa_account_privacy_settings (
-      user_id BIGINT PRIMARY KEY,
-      location_sharing_enabled TINYINT(1) NOT NULL DEFAULT 0,
-      personalization_enabled TINYINT(1) NOT NULL DEFAULT 1,
-      activity_history_enabled TINYINT(1) NOT NULL DEFAULT 1,
-      push_notifications_enabled TINYINT(1) NOT NULL DEFAULT 1,
-      product_updates_enabled TINYINT(1) NOT NULL DEFAULT 1,
-      marketing_email_enabled TINYINT(1) NOT NULL DEFAULT 0,
-      security_email_enabled TINYINT(1) NOT NULL DEFAULT 1,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-    )
-  `);
   await pool.query('INSERT IGNORE INTO vexa_account_privacy_settings(user_id) VALUES(?)', [userId]);
 }
 
