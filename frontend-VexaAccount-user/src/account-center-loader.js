@@ -1,25 +1,37 @@
-(()=>{
-'use strict';
-if(window.__VEXA_ACCOUNT_CENTER_LOADER_V4__)return;
-window.__VEXA_ACCOUNT_CENTER_LOADER_V4__=true;
-const AUTH=/^#\/(login|signin|register|forgot-password|verify-email|reset-password|login-2fa)(?:[/?]|$)/i;const SWITCHER=/^#\/account-switcher(?:[/?]|$)/i;const SSOMANAGER=/^#\/sso-manager(?:[/?]|$)/i;
-const isSso=()=>location.hash.startsWith('#/sso/authorize')||window.__VEXA_SSO_FLOW_ACTIVE__===true;
-const TOKEN_KEYS=['vexaaccount_access_token','vexa_access_token','access_token','token','userToken','accessToken'];
-const token=()=>{try{const t=window.vexaAccountAuth?.getToken?.();if(t)return t}catch{}for(const s of [localStorage,sessionStorage])for(const k of TOKEN_KEYS){try{const v=s.getItem(k);if(v&&String(v).trim())return String(v).trim()}catch{}}return null};
-const app=()=>document.getElementById('app');
-const root=()=>document.getElementById('vexa-react-root');
-function status(title,text,kind='loading',retry=false){const a=app();if(!a)return;a.style.display='block';a.innerHTML='<main class="shell loading-shell"><section class="card glass loading-card"><img class="loading-logo" src="./public/brand.svg" alt="VexaAccount"><p class="eyebrow">VEXA ACCOUNT</p><h1>'+title+'</h1><p class="muted">'+text+'</p>'+(kind==='loading'?'<div class="loading-bar"><span></span></div>':'')+(retry?'<button id="vx-runtime-retry" class="btn primary" type="button">Retry</button><button id="vx-runtime-login" class="btn" type="button">Sign in again</button>':'')+'</section></main>';document.getElementById('vx-runtime-retry')?.addEventListener('click',()=>{loading=false;load(true)});document.getElementById('vx-runtime-login')?.addEventListener('click',()=>{location.hash='#/login'});}
-const loadScript=(src,marker,timeout=12000)=>new Promise((resolve,reject)=>{const old=document.querySelector('script[data-vexa-account-runtime="'+marker+'"]');if(old&&old.dataset.loaded==='1')return resolve();const s=old||document.createElement('script');let done=false;const finish=(err)=>{if(done)return;done=true;clearTimeout(timer);if(err)reject(err);else{s.dataset.loaded='1';resolve()}};const timer=setTimeout(()=>finish(new Error(marker+' timed out')),timeout);if(!old){s.src=src;s.dataset.vexaAccountRuntime=marker;document.body.appendChild(s)}s.addEventListener('load',()=>finish());s.addEventListener('error',()=>finish(new Error('Failed to load '+marker)));});
+/* VexaAccount Account Center loader — single-flight, no startup flash, no polling. */
+(()=>{'use strict';
+if(window.__VEXA_ACCOUNT_CENTER_LOADER_V5__)return;window.__VEXA_ACCOUNT_CENTER_LOADER_V5__=true;
+const AUTH=/^#\/(login|signin|register|forgot-password|verify-email|reset-password|login-2fa)(?:[/?]|$)/i;
+const SWITCHER=/^#\/account-switcher(?:[/?]|$)/i,SSO=/^#\/sso-manager(?:[/?]|$)/i;
+const isSpecial=()=>AUTH.test(location.hash||'')||SWITCHER.test(location.hash||'')||SSO.test(location.hash||'')||location.hash.startsWith('#/sso/authorize')||window.__VEXA_SSO_FLOW_ACTIVE__===true;
+const root=()=>document.getElementById('vexa-react-root'),app=()=>document.getElementById('app');
+const token=()=>{try{return window.vexaAccountAuth?.getToken?.()||null}catch{return null}};
+const showError=(title,message)=>{const a=app();if(!a)return;a.style.display='block';a.replaceChildren();const main=document.createElement('main');main.className='shell loading-shell';const card=document.createElement('section');card.className='card glass loading-card';card.innerHTML='<img class="loading-logo" src="./public/brand.svg" alt="VexaAccount"><p class="eyebrow">VEXA ACCOUNT</p>';const h=document.createElement('h1');h.textContent=title;const p=document.createElement('p');p.className='muted';p.textContent=message;const retry=document.createElement('button');retry.id='vx-runtime-retry';retry.className='btn primary';retry.type='button';retry.textContent='Retry';retry.onclick=()=>{retry.disabled=true;load(true)};const login=document.createElement('button');login.className='btn';login.type='button';login.textContent='Sign in again';login.onclick=()=>{location.hash='#/login'};card.append(h,p,retry,login);main.append(card);a.append(main)};
+const loadScript=(src,marker)=>new Promise((resolve,reject)=>{const old=document.querySelector('script[data-vexa-account-runtime="'+marker+'"]');if(old?.dataset.loaded==='1')return resolve();const s=old||document.createElement('script');let done=false;const finish=e=>{if(done)return;done=true;e?reject(e):(s.dataset.loaded='1',resolve())};const timer=setTimeout(()=>finish(new Error(marker+' timed out')),15000);s.addEventListener('load',()=>{clearTimeout(timer);finish()},{once:true});s.addEventListener('error',()=>{clearTimeout(timer);finish(new Error('Failed to load '+marker))},{once:true});if(!old){s.src=src;s.dataset.vexaAccountRuntime=marker;document.body.appendChild(s)}});
 let loading=false;
-async function ensureSession(){
-  if(typeof window.vexaSessionFetch!=='function')return false;
-  try{
-    const d=await window.vexaSessionFetch();
-    return d?.success===true&&!!d.user;
-  }catch{return false}
+async function ensureSession(){if(typeof window.vexaSessionFetch!=='function')return !!token();try{const d=await window.vexaSessionFetch();return d?.success===true&&!!d.user}catch{return false}}
+async function load(force=false){
+ if(loading||window.__VEXA_ACCOUNT_CENTER_READY__||isSpecial())return;
+ loading=true;
+ try{
+  if(!(await ensureSession())){showError('Sign in required','Your secure session was not found. Please sign in to continue.');return}
+  const v='20260926-04';
+  await loadScript('./src/account-center-toast-guard.js?'+v,'account-center-toast-guard.js');
+  await loadScript('./src/account-center-runtime-v2.js?'+v,'account-center-runtime-v2.js');
+  await loadScript('./src/account-center-premium-theme.js?'+v,'account-center-premium-theme.js');
+  const started=Date.now();
+  while(Date.now()-started<12000){if(root()?.querySelector('#vx-content'))break;await new Promise(r=>setTimeout(r,50))}
+  if(!root()?.querySelector('#vx-content'))throw new Error('Account Center did not finish initialization');
+  window.__VEXA_ACCOUNT_CENTER_READY__=true;
+  root().style.display='block';
+  const a=app();if(a){a.style.display='none';a.replaceChildren()}
+ }catch(e){console.error('[VexaAccount] Account Center startup failed',e);showError('Unable to start Account Center',e?.message||'The secure account workspace could not be started.')}
+ finally{loading=false}
 }
-async function load(force=false){if(loading||window.__VEXA_ACCOUNT_CENTER_READY__||AUTH.test(location.hash||'')||SWITCHER.test(location.hash||'')||SSOMANAGER.test(location.hash||'')||isSso())return;loading=true;status('Loading Account Center…','Checking your secure VexaAccount session.');try{if(!(await ensureSession())){status('Sign in required','Your secure session was not found. Please sign in to continue.','error',true);return;}await loadScript('./src/account-center-toast-guard.js?v=20260907-01','account-center-toast-guard.js');await loadScript('./src/account-center-runtime-v2.js?v=20260926-02','account-center-runtime-v2.js');await loadScript('./src/account-center-premium-theme.js?v=20260926-03','account-center-premium-theme.js');const started=Date.now();while(Date.now()-started<10000){const r=root();if(r&&r.querySelector('#vx-content'))break;await new Promise(resolve=>setTimeout(resolve,50));}const r=root();if(!r||!r.querySelector('#vx-content'))throw new Error('Account Center did not finish initialization');window.__VEXA_ACCOUNT_CENTER_READY__=true;r.style.display='block';const a=app();if(a){a.style.display='none';a.replaceChildren()}}catch(e){console.error('[VexaAccount] Account Center startup failed',e);status('Unable to start Account Center',e?.message||'The secure account workspace could not be started.','error',true);}finally{loading=false}}
-function schedule(){clearTimeout(window.__VEXA_ACCOUNT_RUNTIME_TIMER__);window.__VEXA_ACCOUNT_RUNTIME_TIMER__=setTimeout(()=>load(false),50)}
-window.addEventListener('hashchange',schedule);window.addEventListener('storage',schedule);window.addEventListener('vexa:auth-changed',schedule);window.addEventListener('vexaAccountAuthChanged',schedule);window.addEventListener('unhandledrejection',e=>console.error('[VexaAccount] startup rejection',e.reason));
+function schedule(){clearTimeout(window.__VEXA_ACCOUNT_RUNTIME_TIMER__);window.__VEXA_ACCOUNT_RUNTIME_TIMER__=setTimeout(()=>load(false),0)}
+window.addEventListener('hashchange',schedule);
+window.addEventListener('vexa:auth-changed',schedule);
+window.addEventListener('vexaAccountAuthChanged',schedule);
+window.addEventListener('vexa-auth-ready',schedule);
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',schedule,{once:true});else schedule();
 })();
