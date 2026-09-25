@@ -1,6 +1,6 @@
 /* VexaAccount Account Center loader — single-flight, no startup flash, no polling. */
 (()=>{'use strict';
-if(window.__VEXA_ACCOUNT_CENTER_LOADER_V5__)return;window.__VEXA_ACCOUNT_CENTER_LOADER_V5__=true;
+if(window.__VEXA_ACCOUNT_CENTER_LOADER_V6__)return;window.__VEXA_ACCOUNT_CENTER_LOADER_V5__=true;
 const AUTH=/^#\/(login|signin|register|forgot-password|verify-email|reset-password|login-2fa)(?:[/?]|$)/i;
 const SWITCHER=/^#\/account-switcher(?:[/?]|$)/i,SSO=/^#\/sso-manager(?:[/?]|$)/i;
 const isSpecial=()=>AUTH.test(location.hash||'')||SWITCHER.test(location.hash||'')||SSO.test(location.hash||'')||location.hash.startsWith('#/sso/authorize')||window.__VEXA_SSO_FLOW_ACTIVE__===true;
@@ -15,8 +15,9 @@ async function load(force=false){
  loading=true;
  try{
   if(!(await ensureSession())){showError('Sign in required','Your secure session was not found. Please sign in to continue.');return}
-  const v='20260926-04';
+  const v='20260926-05';
   await loadScript('./src/account-center-toast-guard.js?'+v,'account-center-toast-guard.js');
+  await loadScript('./src/account-center-fetch-guard.js?'+v,'account-center-fetch-guard.js');
   await loadScript('./src/account-center-runtime-v2.js?'+v,'account-center-runtime-v2.js');
   await loadScript('./src/account-center-premium-theme.js?'+v,'account-center-premium-theme.js');
   const started=Date.now();
