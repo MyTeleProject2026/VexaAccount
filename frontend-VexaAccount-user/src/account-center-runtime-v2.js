@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-if(window.__VEXA_ACCOUNT_CENTER_V6__) return;
+if(window.__VEXA_ACCOUNT_CENTER_V7__) return;
 // Global legacy-request safety net: stale/cached Account Center listeners must never send
 // privacy toggles to /api/account/settings with emoji/legacy keys.
 if(!window.__VEXA_ACCOUNT_PRIVACY_FETCH_GUARD__){
@@ -29,8 +29,8 @@ if(!window.__VEXA_ACCOUNT_PRIVACY_FETCH_GUARD__){
  };
 }
 
-window.__VEXA_ACCOUNT_CENTER_V6__=true;
-const API=window.VEXA_ACCOUNT_API_BASE||'https://api-vexaaccount.onrender.com';
+window.__VEXA_ACCOUNT_CENTER_V7__=true;
+const API=(window.VEXA_ACCOUNT_API_BASE||'https://api-vexaaccount.onrender.com').replace(/\/$/,'');
 const $=(s,r=document)=>r.querySelector(s);
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const keys=['vexaaccount_access_token','vexa_access_token','access_token','token','userToken','accessToken'];
