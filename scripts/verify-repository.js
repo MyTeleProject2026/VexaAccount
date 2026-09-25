@@ -52,7 +52,8 @@ for (const rootDir of [
   for (const file of walk(rootDir, f => f.endsWith('.js'))) {
     checkJsSyntax(file);
     const source = fs.readFileSync(file, 'utf8');
-    for (const match of source.matchAll(/require\(\s*['"]([^'"]+)['"]\s*\)/g)) {
+    const requireSource = source.replace(/\`[\\s\\S]*?\`/g, '');
+    for (const match of requireSource.matchAll(/require\(\s*['"]([^'"]+)['"]\s*\)/g)) {
       if (!resolveRelativeRequire(file, match[1])) {
         failures.push(`Missing relative require: ${rel(file)} -> ${match[1]}`);
       }
