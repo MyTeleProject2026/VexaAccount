@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
 if(window.__VEXA_ACCOUNT_CENTER_FETCH_GUARD_V7__)return;
-window.__VEXA_ACCOUNT_CENTER_FETCH_GUARD_V6__=true;
+window.__VEXA_ACCOUNT_CENTER_FETCH_GUARD_V7__=true;
 const nativeFetch=window.fetch.bind(window),inflight=new Map(),cache=new Map(),cooldown=new Map();
 const ACCOUNT=/^https?:\/\/[^/]+\/api\/account(?:\/|$)/i;
 const CACHE_MS=120000,STALE_MS=600000,RATE_LIMIT_COOLDOWN_MS=30000,AUTH_FAILURE_COOLDOWN_MS=15000,REQUEST_TIMEOUT_MS=8000,NETWORK_COOLDOWN_MS=12000;
@@ -16,11 +16,13 @@ function cachedResponse(key,allowStale=false){const item=cache.get(key);if(!item
 function invalidateFor(url){const path=(()=>{try{return new URL(url,location.href).pathname}catch{return url}})();const related=new Set();if(path.includes('/profile'))related.add('/api/account/profile');if(path.includes('/settings'))related.add('/api/account/settings');if(path.includes('/preferences'))related.add('/api/account/preferences');if(path.includes('/security')){related.add('/api/account/security');related.add('/api/account/security/events');}if(path.includes('/sessions'))related.add('/api/account/sessions');if(path.includes('/apps'))related.add('/api/account/apps');if(path.includes('/notifications'))related.add('/api/account/notifications');if(path.includes('/support'))related.add('/api/account/support/tickets');if(path.includes('/credits'))related.add('/api/account/credits');if(path.includes('/storage'))related.add('/api/account/storage');for(const key of cache.keys())for(const p of related)if(key.includes(p))cache.delete(key)}
 window.fetch=async(input,init={})=>{const url=urlOf(input),method=methodOf(input,init);if(!ACCOUNT.test(url)){return nativeFetch(input,init)}if(method!=='GET'){
   invalidateFor(url);
-  const key=keyOf(method,url),now=Date.now(),networkUntil=networkFailureUntil.get(key)||0;
+  const key=keyOf(method,url),now=Date.now(),networkUntil=networkFailureUntil.get(key)||0,quietUntil=cooldown.get(key)||0;
   if(now<networkUntil)return new Response(JSON.stringify({success:false,message:'Account service is temporarily unreachable. Your changes will retry when the connection returns.'}),{status:503,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Retry-After':String(Math.ceil((networkUntil-now)/1000))}});
+  if(now<quietUntil)return new Response(JSON.stringify({success:false,message:'Account data is temporarily rate-limited. Please wait before changing this setting again.'}),{status:429,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Retry-After':String(Math.ceil((quietUntil-now)/1000))}});
   try{
    const response=await nativeFetch(input,init);
-   if(response.ok)networkFailureUntil.delete(key);
+   if(response.ok){networkFailureUntil.delete(key);cooldown.delete(key)}
+   else if(response.status===429)cooldown.set(key,Date.now()+RATE_LIMIT_COOLDOWN_MS);
    return response;
   }catch(error){
    networkFailureUntil.set(key,Date.now()+NETWORK_COOLDOWN_MS);
