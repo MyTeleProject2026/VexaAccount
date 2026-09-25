@@ -17,14 +17,6 @@ function install(){
  document.addEventListener('click',e=>{
   const b=e.target.closest('[data-action="recovery-email"]');
   if(b){e.preventDefault();e.stopImmediatePropagation();recoveryModal();return}
-  const t=e.target.closest('[data-action="toggle"]');
-  const people=t?.closest('.vx-page[data-page="people"]');
-  if(!people)return;
-  e.preventDefault();e.stopImmediatePropagation();
-  const key=t.dataset.key;const value=!Number(t.dataset.value||'0');
-  const supported=['location_sharing_enabled','personalization_enabled','activity_history_enabled','push_notifications_enabled','product_updates_enabled','marketing_email_enabled','security_email_enabled'];
-  if(!supported.includes(key))return notify('This sharing control is not available through the current backend contract.','warning');
-  api('/api/account/people',{method:'PATCH',body:JSON.stringify({[key]:value})}).then(()=>{notify('Sharing setting updated','success');location.reload()}).catch(err=>notify(err.message,'error'));
  },true);
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();
