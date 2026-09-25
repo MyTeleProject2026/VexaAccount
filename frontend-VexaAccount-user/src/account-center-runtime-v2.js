@@ -89,6 +89,13 @@ async function toggle(k,kind,value){
  const privacyKeys=['location_sharing_enabled','personalization_enabled','activity_history_enabled','push_notifications_enabled','product_updates_enabled','marketing_email_enabled','security_email_enabled'];
  const isPrivacy=privacyKeys.includes(key);
  const path=kind==='preferences'?'/api/account/preferences':isPrivacy?'/api/account/privacy':'/api/account/settings';
+ // Ignore stale/duplicate click handlers that still carry an old data-value after
+ // another render already applied the requested state. A 200 response means the
+ // browser really sent a distinct PATCH; it is not a retry of the same successful
+ // request, so the UI must suppress duplicate no-op writes at the source.
+ const currentSource=kind==='preferences'?state.preferences:state.settings;
+ const currentValue=Boolean(Number(currentSource?.[key]));
+ if(currentValue===v)return;
  pendingToggles.set(key,true);
  try{
   const body=JSON.stringify({[key]:v});
