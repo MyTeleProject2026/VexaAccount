@@ -13,7 +13,7 @@ if(!window.__VEXA_ACCOUNT_PRIVACY_FETCH_GUARD__){
     const raw=init?.body;
     if(typeof raw==='string'){
      const body=JSON.parse(raw);
-     const aliases={'🌐':'activity_history_enabled','📍':'location_sharing_enabled','📊':'activity_history_enabled','◉':'personalization_enabled','service_activity_enabled':'activity_history_enabled','communication_enabled':'push_notifications_enabled'};
+     const aliases={'👥':'push_notifications_enabled','🌐':'activity_history_enabled','📍':'location_sharing_enabled','📊':'activity_history_enabled','◉':'personalization_enabled','📱':'push_notifications_enabled','📧':'marketing_email_enabled','service_activity_enabled':'activity_history_enabled','communication_enabled':'push_notifications_enabled'};
      const normalized={};
      Object.keys(body||{}).forEach(k=>normalized[aliases[k]||k]=body[k]);
      const privacyKeys=['location_sharing_enabled','personalization_enabled','activity_history_enabled','push_notifications_enabled','product_updates_enabled','marketing_email_enabled','security_email_enabled'];
