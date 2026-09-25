@@ -25,7 +25,7 @@ function rel(file) { return path.relative(root, file).replace(/\\/g, '/'); }
 function checkJsSyntax(file) {
   const source = fs.readFileSync(file, 'utf8');
   try {
-    new Function(source);
+    new Function(source.replace(/^#![^\n]*\n/, ''));
   } catch (error) {
     failures.push(`JS syntax error: ${rel(file)} — ${error.message}`);
   }
