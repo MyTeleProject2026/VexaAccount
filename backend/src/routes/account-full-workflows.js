@@ -12,11 +12,8 @@ const otp=()=>String(crypto.randomInt(100000,1000000));
 function token(req){const h=req.get('authorization')||'';return h.startsWith('Bearer ')?h.slice(7).trim():req.cookies?.vexaccount_session||null;}
 function requireUser(req,res,next){try{const t=token(req);if(!t)return res.status(401).json({success:false,message:'Authentication required'});const c=jwt.verify(t,JWT_SECRET),id=c.sub||c.id;if(!id||c.role!=='user')return res.status(401).json({success:false,message:'User authentication required'});req.userId=id;next();}catch(e){return res.status(401).json({success:false,message:'Invalid or expired session'});}}
 router.use(requireUser);
-async function ensureTables(){
- await pool.query(`CREATE TABLE IF NOT EXISTS vexa_account_privacy_settings (user_id BIGINT PRIMARY KEY,location_sharing_enabled TINYINT(1) NOT NULL DEFAULT 0,personalization_enabled TINYINT(1) NOT NULL DEFAULT 1,activity_history_enabled TINYINT(1) NOT NULL DEFAULT 1,push_notifications_enabled TINYINT(1) NOT NULL DEFAULT 1,product_updates_enabled TINYINT(1) NOT NULL DEFAULT 1,marketing_email_enabled TINYINT(1) NOT NULL DEFAULT 0,security_email_enabled TINYINT(1) NOT NULL DEFAULT 1,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`);
- await pool.query(`CREATE TABLE IF NOT EXISTS vexa_account_support_messages (id BIGINT AUTO_INCREMENT PRIMARY KEY,ticket_id BIGINT NOT NULL,user_id BIGINT NOT NULL,sender_type ENUM('user','support') NOT NULL,message TEXT NOT NULL,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,INDEX(ticket_id),INDEX(user_id))`);
-}
-async function ensurePrivacy(id){await ensureTables();await pool.query('INSERT IGNORE INTO vexa_account_privacy_settings(user_id) VALUES(?)',[id]);}
+async function ensureTables(){ return true; }
+async function ensurePrivacy(id){await pool.query('INSERT IGNORE INTO vexa_account_privacy_settings(user_id) VALUES(?)',[id]);}
 router.get('/settings',async(req,res,next)=>{try{await ensurePrivacy(req.userId);const [r]=await pool.query('SELECT location_sharing_enabled,personalization_enabled,activity_history_enabled,push_notifications_enabled,product_updates_enabled,marketing_email_enabled,security_email_enabled,updated_at FROM vexa_account_privacy_settings WHERE user_id=?',[req.userId]);res.json({success:true,settings:r[0]||{}});}catch(e){next(e);}});
 router.patch('/settings',async(req,res,next)=>{try{
  const p=req.body||{};const aliases={'🌐':'activity_history_enabled','📍':'location_sharing_enabled','📊':'activity_history_enabled','◉':'personalization_enabled','service_activity_enabled':'activity_history_enabled','communication_enabled':'push_notifications_enabled'};const normalized={};for(const [k,v] of Object.entries(p))normalized[aliases[k]||k]=v;
