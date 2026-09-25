@@ -20,14 +20,14 @@ function walk(dir, predicate = () => true) {
   return out;
 }
 
-function rel(file) { return path.relative(root, file).replace(/\\\\/g, '/'); }
+function rel(file) { return path.relative(root, file).replace(/\\/g, '/'); }
 
 function checkJsSyntax(file) {
   const source = fs.readFileSync(file, 'utf8');
   try {
     new Function(source);
   } catch (error) {
-    failures.push(\`JS syntax error: \${rel(file)} — \${error.message}\`);
+    failures.push(`JS syntax error: ${rel(file)} — ${error.message}`);
   }
   checked.push(rel(file));
 }
@@ -52,9 +52,9 @@ for (const rootDir of [
   for (const file of walk(rootDir, f => f.endsWith('.js'))) {
     checkJsSyntax(file);
     const source = fs.readFileSync(file, 'utf8');
-    for (const match of source.matchAll(/require\\(\\s*['"]([^'"]+)['"]\\s*\\)/g)) {
+    for (const match of source.matchAll(/require\(\s*['"]([^'"]+)['"]\s*\)/g)) {
       if (!resolveRelativeRequire(file, match[1])) {
-        failures.push(\`Missing relative require: \${rel(file)} -> \${match[1]}\`);
+        failures.push(`Missing relative require: ${rel(file)} -> ${match[1]}`);
       }
     }
   }
@@ -71,9 +71,9 @@ const routeDir = path.join(root, 'backend/src/routes');
 for (const file of walk(routeDir, f => f.endsWith('.js'))) {
   const source = fs.readFileSync(file, 'utf8');
   const seen = new Map();
-  for (const match of source.matchAll(/router\\.(get|post|put|patch|delete)\\s*\\(\\s*['"]([^'"]+)['"]/g)) {
-    const key = \`\${match[1].toUpperCase()} \${match[2]}\`;
-    if (seen.has(key)) failures.push(\`Duplicate route in \${rel(file)}: \${key}\`);
+  for (const match of source.matchAll(/router\.(get|post|put|patch|delete)\s*\(\s*['"]([^'"]+)['"]/g)) {
+    const key = `${match[1].toUpperCase()} ${match[2]}`;
+    if (seen.has(key)) failures.push(`Duplicate route in ${rel(file)}: ${key}`);
     seen.set(key, true);
   }
 }
@@ -90,16 +90,16 @@ if (fs.existsSync(userIndex)) {
     const ref = match[1].split('?')[0].split('#')[0];
     if (!ref || /^(https?:|data:|mailto:|javascript:)/i.test(ref)) continue;
     const target = path.resolve(path.dirname(userIndex), ref);
-    if (!fs.existsSync(target)) failures.push(\`Missing frontend asset: index.html -> \${ref}\`);
+    if (!fs.existsSync(target)) failures.push(`Missing frontend asset: index.html -> ${ref}`);
   }
 }
 
 const migrations = walk(path.join(root, 'backend/database/migrations'), f => f.endsWith('.sql'));
 if (!migrations.length) failures.push('No database migrations found.');
 
-console.log(\`Repository verification checked \${checked.length} JavaScript files and \${migrations.length} migrations.\`);
+console.log(`Repository verification checked ${checked.length} JavaScript files and ${migrations.length} migrations.`);
 if (failures.length) {
-  console.error(failures.map(x => 'ERROR: ' + x).join('\\n'));
+  console.error(failures.map(x => 'ERROR: ' + x).join('\n'));
   process.exit(1);
 }
 console.log('Repository verification passed.');
