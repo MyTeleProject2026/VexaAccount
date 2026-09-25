@@ -9,7 +9,7 @@ if(!window.__VEXA_ACCOUNT_PRIVACY_FETCH_GUARD__){
  window.fetch=async function(input,init={}){
   try{
    const url=typeof input==='string'?input:(input&&input.url)||'';
-   if(/\\/api\\/account\\/settings(?:[?#]|$)/.test(url)&&String(init?.method||input?.method||'GET').toUpperCase()==='PATCH'){
+   if(/\/api\/account\/settings(?:[?#]|$)/.test(url)&&String(init?.method||input?.method||'GET').toUpperCase()==='PATCH'){
     const raw=init?.body;
     if(typeof raw==='string'){
      const body=JSON.parse(raw);
@@ -19,7 +19,7 @@ if(!window.__VEXA_ACCOUNT_PRIVACY_FETCH_GUARD__){
      const privacyKeys=['location_sharing_enabled','personalization_enabled','activity_history_enabled','push_notifications_enabled','product_updates_enabled','marketing_email_enabled','security_email_enabled'];
      if(Object.keys(normalized).some(k=>privacyKeys.includes(k))){
       const next={...init,body:JSON.stringify(Object.fromEntries(Object.entries(normalized).filter(([k])=>privacyKeys.includes(k))))};
-      const u=url.replace(/\\/api\\/account\\/settings(?=[?#]|$)/,'/api/account/privacy');
+      const u=url.replace(/\/api\/account\/settings(?=[?#]|$)/,'/api/account/privacy');
       return nativeFetch(u,next);
      }
     }
