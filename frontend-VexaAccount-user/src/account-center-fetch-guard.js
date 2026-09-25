@@ -19,27 +19,31 @@ window.fetch=async(input,init={})=>{const url=urlOf(input),method=methodOf(input
   const key=keyOf(method,url),now=Date.now(),networkUntil=networkFailureUntil.get(key)||0,quietUntil=cooldown.get(key)||0;
   // Serialize Account Center writes per endpoint. Privacy controls can render several
   // independent toggles at once; sending them concurrently causes request storms and
-  // makes a transient DNS/network failure fan out into many failed requests.
+  // makes transient DNS/network failures fan out into many failed requests.
   const previous=writeChains.get(key)||Promise.resolve();
   const run=previous.catch(()=>{}).then(async()=>{
     const latestNow=Date.now(),latestNetworkUntil=networkFailureUntil.get(key)||0,latestQuietUntil=cooldown.get(key)||0;
     if(latestNow<latestNetworkUntil)return new Response(JSON.stringify({success:false,message:'Account service is temporarily unreachable. Your changes will retry when the connection returns.'}),{status:503,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Retry-After':String(Math.ceil((latestNetworkUntil-latestNow)/1000))}});
     if(latestNow<latestQuietUntil)return new Response(JSON.stringify({success:false,message:'Account data is temporarily rate-limited. Please wait before changing this setting again.'}),{status:429,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Retry-After':String(Math.ceil((latestQuietUntil-latestNow)/1000))}});
-  if(now<networkUntil)return new Response(JSON.stringify({success:false,message:'Account service is temporarily unreachable. Your changes will retry when the connection returns.'}),{status:503,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Retry-After':String(Math.ceil((networkUntil-now)/1000))}});
-  if(now<quietUntil)return new Response(JSON.stringify({success:false,message:'Account data is temporarily rate-limited. Please wait before changing this setting again.'}),{status:429,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Retry-After':String(Math.ceil((quietUntil-now)/1000))}});
-  try{
-   let response;
-   for(let attempt=0;attempt<2;attempt++){
-    try{response=await nativeFetch(input,init);break}catch(error){if(attempt===0)await new Promise(resolve=>setTimeout(resolve,350))}
-   }
-   if(response?.ok){networkFailureUntil.delete(key);cooldown.delete(key)}
-   else if(response?.status===429)cooldown.set(key,Date.now()+RATE_LIMIT_COOLDOWN_MS);
-   return response;
-  }catch(error){
-   networkFailureUntil.set(key,Date.now()+NETWORK_COOLDOWN_MS);
-   return new Response(JSON.stringify({success:false,message:'Account service is temporarily unreachable. Please retry in a moment.'}),{status:503,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Retry-After':String(NETWORK_COOLDOWN_MS/1000)}});
-  }
- };
- writeChains.set(key,run);
- try{return await run}finally{if(writeChains.get(key)===run)writeChains.delete(key)}const key=keyOf(method,url),now=Date.now(),fresh=cachedResponse(key);if(fresh)return fresh;if(inflight.has(key))return responseFrom(await inflight.get(key));const authUntil=authFailureUntil.get(key)||0;if(now<authUntil){const stale=cachedResponse(key,true);if(stale)return stale;return new Response(JSON.stringify({success:false,message:'Authentication session expired. Please sign in again.'}),{status:401,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}})}const networkUntil=networkFailureUntil.get(key)||0;if(now<networkUntil){const stale=cachedResponse(key,true);if(stale)return stale;return new Response(JSON.stringify({success:false,message:'Account service is temporarily unreachable. Your changes will retry when the connection returns.'}),{status:503,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Retry-After':String(Math.ceil((networkUntil-now)/1000))}})}const quietUntil=cooldown.get(key)||0;if(now<quietUntil){const stale=cachedResponse(key,true);if(stale)return stale;return new Response(JSON.stringify({success:false,message:'Account data is temporarily rate-limited. Please try again shortly.'}),{status:429,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Retry-After':String(Math.ceil((quietUntil-now)/1000))}})}const promise=(async()=>{let timer=null,controller=null;try{let requestInit={...init};if(!init.signal){controller=new AbortController();requestInit.signal=controller.signal;timer=setTimeout(()=>controller.abort(new DOMException('Account request timed out','TimeoutError')),REQUEST_TIMEOUT_MS)}const response=await nativeFetch(input,requestInit),snap=await snapshot(response);if(response.ok){cache.set(key,{...snap,at:Date.now()});cooldown.delete(key);authFailureUntil.delete(key);networkFailureUntil.delete(key)}else if(response.status===401){authFailureUntil.set(key,Date.now()+AUTH_FAILURE_COOLDOWN_MS)}else if(response.status===429){cooldown.set(key,Date.now()+RATE_LIMIT_COOLDOWN_MS)}return snap}catch(error){networkFailureUntil.set(key,Date.now()+NETWORK_COOLDOWN_MS);const stale=cache.get(key);if(stale&&Date.now()-stale.at<=STALE_MS)return stale;return new Response(JSON.stringify({success:false,message:'Account service is temporarily unreachable. Please retry in a moment.'}),{status:503,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Retry-After':String(NETWORK_COOLDOWN_MS/1000)}})}finally{if(timer)clearTimeout(timer)}})();inflight.set(key,promise);try{return responseFrom(await promise)}finally{inflight.delete(key)}};
+    try{
+      let response=null,lastError=null;
+      for(let attempt=0;attempt<2;attempt++){
+        try{response=await nativeFetch(input,init);lastError=null;break}catch(error){lastError=error;if(attempt===0)await new Promise(resolve=>setTimeout(resolve,350))}
+      }
+      if(!response){
+        networkFailureUntil.set(key,Date.now()+NETWORK_COOLDOWN_MS);
+        throw lastError||new Error('Account network request failed');
+      }
+      if(response.ok){networkFailureUntil.delete(key);cooldown.delete(key)}
+      else if(response.status===429)cooldown.set(key,Date.now()+RATE_LIMIT_COOLDOWN_MS);
+      return response;
+    }catch(error){
+      networkFailureUntil.set(key,Date.now()+NETWORK_COOLDOWN_MS);
+      return new Response(JSON.stringify({success:false,message:'Account service is temporarily unreachable. Please retry in a moment.'}),{status:503,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Retry-After':String(NETWORK_COOLDOWN_MS/1000)}});
+    }
+  });
+  writeChains.set(key,run);
+  try{return await run}finally{if(writeChains.get(key)===run)writeChains.delete(key)}
+}
+const key=keyOf(method,url),now=Date.now(),fresh=cachedResponse(key);if(fresh)return fresh;if(inflight.has(key))return responseFrom(await inflight.get(key));const authUntil=authFailureUntil.get(key)||0;if(now<authUntil){const stale=cachedResponse(key,true);if(stale)return stale;return new Response(JSON.stringify({success:false,message:'Authentication session expired. Please sign in again.'}),{status:401,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}})}const networkUntil=networkFailureUntil.get(key)||0;if(now<networkUntil){const stale=cachedResponse(key,true);if(stale)return stale;return new Response(JSON.stringify({success:false,message:'Account service is temporarily unreachable. Your changes will retry when the connection returns.'}),{status:503,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Retry-After':String(Math.ceil((networkUntil-now)/1000))}})}const quietUntil=cooldown.get(key)||0;if(now<quietUntil){const stale=cachedResponse(key,true);if(stale)return stale;return new Response(JSON.stringify({success:false,message:'Account data is temporarily rate-limited. Please try again shortly.'}),{status:429,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Retry-After':String(Math.ceil((quietUntil-now)/1000))}})}const promise=(async()=>{let timer=null,controller=null;try{let requestInit={...init};if(!init.signal){controller=new AbortController();requestInit.signal=controller.signal;timer=setTimeout(()=>controller.abort(new DOMException('Account request timed out','TimeoutError')),REQUEST_TIMEOUT_MS)}const response=await nativeFetch(input,requestInit),snap=await snapshot(response);if(response.ok){cache.set(key,{...snap,at:Date.now()});cooldown.delete(key);authFailureUntil.delete(key);networkFailureUntil.delete(key)}else if(response.status===401){authFailureUntil.set(key,Date.now()+AUTH_FAILURE_COOLDOWN_MS)}else if(response.status===429){cooldown.set(key,Date.now()+RATE_LIMIT_COOLDOWN_MS)}return snap}catch(error){networkFailureUntil.set(key,Date.now()+NETWORK_COOLDOWN_MS);const stale=cache.get(key);if(stale&&Date.now()-stale.at<=STALE_MS)return stale;return new Response(JSON.stringify({success:false,message:'Account service is temporarily unreachable. Please retry in a moment.'}),{status:503,headers:{'Content-Type':'application/json','Cache-Control':'no-store','Retry-After':String(NETWORK_COOLDOWN_MS/1000)}})}finally{if(timer)clearTimeout(timer)}})();inflight.set(key,promise);try{return responseFrom(await promise)}finally{inflight.delete(key)}};
 })();
