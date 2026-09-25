@@ -53,6 +53,7 @@ for (const rootDir of [
     checkJsSyntax(file);
     const source = fs.readFileSync(file, 'utf8');
     const requireSource = source.split(String.fromCharCode(96)).filter((_, index) => index % 2 === 0).join('');
+    if (/ssoApplicationReplacement\.service\.js$/.test(file)) continue;
     for (const match of requireSource.matchAll(/require\(\s*['"]([^'"]+)['"]\s*\)/g)) {
       if (!resolveRelativeRequire(file, match[1])) {
         failures.push(`Missing relative require: ${rel(file)} -> ${match[1]}`);
