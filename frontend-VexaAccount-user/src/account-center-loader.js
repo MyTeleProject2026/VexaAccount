@@ -1,7 +1,7 @@
 /* VexaAccount Account Center — deterministic single-start loader. */
 (()=>{'use strict';
 if(window.__VEXA_ACCOUNT_CENTER_LOADER_V9__)return;
-window.__VEXA_ACCOUNT_CENTER_LOADER_V8__=true;
+window.__VEXA_ACCOUNT_CENTER_LOADER_V9__=true;
 const VERSION='20260926-08';
 const AUTH=/^#\/(login|signin|register|forgot-password|verify-email|reset-password|login-2fa)(?:[/?]|$)/i;
 const SWITCHER=/^#\/account-switcher(?:[/?]|$)/i;
