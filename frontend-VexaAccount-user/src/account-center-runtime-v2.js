@@ -79,7 +79,26 @@ function twofaModal(){return modal('2-Step Verification',`<form id="twofa-form" 
 function passcodeModal(){return modal('Account passcode',`<form id="pass-form" class="vx-form"><label>Current password<input class="vx-input" type="password" name="password" required></label><label>6-digit passcode<input class="vx-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" name="passcode" required></label><button class="vx-btn primary">Enable passcode</button></form>`,bg=>$('#pass-form',bg).onsubmit=async e=>{e.preventDefault();try{await api('/api/account/profile/security/passcode/enable',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(e.currentTarget)))});bg.remove();notify('Account passcode enabled','success');await loadData();render()}catch(err){notify(err.message,'error')}})}
 function supportModal(kind='support'){return modal(kind==='report'?'Report a problem':'Contact support',`<form id="support-form" class="vx-form"><label>Subject<input class="vx-input" name="subject" value="${kind==='report'?'Report a problem':''}" required></label><label>Message<textarea class="vx-textarea" name="message" rows="5" required></textarea></label><button class="vx-btn primary">Send request</button></form>`,bg=>$('#support-form',bg).onsubmit=async e=>{e.preventDefault();try{await api('/api/account/support/tickets',{method:'POST',body:JSON.stringify(Object.fromEntries(new FormData(e.currentTarget)))});bg.remove();notify('Support request submitted','success');await loadData();render()}catch(err){notify(err.message,'error')}})}
 async function exportData(){try{const d=await api('/api/account/export');const blob=new Blob([JSON.stringify(d.data||d,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='vexaaccount-data.json';a.click();URL.revokeObjectURL(a.href);notify('Your data export is ready','success')}catch(err){notify(err.message,'error')}}
-async function toggle(k,kind,value){try{const v=!Number(value);const aliases={'🌐':'activity_history_enabled','📍':'location_sharing_enabled','📊':'activity_history_enabled','◉':'personalization_enabled'};const key=aliases[k]||k;const privacyKeys=['location_sharing_enabled','personalization_enabled','activity_history_enabled','push_notifications_enabled','product_updates_enabled','marketing_email_enabled','security_email_enabled'];const isPrivacy=privacyKeys.includes(key);const path=kind==='preferences'?'/api/account/preferences':isPrivacy?'/api/account/privacy':'/api/account/settings';const body=JSON.stringify({[key]:v});await api(path,{method:'PATCH',body});notify('Setting updated','success');await loadData();render()}catch(err){notify(err.message,'error')}}
+const pendingToggles=new Map();
+async function toggle(k,kind,value){
+ const aliases={'🌐':'activity_history_enabled','📍':'location_sharing_enabled','📊':'activity_history_enabled','◉':'personalization_enabled','📱':'push_notifications_enabled','📧':'marketing_email_enabled'};
+ const key=aliases[k]||k;
+ if(pendingToggles.has(key))return;
+ const v=!Number(value);
+ const privacyKeys=['location_sharing_enabled','personalization_enabled','activity_history_enabled','push_notifications_enabled','product_updates_enabled','marketing_email_enabled','security_email_enabled'];
+ const isPrivacy=privacyKeys.includes(key);
+ const path=kind==='preferences'?'/api/account/preferences':isPrivacy?'/api/account/privacy':'/api/account/settings';
+ pendingToggles.set(key,true);
+ try{
+  const body=JSON.stringify({[key]:v});
+  const d=await api(path,{method:'PATCH',body});
+  if(d?.success===false)throw new Error(d.message||'Unable to update setting');
+  if(isPrivacy)state.settings[key]=v; else if(kind==='preferences')state.preferences[key]=v; else state.settings[key]=v;
+  notify('Setting updated','success');
+  render();
+ }catch(err){notify(err.message,'error')}
+ finally{pendingToggles.delete(key)}
+}
 async function revokeSession(id){if(!confirm('Revoke this active session?'))return;try{await api('/api/account/sessions/'+encodeURIComponent(id),{method:'DELETE'});notify('Session revoked','success');await loadData();render()}catch(err){notify(err.message,'error')}}
 async function revokeApp(id){if(!confirm('Revoke this application access?'))return;try{await api('/api/account/apps/'+encodeURIComponent(id)+'/consent',{method:'DELETE'});notify('Application access revoked','success');await loadData();render()}catch(err){notify(err.message,'error')}}
 async function clearActivity(){if(!confirm('Clear your account activity history?'))return;try{await api('/api/account/activity',{method:'DELETE'});notify('Activity history cleared','success');await loadData();render()}catch(err){notify(err.message,'error')}}
