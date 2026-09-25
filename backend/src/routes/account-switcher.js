@@ -24,9 +24,8 @@ router.post('/switcher/accounts',async(req,res,next)=>{
     if(!email)return res.status(400).json({success:false,message:'Account email is required'});
     const [target]=await pool.query('SELECT id,email,name,avatar_url,is_verified FROM store_users WHERE email=? AND is_active=1',[email]);
     if(!target.length)return res.status(404).json({success:false,message:'That VexaAccount could not be found.'});
-    const accountId=Number(target[0].id),ownerId=req.userId;
+    const accountId=Number(target[0].id),ownerId=req.userId;if(accountId===ownerId)return res.status(400).json({success:false,message:'You are already signed in to this VexaAccount.'});
     await pool.query('INSERT INTO vexa_account_switcher_accounts(owner_user_id,account_user_id,label) VALUES(?,?,?) ON DUPLICATE KEY UPDATE label=COALESCE(VALUES(label),label),updated_at=CURRENT_TIMESTAMP',[ownerId,accountId,label]);
-    await pool.query('INSERT INTO vexa_account_switcher_accounts(owner_user_id,account_user_id,label) VALUES(?,?,?) ON DUPLICATE KEY UPDATE label=COALESCE(VALUES(label),label),updated_at=CURRENT_TIMESTAMP',[accountId,ownerId,null]);
     res.status(201).json({success:true,account:target[0],message:'Account added to the switcher. Sign in to that account to switch.'});
   }catch(e){next(e)}
 });
