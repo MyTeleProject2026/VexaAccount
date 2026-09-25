@@ -66,6 +66,22 @@ jobs:
           loader="$(curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --max-time 30 "$base/src/account-center-loader.js")"
           printf '%s' "$loader" | grep -q 'account-center-runtime-v2.js' || { echo "Canonical Account Center loader does not reference account-center-runtime-v2.js"; exit 1; }
           curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --max-time 30 "$base/src/account-center-runtime-v2.js" >/dev/null || { echo "Production Account Center runtime is not reachable: account-center-runtime-v2.js"; exit 1; }
+      - name: Check VexaMail runtime and mail API contract
+        env:
+          VEXAMAIL_BASE: ${{ vars.VEXAMAIL_BASE || 'https://vexamail.onrender.com' }}
+          VEXA_API_BASE: ${{ vars.VEXA_API_BASE || 'https://api-vexaaccount.onrender.com' }}
+        run: |
+          set -euo pipefail
+          mail="${VEXAMAIL_BASE%/}"
+          api="${VEXA_API_BASE%/}"
+          html="$(curl --fail --silent --show-error --location --retry 4 --retry-delay 5 --max-time 45 "$mail/")"
+          printf '%s' "$html" | grep -q 'app.js' || { echo "VexaMail production HTML does not reference app.js"; exit 1; }
+          curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --max-time 30 "$mail/app.js" >/dev/null
+          curl --fail --silent --show-error --location --retry 3 --retry-delay 2 --max-time 30 "$mail/styles.css" >/dev/null
+          code="$(curl --silent --show-error --retry 3 --retry-delay 3 --max-time 30 -o /tmp/vexamail-api-body -w '%{http_code}' "$api/api/mail/messages?folder=inbox")"
+          echo "VexaMail unauthenticated mail API HTTP status: $code"
+          cat /tmp/vexamail-api-body
+          test "$code" = "401"
       - name: Check Super Admin frontend serves canonical Owner OS
         env:
           VEXA_OWNER_BASE: ${{ vars.VEXA_OWNER_BASE || 'https://super-admin-vexaaccount-xz1f.onrender.com' }}
