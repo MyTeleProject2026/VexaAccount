@@ -48,8 +48,8 @@ async function start(force=false){
   if(!(await ensureSession())){showError('Sign in required','Your secure VexaAccount session was not found. Please sign in to continue.');return}
   await loadScript('./src/account-center-toast-guard.js?v='+VERSION,'account-center-toast-guard.js');
   await loadScript('./src/account-center-fetch-guard.js?v='+VERSION,'account-center-fetch-guard.js');
-  await loadScript('./src/account-center-runtime-v2.js?v='+VERSION,'account-center-runtime-v2.js');
   await loadScript('./src/account-center-premium-theme.js?v='+VERSION,'account-center-premium-theme.js');
+  await loadScript('./src/account-center-runtime-v2.js?v='+VERSION,'account-center-runtime-v2.js');
   const deadline=Date.now()+12000;
   while(Date.now()<deadline){
    if(root()?.querySelector('#vx-content'))break;
