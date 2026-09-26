@@ -2,7 +2,7 @@
 (()=>{'use strict';
 if(window.__VEXA_ACCOUNT_CENTER_LOADER_V9__)return;
 window.__VEXA_ACCOUNT_CENTER_LOADER_V9__=true;
-const VERSION='20260926-09';
+const VERSION='20260927-01';
 const AUTH=/^#\/(login|signin|register|forgot-password|verify-email|reset-password|login-2fa)(?:[/?]|$)/i;
 const SWITCHER=/^#\/account-switcher(?:[/?]|$)/i;
 const SSO=/^#\/sso-manager(?:[/?]|$)/i;
