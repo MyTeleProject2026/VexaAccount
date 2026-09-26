@@ -24,5 +24,22 @@ window.addEventListener('load',async()=>{
   if(ios())setTimeout(showIOS,1200);
  }catch(error){console.warn('[VexaAccount] service worker registration failed',error)}
 });
-window.vexaPWA={isStandalone:standalone,install:showInstall,showIOS,update:showUpdate};
+async function enableNotifications(){
+ if(!('Notification'in window)||!('PushManager'in window.navigator)||!registration)return {success:false,message:'This browser does not support Web Push.'};
+ if(Notification.permission==='denied')return {success:false,message:'Notifications are blocked. Enable notifications for VexaAccount in the browser/device app settings.'};
+ const permission=Notification.permission==='granted'?'granted':await Notification.requestPermission();
+ if(permission!=='granted')return {success:false,message:'Notification permission was not granted.'};
+ try{
+  const keyResponse=await fetch((window.VEXA_ACCOUNT_API_BASE||'https://api-vexaaccount.onrender.com')+'/api/account/push/vapid-public-key',{credentials:'include'});
+  const keyData=await keyResponse.json();
+  if(!keyData.enabled||!keyData.publicKey)throw Error('Web Push is not configured on the VexaAccount server yet.');
+  let sub=await registration.pushManager.getSubscription();
+  if(!sub)sub=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:base64UrlToUint8Array(keyData.publicKey)});
+  const r=await fetch((window.VEXA_ACCOUNT_API_BASE||'https://api-vexaaccount.onrender.com')+'/api/account/push/subscription',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({subscription:sub.toJSON(),platform:ios()?'ios':/android/i.test(navigator.userAgent)?'android':'web'})});
+  const d=await r.json();if(!r.ok||d.success===false)throw Error(d.message||'Unable to register device notifications');
+  window.dispatchEvent(new CustomEvent('vexa:push-enabled'));return {success:true};
+ }catch(e){return {success:false,message:e.message||'Unable to enable notifications.'}}
+}
+function base64UrlToUint8Array(value){const pad='='.repeat((4-value.length%4)%4),raw=atob((value+pad).replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)))}
+window.vexaPWA={isStandalone:standalone,install:showInstall,showIOS,update:showUpdate,enableNotifications};
 })();
