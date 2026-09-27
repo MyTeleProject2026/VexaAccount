@@ -2,7 +2,7 @@
 (()=>{'use strict';
 if(window.__VEXA_ACCOUNT_CENTER_LOADER_V9__)return;
 window.__VEXA_ACCOUNT_CENTER_LOADER_V9__=true;
-const VERSION='20260927-03';
+const VERSION='20260928-01';
 const AUTH=/^#\/(login|signin|register|forgot-password|verify-email|reset-password|login-2fa)(?:[/?]|$)/i;
 const SWITCHER=/^#\/account-switcher(?:[/?]|$)/i;
 const SSO=/^#\/sso-manager(?:[/?]|$)/i;
@@ -59,12 +59,15 @@ async function start(force=false){
    st.textContent='html,body{background:#050811!important;color:#f7f9ff!important}body{min-width:320px;overflow-x:hidden}.vx-content,.vx-page{animation:none!important;transform:none!important}.vx-side,.vx-icon,.vx-nav button,.vx-action,.vx-btn,.vx-card,.vx-input,.vx-select,.vx-textarea{transition:none!important}.vx-head h1{font-size:clamp(22px,4vw,30px)!important;line-height:1.12}.vx-head p,.vx-desc,.vx-row small,.vx-info-label{font-size:clamp(12px,1.7vw,14px)!important;line-height:1.5}.vx-card-title{font-size:clamp(15px,2vw,17px)!important;line-height:1.3}.vx-btn,.vx-icon{min-height:44px}.vx-input,.vx-select,.vx-textarea{min-height:48px;font-size:16px}@media(max-width:720px){.vx-content{padding:16px 12px calc(82px + env(safe-area-inset-bottom))!important}.vx-head h1{font-size:23px!important}.vx-head p{font-size:13px!important}.vx-card{border-radius:18px;padding:16px}.vx-card-title{font-size:15px!important}.vx-desc,.vx-row small,.vx-info-label{font-size:12px!important}.vx-btn{min-height:46px;padding:10px 14px}.vx-input,.vx-select,.vx-textarea{min-height:50px}.vx-hero{border-radius:18px}}@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}';
    document.head.appendChild(st);
   }
-  const deadline=Date.now()+20000;
-  while(Date.now()<deadline){
-   if(root()?.querySelector('#vx-content'))break;
-   await new Promise(r=>setTimeout(r,80));
-  }
-  if(!root()?.querySelector('#vx-content'))throw new Error('Account Center did not finish initialization');
+  const ready=await new Promise(resolve=>{
+   if(window.__VEXA_ACCOUNT_CENTER_READY__&&root()?.querySelector('#vx-content'))return resolve(true);
+   let done=false;
+   const finish=value=>{if(done)return;done=true;clearTimeout(timer);window.removeEventListener('vexa:account-center-ready',onReady);resolve(value)};
+   const onReady=()=>finish(!!root()?.querySelector('#vx-content'));
+   const timer=setTimeout(()=>finish(!!root()?.querySelector('#vx-content')),12000);
+   window.addEventListener('vexa:account-center-ready',onReady,{once:true});
+  });
+  if(!ready)throw new Error('Account Center did not finish initialization');
   started=true;window.__VEXA_ACCOUNT_CENTER_READY__=true;
   root().style.display='block';
   const a=app();if(a){a.style.display='none';a.replaceChildren()}
