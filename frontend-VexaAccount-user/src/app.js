@@ -21,7 +21,7 @@ window.fetch=async(input,init={})=>{
  if(token&&/\/api\//.test(url)&&!headers.has('Authorization'))headers.set('Authorization','Bearer '+token);
  const response=await baseFetch(input,{...init,headers});
  if(/\/api\//.test(url)){
-  if(response.status===401&&!/\/api\/auth\/(login|register|verify-otp|resend-otp|forgot-password|reset-password|twofa\/verify|verify-email-2fa)(?:\?|$)/.test(url)){
+  if(response.status===401&&!/\/api\/(?:auth\/(login|register|verify-otp|resend-otp|forgot-password|reset-password|twofa\/verify|verify-email-2fa)|account\/(notifications|push(?:\/|$)))(?:\?|$)/.test(url)){
    clearToken();
    window.dispatchEvent(new CustomEvent('vexa-auth-expired',{detail:{url,status:401}}));
   }
