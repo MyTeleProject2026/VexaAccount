@@ -1,9 +1,10 @@
 <resources>
     <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#19C8FF</item>
-        <item name="android:navigationBarColor">#06101D</item>
-        <item name="android:statusBarColor">#06101D</item>
+        <item name="android:colorAccent">@color/vexachat_cyan</item>
+        <item name="android:navigationBarColor">@color/vexachat_midnight</item>
+        <item name="android:statusBarColor">@color/vexachat_midnight</item>
         <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">@drawable/vexachat_splash</item>
     </style>
 </resources>
