@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS vexachat_attachments (
   mime_type VARCHAR(150) NOT NULL,
   file_size BIGINT UNSIGNED NOT NULL,
   data_base64 LONGTEXT NOT NULL,
+  sha256 CHAR(64) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_vca_message (message_id),
