@@ -2,18 +2,12 @@ const express=require('express');
 const crypto=require('crypto');
 const {pool}=require('../config/database');
 const {authUser}=require('../middleware/auth');
+const {subscribe,emit,broadcast}=require('../services/vexachatRealtime.service');
 
 const router=express.Router();
 router.use(authUser);
 const uid=req=>Number(req.user.id||req.user.sub);
 const clean=v=>String(v??'').trim();
-const clients=new Map();
-
-function emit(userId,event,data){
- const set=clients.get(Number(userId)); if(!set)return;
- const payload='event: '+event+'\\ndata: '+JSON.stringify(data)+'\\n\\n';
- for(const res of [...set]){try{res.write(payload)}catch{set.delete(res)}}
-}
 async function members(conversationId){
  const [rows]=await pool.query('SELECT user_id FROM vexachat_participants WHERE conversation_id=?',[conversationId]);
  return rows.map(x=>Number(x.user_id));
@@ -26,9 +20,6 @@ async function blockedEither(a,b){
  const [rows]=await pool.query('SELECT 1 FROM vexachat_blocks WHERE (user_id=? AND blocked_user_id=?) OR (user_id=? AND blocked_user_id=?) LIMIT 1',[a,b,b,a]);
  return rows.length>0;
 }
-async function notifyMembers(conversationId,event,data){
- for(const id of await members(conversationId))emit(id,event,data);
-}
 
 router.get('/events',async(req,res)=>{
  const userId=uid(req);
@@ -36,11 +27,10 @@ router.get('/events',async(req,res)=>{
  res.setHeader('Cache-Control','no-cache, no-transform');
  res.setHeader('Connection','keep-alive');
  res.flushHeaders?.();
- if(!clients.has(userId))clients.set(userId,new Set());
- clients.get(userId).add(res);
+ const unsubscribe=subscribe(userId,res);
  res.write('event: ready\\ndata: '+JSON.stringify({ok:true,ts:Date.now()})+'\\n\\n');
  const heartbeat=setInterval(()=>{try{res.write(': heartbeat\\n\\n')}catch{}},25000);
- req.on('close',()=>{clearInterval(heartbeat);const set=clients.get(userId);set?.delete(res);if(set?.size===0)clients.delete(userId);});
+ req.on('close',()=>{clearInterval(heartbeat);unsubscribe();});
 });
 
 router.get('/me',async(req,res,next)=>{try{
@@ -125,7 +115,7 @@ router.post('/conversations/:id/messages',async(req,res,next)=>{try{
  if(Number(req.body?.attachment_id)){await pool.query('UPDATE vexachat_attachments SET message_id=? WHERE id=? AND uploader_id=? AND message_id IS NULL',[r.insertId,Number(req.body.attachment_id),userId]);}
  const [rows]=await pool.query(`SELECT m.id,m.conversation_id,m.sender_id,m.client_message_id,m.message_type,m.body,m.reply_to_id,m.metadata,m.created_at,u.name sender_name,u.email sender_email,u.avatar_url sender_avatar
  FROM vexachat_messages m JOIN store_users u ON u.id=m.sender_id WHERE m.id=?`,[r.insertId]);
- await notifyMembers(conversationId,'message',rows[0]);
+ await broadcast(conversationId,'message',rows[0]);
  res.status(201).json({success:true,message:rows[0]});
 }catch(e){next(e)}});
 
@@ -134,7 +124,7 @@ router.post('/conversations/:id/read',async(req,res,next)=>{try{
  if(!(await isMember(conversationId,userId)))return res.status(403).json({success:false,message:'Conversation access denied'});
  if(!messageId)return res.status(400).json({success:false,message:'message_id is required'});
  await pool.query('UPDATE vexachat_participants SET last_read_message_id=? WHERE conversation_id=? AND user_id=?',[messageId,conversationId,userId]);
- await notifyMembers(conversationId,'read',{conversation_id:conversationId,user_id:userId,message_id:messageId});
+ await broadcast(conversationId,'read',{conversation_id:conversationId,user_id:userId,message_id:messageId});
  res.json({success:true});
 }catch(e){next(e)}});
 
@@ -143,7 +133,7 @@ router.post('/conversations/:id/typing',async(req,res,next)=>{try{
  if(!(await isMember(conversationId,userId)))return res.status(403).json({success:false,message:'Conversation access denied'});
  if(typing)await pool.query('INSERT INTO vexachat_typing(conversation_id,user_id,expires_at) VALUES(?,?,DATE_ADD(NOW(),INTERVAL 5 SECOND)) ON DUPLICATE KEY UPDATE expires_at=DATE_ADD(NOW(),INTERVAL 5 SECOND)',[conversationId,userId]);
  else await pool.query('DELETE FROM vexachat_typing WHERE conversation_id=? AND user_id=?',[conversationId,userId]);
- await notifyMembers(conversationId,'typing',{conversation_id:conversationId,user_id:userId,typing});
+ await broadcast(conversationId,'typing',{conversation_id:conversationId,user_id:userId,typing});
  res.json({success:true});
 }catch(e){next(e)}});
 
@@ -151,7 +141,7 @@ router.post('/presence',async(req,res,next)=>{try{
  const userId=uid(req),status=['online','offline','away'].includes(clean(req.body?.status))?clean(req.body.status):'online';
  await pool.query('INSERT INTO vexachat_presence(user_id,status,last_seen_at) VALUES(?,?,NOW()) ON DUPLICATE KEY UPDATE status=?,last_seen_at=NOW()',[userId,status,status]);
  const [rows]=await pool.query('SELECT conversation_id FROM vexachat_participants WHERE user_id=?',[userId]);
- for(const r of rows)await notifyMembers(r.conversation_id,'presence',{user_id:userId,status});
+ for(const r of rows)await broadcast(r.conversation_id,'presence',{user_id:userId,status});
  res.json({success:true,status});
 }catch(e){next(e)}});
 
@@ -161,7 +151,7 @@ router.post('/reactions',async(req,res,next)=>{try{
  const [m]=await pool.query('SELECT conversation_id FROM vexachat_messages WHERE id=? LIMIT 1',[messageId]);if(!m.length)return res.status(404).json({success:false,message:'Message not found'});
  if(!(await isMember(m[0].conversation_id,userId)))return res.status(403).json({success:false,message:'Conversation access denied'});
  await pool.query('INSERT IGNORE INTO vexachat_reactions(message_id,user_id,emoji) VALUES(?,?,?)',[messageId,userId,emoji]);
- await notifyMembers(m[0].conversation_id,'reaction',{message_id:messageId,user_id:userId,emoji,active:true});
+ await broadcast(m[0].conversation_id,'reaction',{message_id:messageId,user_id:userId,emoji,active:true});
  res.json({success:true});
 }catch(e){next(e)}});
 
@@ -169,7 +159,7 @@ router.delete('/reactions',async(req,res,next)=>{try{
  const userId=uid(req),messageId=Number(req.body?.message_id),emoji=clean(req.body?.emoji);
  const [m]=await pool.query('SELECT conversation_id FROM vexachat_messages WHERE id=? LIMIT 1',[messageId]);if(!m.length)return res.status(404).json({success:false,message:'Message not found'});
  await pool.query('DELETE FROM vexachat_reactions WHERE message_id=? AND user_id=? AND emoji=?',[messageId,userId,emoji]);
- await notifyMembers(m[0].conversation_id,'reaction',{message_id:messageId,user_id:userId,emoji,active:false});
+ await broadcast(m[0].conversation_id,'reaction',{message_id:messageId,user_id:userId,emoji,active:false});
  res.json({success:true});
 }catch(e){next(e)}});
 
