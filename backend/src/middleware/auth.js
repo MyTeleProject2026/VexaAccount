@@ -8,6 +8,9 @@ if (!JWT_SECRET) throw new Error('JWT_SECRET must be configured');
 function getToken(req) {
   const authHeader = req.headers.authorization || '';
   if (authHeader.startsWith('Bearer ')) return authHeader.slice(7).trim();
+  // SSE/EventSource cannot reliably set Authorization headers. Permit a short-lived
+  // query token only for the VexaChat event stream; all other endpoints remain header/cookie based.
+  if (req.baseUrl === '/api/chat' && req.path === '/events' && req.query?.token) return String(req.query.token).trim();
   return req.cookies?.vexaccount_session || null;
 }
 
