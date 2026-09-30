@@ -1,7 +1,7 @@
 -- VexaChat feature expansion: media, contacts, conversation controls, notifications, WebRTC signaling
 CREATE TABLE IF NOT EXISTS vexachat_attachments (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  message_id BIGINT UNSIGNED NOT NULL,
+  message_id BIGINT UNSIGNED NULL,
   uploader_id BIGINT UNSIGNED NOT NULL,
   file_name VARCHAR(255) NOT NULL,
   mime_type VARCHAR(150) NOT NULL,
