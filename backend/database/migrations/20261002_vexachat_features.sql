@@ -65,7 +65,3 @@ CREATE TABLE IF NOT EXISTS vexachat_call_signals (
   KEY idx_vccsig_call (call_id,id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-ALTER TABLE vexachat_participants ADD COLUMN IF NOT EXISTS joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
-ALTER TABLE vexachat_participants ADD COLUMN IF NOT EXISTS last_read_message_id BIGINT UNSIGNED NULL;
-ALTER TABLE vexachat_participants ADD COLUMN IF NOT EXISTS muted_until DATETIME NULL;
-ALTER TABLE vexachat_participants ADD COLUMN IF NOT EXISTS archived TINYINT(1) NOT NULL DEFAULT 0;
