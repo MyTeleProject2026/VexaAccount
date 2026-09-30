@@ -7,6 +7,17 @@ on:
       - 'frontend-VexaChat/**'
       - 'backend/src/routes/vexachat.js'
       - 'backend/database/migrations/20261001_vexachat.sql'
+      - 'backend/database/migrations/20261002_vexachat_features.sql'
+      - 'packaging/vexachat/**'
+      - '.github/workflows/vexachat-android.yml'
+  pull_request:
+    branches: [master]
+    paths:
+      - 'frontend-VexaChat/**'
+      - 'backend/src/routes/vexachat*.js'
+      - 'backend/src/index.js'
+      - 'backend/database/migrations/20261001_vexachat.sql'
+      - 'backend/database/migrations/20261002_vexachat_features.sql'
       - 'packaging/vexachat/**'
       - '.github/workflows/vexachat-android.yml'
   workflow_dispatch:
