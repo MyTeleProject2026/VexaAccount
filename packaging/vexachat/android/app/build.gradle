@@ -63,7 +63,7 @@ def ensureVexaChatCiKeystore = tasks.register('ensureVexaChatCiKeystore') {
     }
 }
 
-tasks.matching { it.name == 'assembleRelease' }.configureEach {
+tasks.matching { it.name in ['assembleRelease', 'packageRelease'] }.configureEach {
     dependsOn(ensureVexaChatCiKeystore)
 }
 
