@@ -1,6 +1,7 @@
 plugins { id 'com.android.application' }
 
 def vexaChatWebUrl = project.findProperty('VEXACHAT_WEB_URL') ?: 'https://vexachat.onrender.com'
+def debugKeystore = file(System.getProperty('user.home') + '/.android/debug.keystore')
 
 android {
     namespace 'com.mytele.vexachat'
@@ -11,9 +12,27 @@ android {
         targetSdk 35
         versionCode 1
         versionName '1.0.0'
-        buildConfigField 'String', 'VEXACHAT_WEB_URL', '"' + vexaChatWebUrl.replace('"','\\\\"') + '"'
+        buildConfigField 'String', 'VEXACHAT_WEB_URL', '"' + vexaChatWebUrl.replace('"','\\\"') + '"'
     }
     buildFeatures { buildConfig true }
+
+    signingConfigs {
+        release {
+            storeFile debugKeystore
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+        }
+    }
 }
 
 dependencies {
