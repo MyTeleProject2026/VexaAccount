@@ -107,9 +107,10 @@ router.post('/conversations/:id/messages',async(req,res,next)=>{try{
  if(!body)return res.status(400).json({success:false,message:'Message body is required'});
  if(!['text','image','file','audio','video','system'].includes(type))return res.status(400).json({success:false,message:'Unsupported message type'});
  const [membersRows]=await pool.query('SELECT user_id FROM vexachat_participants WHERE conversation_id=?',[conversationId]);
- if(membersRows.some(x=>Number(x.user_id)!==userId)&&await blockedEither(userId,Number(membersRows.find(x=>Number(x.user_id)!==userId)?.user_id||0)))return res.status(403).json({success:false,message:'Message blocked'});
+ const otherIds=membersRows.map(x=>Number(x.user_id)).filter(id=>id!==userId);
+ if(otherIds.length){const placeholders=otherIds.map(()=>'?').join(',');const [blocked]=await pool.query(`SELECT 1 FROM vexachat_blocks WHERE (user_id=? AND blocked_user_id IN (${placeholders})) OR (blocked_user_id=? AND user_id IN (${placeholders})) LIMIT 1`,[userId,...otherIds,userId,...otherIds]);if(blocked.length)return res.status(403).json({success:false,message:'Message blocked'});}
  const [dup]=await pool.query('SELECT id,created_at FROM vexachat_messages WHERE client_message_id=? LIMIT 1',[clientId]);
- if(dup.length)return res.json({success:true,message_id:dup[0].id,duplicate:true});
+ if(dup.length){const [existing]=await pool.query(`SELECT m.id,m.conversation_id,m.sender_id,m.client_message_id,m.message_type,m.body,m.reply_to_id,m.metadata,m.created_at,m.edited_at,m.deleted_at,u.name sender_name,u.email sender_email,u.avatar_url sender_avatar FROM vexachat_messages m JOIN store_users u ON u.id=m.sender_id WHERE m.id=?`,[dup[0].id]);return res.json({success:true,message:existing[0],message_id:dup[0].id,duplicate:true});}
  const [r]=await pool.query('INSERT INTO vexachat_messages(conversation_id,sender_id,client_message_id,message_type,body,reply_to_id,metadata) VALUES(?,?,?,?,?,?,?)',[conversationId,userId,clientId,type,body,Number(req.body?.reply_to_id)||null,req.body?.metadata?JSON.stringify(req.body.metadata):null]);
  await pool.query('UPDATE vexachat_conversations SET updated_at=NOW() WHERE id=?',[conversationId]);
  if(Number(req.body?.attachment_id)){await pool.query('UPDATE vexachat_attachments SET message_id=? WHERE id=? AND uploader_id=? AND message_id IS NULL',[r.insertId,Number(req.body.attachment_id),userId]);}
