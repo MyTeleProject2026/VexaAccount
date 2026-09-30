@@ -121,7 +121,8 @@ router.post('/conversations/:id/messages',async(req,res,next)=>{try{
  const [dup]=await pool.query('SELECT id,created_at FROM vexachat_messages WHERE client_message_id=? LIMIT 1',[clientId]);
  if(dup.length)return res.json({success:true,message_id:dup[0].id,duplicate:true});
  const [r]=await pool.query('INSERT INTO vexachat_messages(conversation_id,sender_id,client_message_id,message_type,body,reply_to_id,metadata) VALUES(?,?,?,?,?,?,?)',[conversationId,userId,clientId,type,body,Number(req.body?.reply_to_id)||null,req.body?.metadata?JSON.stringify(req.body.metadata):null]);
- await pool.query('UPDATE vexachat_conversations SET updated_at=NOW() WHERE id=?',[conversationId]);\n if(Number(req.body?.attachment_id)){await pool.query('UPDATE vexachat_attachments SET message_id=? WHERE id=? AND uploader_id=? AND message_id IS NULL',[r.insertId,Number(req.body.attachment_id),userId]);}
+ await pool.query('UPDATE vexachat_conversations SET updated_at=NOW() WHERE id=?',[conversationId]);
+ if(Number(req.body?.attachment_id)){await pool.query('UPDATE vexachat_attachments SET message_id=? WHERE id=? AND uploader_id=? AND message_id IS NULL',[r.insertId,Number(req.body.attachment_id),userId]);}
  const [rows]=await pool.query(`SELECT m.id,m.conversation_id,m.sender_id,m.client_message_id,m.message_type,m.body,m.reply_to_id,m.metadata,m.created_at,u.name sender_name,u.email sender_email,u.avatar_url sender_avatar
  FROM vexachat_messages m JOIN store_users u ON u.id=m.sender_id WHERE m.id=?`,[r.insertId]);
  await notifyMembers(conversationId,'message',rows[0]);
