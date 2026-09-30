@@ -1,1 +1,8 @@
-{"name":"vexachat-web","version":"1.0.0","private":true,"scripts":{"build":"node -e \"console.log('VexaChat static build ready')\""}}
+{
+  "name": "vexachat-web",
+  "version": "1.1.0",
+  "private": true,
+  "scripts": {
+    "build": "node -e \"require('fs').writeFileSync('config.js', 'window.VEXA_CHAT_API_BASE='+JSON.stringify(process.env.VEXA_CHAT_API_BASE || 'https://api-vexaaccount.onrender.com')+';\\n')\""
+  }
+}
