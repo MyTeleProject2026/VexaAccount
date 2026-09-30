@@ -66,7 +66,7 @@ router.get('/conversations',async(req,res,next)=>{try{
  (SELECT COUNT(*) FROM vexachat_messages m WHERE m.conversation_id=c.id AND m.deleted_at IS NULL AND m.id>COALESCE(p.last_read_message_id,0) AND m.sender_id<>?) unread_count
  FROM vexachat_conversations c JOIN vexachat_participants p ON p.conversation_id=c.id AND p.user_id=?
  LEFT JOIN vexachat_participants p2 ON p2.conversation_id=c.id LEFT JOIN store_users u ON u.id=p2.user_id
- GROUP BY c.id,p.last_read_message_id ORDER BY last_message_at DESC,c.updated_at DESC`,[userId,userId,userId]);
+ GROUP BY c.id,p.last_read_message_id ORDER BY last_message_at DESC,c.updated_at DESC`,[userId,userId,userId,userId]);
  res.json({success:true,conversations:rows});
 }catch(e){next(e)}});
 
