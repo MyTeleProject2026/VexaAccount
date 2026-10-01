@@ -1,0 +1,4 @@
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/vexachat_midnight"/>
+    <item android:gravity="center" android:width="176dp" android:height="176dp" android:drawable="@drawable/ic_vexachat_launcher"/>
+</layer-list>

@@ -1,0 +1,84 @@
+name: VexaChat Android
+
+on:
+  push:
+    branches: [master, feature/vexachat-complete]
+    paths:
+      - 'frontend-VexaChat/**'
+      - 'backend/src/routes/vexachat*.js'
+      - 'backend/src/services/vexachatRealtime.service.js'
+      - 'backend/src/middleware/auth.js'
+      - 'backend/src/index.js'
+      - 'backend/database/migrations/20261001_vexachat.sql'
+      - 'backend/database/migrations/20261002_vexachat_features.sql'
+      - 'packaging/vexachat/**'
+      - '.github/workflows/vexachat-android.yml'
+  pull_request:
+    branches: [master]
+    paths:
+      - 'frontend-VexaChat/**'
+      - 'backend/src/routes/vexachat*.js'
+      - 'backend/src/services/vexachatRealtime.service.js'
+      - 'backend/src/middleware/auth.js'
+      - 'backend/src/index.js'
+      - 'backend/database/migrations/20261001_vexachat.sql'
+      - 'backend/database/migrations/20261002_vexachat_features.sql'
+      - 'packaging/vexachat/**'
+      - '.github/workflows/vexachat-android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-VexaChat
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm run build
+      - name: Verify generated runtime configuration
+        run: |
+          test -f config.js
+          grep -F 'api-vexaaccount.onrender.com' config.js
+          test -f index.html && test -f app.js && test -f styles.css && test -f manifest.webmanifest && test -f sw.js
+
+  build-apk:
+    needs: verify-web
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packaging/vexachat/android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build release APK
+        env:
+          VEXACHAT_WEB_URL: ${{ vars.VEXACHAT_WEB_URL || 'https://vexachat-ofgc.onrender.com' }}
+        run: |
+          test -n "$VEXACHAT_WEB_URL"
+          gradle --no-daemon :app:assembleRelease -PVEXACHAT_WEB_URL="$VEXACHAT_WEB_URL"
+      - name: Verify APK package
+        run: |
+          APK=$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | head -n 1)
+          test -n "$APK"
+          test -s "$APK"
+          echo "APK=$APK"
+          sha256sum "$APK" | tee app/build/outputs/apk/release/SHA256SUMS.txt
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: VexaChat-Android
+          path: packaging/vexachat/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error

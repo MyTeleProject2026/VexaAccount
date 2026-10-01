@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+<title id="title">VexaChat premium logo</title><desc id="desc">A luxury cyan and violet VexaChat messenger mark on a deep midnight background.</desc>
+<defs>
+ <linearGradient id="bg" x1="72" y1="48" x2="444" y2="464" gradientUnits="userSpaceOnUse"><stop stop-color="#0D2037"/><stop offset=".55" stop-color="#07111F"/><stop offset="1" stop-color="#050A13"/></linearGradient>
+ <linearGradient id="accent" x1="112" y1="116" x2="410" y2="392" gradientUnits="userSpaceOnUse"><stop stop-color="#6CEBFF"/><stop offset=".48" stop-color="#19C8FF"/><stop offset="1" stop-color="#8A63FF"/></linearGradient>
+ <linearGradient id="shine" x1="164" y1="174" x2="350" y2="342" gradientUnits="userSpaceOnUse"><stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#C7F8FF"/></linearGradient>
+ <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="20" stdDeviation="20" flood-color="#000" flood-opacity=".45"/></filter>
+</defs>
+<rect x="20" y="20" width="472" height="472" rx="116" fill="url(#bg)"/>
+<path d="M118 125c0-25 20-45 45-45h186c25 0 45 20 45 45v151c0 25-20 45-45 45H235l-78 65v-65h-22c-25 0-45-20-45-45V125Z" fill="#0A1728" stroke="url(#accent)" stroke-width="14" filter="url(#shadow)"/>
+<path d="M162 184h188" stroke="#29445D" stroke-width="14" stroke-linecap="round"/>
+<path d="M162 224h122" stroke="#29445D" stroke-width="14" stroke-linecap="round"/>
+<path d="M171 281l56-78 45 58 31-42 47 62" fill="none" stroke="url(#accent)" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M166 325c38 30 78 43 121 39 43-4 75-21 98-50" fill="none" stroke="url(#shine)" stroke-width="10" stroke-linecap="round" opacity=".95"/>
+<circle cx="399" cy="117" r="13" fill="#6CEBFF"/>
+<circle cx="429" cy="147" r="7" fill="#8A63FF"/>
+</svg>

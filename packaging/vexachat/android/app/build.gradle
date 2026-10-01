@@ -1,0 +1,73 @@
+plugins { id 'com.android.application' }
+
+def vexaChatWebUrl = project.findProperty('VEXACHAT_WEB_URL') ?: 'https://vexachat-ofgc.onrender.com'
+def ciKeystore = file("${buildDir}/generated/vexachat-ci-release.keystore")
+def ciKeystorePassword = 'vexachat-ci'
+def ciKeyAlias = 'vexachat-ci'
+def ciKeyPassword = 'vexachat-ci'
+
+android {
+    namespace 'com.mytele.vexachat'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'com.mytele.vexachat'
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName '1.0.0'
+        buildConfigField 'String', 'VEXACHAT_WEB_URL', '"' + vexaChatWebUrl.replace('"','\\\\\"') + '"'
+    }
+    buildFeatures { buildConfig true }
+
+    signingConfigs {
+        release {
+            storeFile ciKeystore
+            storePassword ciKeystorePassword
+            keyAlias ciKeyAlias
+            keyPassword ciKeyPassword
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+        }
+    }
+}
+
+def ensureVexaChatCiKeystore = tasks.register('ensureVexaChatCiKeystore') {
+    outputs.file(ciKeystore)
+    doLast {
+        if (ciKeystore.exists()) return
+        ciKeystore.parentFile.mkdirs()
+        exec {
+            commandLine(
+                System.getProperty('java.home') + '/bin/keytool',
+                '-genkeypair',
+                '-v',
+                '-storetype', 'JKS',
+                '-keystore', ciKeystore.absolutePath,
+                '-storepass', ciKeystorePassword,
+                '-keypass', ciKeyPassword,
+                '-alias', ciKeyAlias,
+                '-keyalg', 'RSA',
+                '-keysize', '2048',
+                '-validity', '10000',
+                '-dname', 'CN=VexaChat CI, OU=MyTeleProject2026, O=VexaAccount, L=Unknown, ST=Unknown, C=US',
+                '-noprompt'
+            )
+        }
+    }
+}
+
+tasks.matching { it.name in ['assembleRelease', 'packageRelease'] }.configureEach {
+    dependsOn(ensureVexaChatCiKeystore)
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.activity:activity:1.10.1'
+}
