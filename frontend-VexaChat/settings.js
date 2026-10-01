@@ -8,7 +8,7 @@ applyPreferences(load());
 const row=(label,desc,control)=>'<div class="settings-row"><div><strong>'+label+'</strong><small>'+desc+'</small></div>'+control+'</div>';
 const select=(id,values,value)=>'<select class="settings-select" id="'+id+'">'+values.map(v=>'<option value="'+v+'" '+(v===value?'selected':'')+'>'+v[0].toUpperCase()+v.slice(1)+'</option>').join('')+'</select>';
 function open(ctx){
- const p=load(); let section='account';
+ const p=load(); const ns=ctx.state.settings||{}; Object.assign(p,{desktop_notifications:ns.messages_enabled!==0,message_preview:ns.previews_enabled!==0,calls_enabled:ns.calls_enabled!==0}); let section='account';
  const serverNotify=()=>ctx.state.settings||{};
  const syncNotifications=async()=>{try{ctx.state.settings=(await ctx.api('/api/chat/notifications/settings',{method:'PUT',body:JSON.stringify({messages_enabled:p.desktop_notifications,calls_enabled:p.calls_enabled!==false,previews_enabled:p.message_preview})})).settings;ctx.notify('Notification settings saved')}catch(e){ctx.notify(e.message)}};
  const sections=[
