@@ -1,6 +1,6 @@
 plugins { id 'com.android.application' }
 
-def vexaChatWebUrl = project.findProperty('VEXACHAT_WEB_URL') ?: 'https://vexachat.onrender.com'
+def vexaChatWebUrl = project.findProperty('VEXACHAT_WEB_URL') ?: 'https://vexachat-ofgc.onrender.com'
 def ciKeystore = file("${buildDir}/generated/vexachat-ci-release.keystore")
 def ciKeystorePassword = 'vexachat-ci'
 def ciKeyAlias = 'vexachat-ci'
