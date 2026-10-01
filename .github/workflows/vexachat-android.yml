@@ -5,7 +5,10 @@ on:
     branches: [master, feature/vexachat-complete]
     paths:
       - 'frontend-VexaChat/**'
-      - 'backend/src/routes/vexachat.js'
+      - 'backend/src/routes/vexachat*.js'
+      - 'backend/src/services/vexachatRealtime.service.js'
+      - 'backend/src/middleware/auth.js'
+      - 'backend/src/index.js'
       - 'backend/database/migrations/20261001_vexachat.sql'
       - 'backend/database/migrations/20261002_vexachat_features.sql'
       - 'packaging/vexachat/**'
@@ -15,6 +18,8 @@ on:
     paths:
       - 'frontend-VexaChat/**'
       - 'backend/src/routes/vexachat*.js'
+      - 'backend/src/services/vexachatRealtime.service.js'
+      - 'backend/src/middleware/auth.js'
       - 'backend/src/index.js'
       - 'backend/database/migrations/20261001_vexachat.sql'
       - 'backend/database/migrations/20261002_vexachat_features.sql'
@@ -37,7 +42,11 @@ jobs:
         with:
           node-version: 20
       - run: npm run build
-      - run: test -f index.html && test -f app.js && test -f styles.css
+      - name: Verify generated runtime configuration
+        run: |
+          test -f config.js
+          grep -F 'api-vexaaccount.onrender.com' config.js
+          test -f index.html && test -f app.js && test -f styles.css && test -f manifest.webmanifest && test -f sw.js
 
   build-apk:
     needs: verify-web
@@ -55,7 +64,18 @@ jobs:
         with:
           gradle-version: '8.9'
       - name: Build release APK
-        run: gradle :app:assembleRelease -PVEXACHAT_WEB_URL=${{ vars.VEXACHAT_WEB_URL || 'https://vexachat.onrender.com' }}
+        env:
+          VEXACHAT_WEB_URL: ${{ vars.VEXACHAT_WEB_URL || 'https://vexachat-ofgc.onrender.com' }}
+        run: |
+          test -n "$VEXACHAT_WEB_URL"
+          gradle --no-daemon :app:assembleRelease -PVEXACHAT_WEB_URL="$VEXACHAT_WEB_URL"
+      - name: Verify APK package
+        run: |
+          APK=$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | head -n 1)
+          test -n "$APK"
+          test -s "$APK"
+          echo "APK=$APK"
+          sha256sum "$APK" | tee app/build/outputs/apk/release/SHA256SUMS.txt
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
