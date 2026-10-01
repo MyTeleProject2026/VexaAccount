@@ -51,6 +51,7 @@ router.get('/conversations',async(req,res,next)=>{try{
  const userId=uid(req);
  const [rows]=await pool.query(`SELECT c.id,c.conversation_type,c.title,c.avatar_url,c.created_by,c.updated_at,
  COALESCE((SELECT s.archived FROM vexachat_conversation_settings s WHERE s.conversation_id=c.id AND s.user_id=? LIMIT 1),p.archived) archived,
+ COALESCE((SELECT s.pinned FROM vexachat_conversation_settings s WHERE s.conversation_id=c.id AND s.user_id=? LIMIT 1),0) pinned,
  COALESCE(NULLIF(c.title,''),GROUP_CONCAT(CASE WHEN u.id<>? THEN COALESCE(NULLIF(u.name,''),u.email) END ORDER BY u.id SEPARATOR ', ')) display_name,
  (SELECT m.body FROM vexachat_messages m WHERE m.conversation_id=c.id AND m.deleted_at IS NULL ORDER BY m.id DESC LIMIT 1) last_message,
  (SELECT m.created_at FROM vexachat_messages m WHERE m.conversation_id=c.id AND m.deleted_at IS NULL ORDER BY m.id DESC LIMIT 1) last_message_at,
