@@ -3,6 +3,8 @@ const KEY='vexachat_preferences_v1';
 const defaults={appearance:'system',density:'comfortable',enter_to_send:true,animations:true,link_previews:true,autoplay_media:false,read_receipts:true,last_seen:'everyone',profile_photo:'everyone',calls_from:'contacts',message_preview:true,desktop_notifications:true,language:'English',data_saver:false};
 const load=()=>{try{return {...defaults,...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch{return {...defaults}}};
 const save=p=>localStorage.setItem(KEY,JSON.stringify(p));
+const applyPreferences=p=>{document.documentElement.dataset.theme=p.appearance;document.documentElement.dataset.density=p.density;document.documentElement.dataset.motion=p.animations?'on':'off'};
+applyPreferences(load());
 const row=(label,desc,control)=>'<div class="settings-row"><div><strong>'+label+'</strong><small>'+desc+'</small></div>'+control+'</div>';
 const select=(id,values,value)=>'<select class="settings-select" id="'+id+'">'+values.map(v=>'<option value="'+v+'" '+(v===value?'selected':'')+'>'+v[0].toUpperCase()+v.slice(1)+'</option>').join('')+'</select>';
 function open(ctx){
@@ -49,11 +51,7 @@ function open(ctx){
   document.querySelector('#helpSupport')?.addEventListener('click',()=>location.href='https://vexaaccount-management.onrender.com/');
   document.querySelector('#reportProblem')?.addEventListener('click',()=>location.href='https://vexaaccount-management.onrender.com/');
  }
- function apply(){
-  document.documentElement.dataset.theme=p.appearance;
-  document.documentElement.dataset.density=p.density;
-  document.documentElement.dataset.motion=p.animations?'on':'off';
- }
+ function apply(){applyPreferences(p)}
  apply();render();
 }
 window.VexaChatSettings={open};
