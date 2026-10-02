@@ -4,9 +4,60 @@ const token=()=>localStorage.getItem('vexaaccount_access_token')||sessionStorage
 const csrf=()=>document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]+)/)?.[1]||'';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const state={localStream:null,me:null,chats:[],active:null,messages:[],query:'',view:'chats',chatFilter:'all',lastListView:'chats',events:null,typingTimer:null,reactions:{},contacts:[],calls:[],settings:null,pc:null,callId:null,callType:null,callStartedAt:null,incomingCallData:null,incomingCallTimer:null};
-const ACCOUNT='https://vexaaccount-management.onrender.com';
-function accountUrl(route){return ACCOUNT+'/#/'+route+'?return='+encodeURIComponent(location.href)}
-function authGate(){document.querySelector('#app').innerHTML='<div class="auth-gate"><div class="auth-card"><div class="auth-mark">V</div><h1>VexaChat</h1><p>Secure messaging powered by your VexaAccount.</p><div class="auth-actions"><a class="primary auth-link" href="'+accountUrl('login')+'">Sign in</a><a class="secondary auth-link" href="'+accountUrl('register')+'">Create VexaAccount</a><a class="text-link auth-link" href="'+accountUrl('forgot-password')+'">Forgot password?</a></div><div class="auth-help">Already registered but waiting for verification? Open VexaAccount and use <strong>Resend verification</strong>.</div></div></div>'}
+const AUTH_STATE={mode:'login',email:'',userId:null,method:null};
+function authCard(mode='login',message=''){
+ AUTH_STATE.mode=mode;
+ const titles={login:'Welcome back to VexaChat',register:'Create your VexaChat account',verify:'Verify your VexaAccount',forgot:'Reset your password',reset:'Choose a new password',twofa:'Verify your sign-in'};
+ const subtitles={login:'Sign in with your VexaAccount — stay inside VexaChat.',register:'Your VexaAccount is used for identity and secure access.',verify:'Enter the verification code sent to your email.',forgot:'We will send a secure password-reset link if the account exists.',reset:'Set a new password for your VexaAccount.',twofa:'Complete the additional security check to open VexaChat.'};
+ let body='';
+ if(mode==='login') body='<form id="authForm"><label>Email</label><input id="authEmail" type="email" autocomplete="username" placeholder="you@example.com" required><label>Password</label><input id="authPassword" type="password" autocomplete="current-password" placeholder="Enter your password" required><button class="primary auth-submit">Sign in</button></form><div class="auth-links"><button class="text-link" data-auth="forgot">Forgot password?</button><button class="text-link" data-auth="register">Create VexaAccount</button></div>';
+ if(mode==='register') body='<form id="authForm"><label>Full name</label><input id="authName" autocomplete="name" placeholder="Your name" required><label>Email</label><input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" required><label>Password</label><input id="authPassword" type="password" autocomplete="new-password" placeholder="At least 8 characters" minlength="8" required><button class="primary auth-submit">Create account</button></form><div class="auth-links"><button class="text-link" data-auth="login">Already have an account? Sign in</button></div>';
+ if(mode==='verify') body='<form id="authForm"><input id="authEmail" type="email" value="'+esc(AUTH_STATE.email)+'" readonly><label>Verification code</label><input id="authOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="Enter OTP" required><button class="primary auth-submit">Verify and open VexaChat</button></form><div class="auth-links"><button class="text-link" id="resendOtp">Resend verification code</button><button class="text-link" data-auth="login">Back to sign in</button></div>';
+ if(mode==='forgot') body='<form id="authForm"><label>Email</label><input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" required><button class="primary auth-submit">Send reset link</button></form><div class="auth-links"><button class="text-link" data-auth="login">Back to sign in</button></div>';
+ if(mode==='twofa') body='<form id="authForm"><input id="authEmail" type="hidden" value="'+esc(AUTH_STATE.email)+'"><label>Security code</label><input id="authOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="6-digit code" required><button class="primary auth-submit">Verify and open VexaChat</button></form><div class="auth-links"><button class="text-link" data-auth="login">Cancel</button></div>';
+ const msg=message?'<div class="auth-message">'+esc(message)+'</div>':'';
+ document.querySelector('#app').innerHTML='<div class="auth-gate"><div class="auth-card"><div class="auth-mark">V</div><h1>VexaChat</h1><p>'+subtitles[mode]+'</p><h2 class="auth-title">'+titles[mode]+'</h2>'+msg+body+'<div class="auth-help">VexaChat never redirects your sign-in to the VexaAccount user dashboard. Authentication is performed against the VexaAccount API, then the authenticated session opens VexaChat.</div></div></div>';
+ document.querySelectorAll('[data-auth]').forEach(b=>b.onclick=()=>authCard(b.dataset.auth));
+ document.querySelector('#authForm')?.addEventListener('submit',handleAuthSubmit);
+ document.querySelector('#resendOtp')?.addEventListener('click',resendVerification);
+}
+function authGate(message=''){authCard('login',message)}
+async function handleAuthSubmit(e){
+ e.preventDefault();
+ const mode=AUTH_STATE.mode;
+ try{
+  let d;
+  if(mode==='login'){
+   const email=$('#authEmail').value.trim().toLowerCase(),password=$('#authPassword').value;
+   AUTH_STATE.email=email;
+   d=await api('/api/auth/login',{method:'POST',body:JSON.stringify({email,password})});
+   if(d.requiresAuthenticator2fa){AUTH_STATE.userId=d.userId;AUTH_STATE.method='totp';return authCard('twofa','Enter your authenticator code.')}
+   if(d.requiresEmail2fa){AUTH_STATE.userId=d.userId;AUTH_STATE.method='email';return authCard('verify','Enter the email security code.')}
+   finishAuth(d);
+  }else if(mode==='register'){
+   const name=$('#authName').value.trim(),email=$('#authEmail').value.trim().toLowerCase(),password=$('#authPassword').value;
+   AUTH_STATE.email=email;
+   d=await api('/api/auth/register',{method:'POST',body:JSON.stringify({name,email,password})});
+   if(d.success){return authCard('verify','Account created. Check your email for the verification code.')}
+  }else if(mode==='verify'){
+   const otp=$('#authOtp').value.trim();
+   if(AUTH_STATE.userId&&AUTH_STATE.method==='email') d=await api('/api/auth/verify-email-2fa',{method:'POST',body:JSON.stringify({userId:AUTH_STATE.userId,email:AUTH_STATE.email,otp})});
+   else d=await api('/api/auth/verify-otp',{method:'POST',body:JSON.stringify({email:AUTH_STATE.email,otp})});
+   finishAuth(d);
+  }else if(mode==='twofa'){
+   d=await api('/api/auth/twofa/verify',{method:'POST',body:JSON.stringify({userId:AUTH_STATE.userId,token:$('#authOtp').value.trim()})});
+   finishAuth(d);
+  }else if(mode==='forgot'){
+   d=await api('/api/auth/forgot-password',{method:'POST',body:JSON.stringify({email:$('#authEmail').value.trim().toLowerCase()})});
+   authCard('login',d.message||'If the email is registered, a reset link has been sent.');
+  }
+ }catch(err){authCard(mode,err.message||'Authentication failed. Please try again.')}
+}
+function finishAuth(d){if(d?.token)localStorage.setItem('vexaaccount_access_token',d.token);if(d?.user)state.me=d.user;AUTH_STATE.userId=d?.user?.id||AUTH_STATE.userId;shell();connectionStatus('Connected');Promise.allSettled([loadChats(),loadContacts(),loadCalls(),loadNotifications(),setPresence('online')]).then(()=>connectEvents())}
+async function resendVerification(){
+ try{const d=await api('/api/auth/resend-otp',{method:'POST',body:JSON.stringify({email:AUTH_STATE.email})});notify(d.message||'Verification code sent');}
+ catch(e){notify(e.message)}
+}
 const $=s=>document.querySelector(s);
 const api=async(path,opt={})=>{const h=new Headers(opt.headers||{});h.set('Content-Type','application/json');const t=token();if(t)h.set('Authorization','Bearer '+t);const x=csrf();if(x)h.set('X-XSRF-TOKEN',decodeURIComponent(x));const r=await fetch(API+path,{...opt,headers:h,credentials:'include'});const d=await r.json().catch(()=>({success:false,message:'Invalid server response'}));if(r.status===401){authGate();throw Error('Sign-in required')}if(!r.ok||d.success===false){const err=Error(d.message||('Request failed ('+r.status+')'));err.status=r.status;throw err}return d};
 const notify=m=>{const x=document.createElement('div');x.className='toast';x.textContent=m;document.body.appendChild(x);setTimeout(()=>x.remove(),3000)};
