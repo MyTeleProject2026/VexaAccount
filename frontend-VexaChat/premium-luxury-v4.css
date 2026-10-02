@@ -1,0 +1,12 @@
+/* VexaChat Premium Glass UI v4 — visual layer only */
+:root{--chat-cyan:#65e8ff;--chat-violet:#8f7cff;--chat-gold:#f4d276}
+body{background:radial-gradient(900px 620px at 4% -10%,rgba(101,232,255,.13),transparent 58%),radial-gradient(900px 680px at 105% 110%,rgba(143,124,255,.16),transparent 58%),#040a13}
+#app{isolation:isolate}.glass,.panel,.modal,.auth-card{border-color:rgba(255,255,255,.13);box-shadow:0 28px 100px rgba(0,0,0,.42),inset 0 1px rgba(255,255,255,.06);backdrop-filter:blur(28px) saturate(135%);-webkit-backdrop-filter:blur(28px) saturate(135%)}
+button{touch-action:manipulation}.primary{background:linear-gradient(115deg,#7058ef,#138da8 70%,#46d9df)!important;box-shadow:0 14px 38px rgba(72,86,220,.25),inset 0 1px rgba(255,255,255,.18)!important}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid rgba(101,232,255,.82);outline-offset:3px}
+.chat-row,.contact-row,.call-history-row,.profile-menu-row{transition:transform .18s,background .18s,border-color .18s}
+.chat-row:hover,.contact-row:hover,.call-history-row:hover,.profile-menu-row:hover{background:rgba(255,255,255,.045)!important}
+.auth-card{background:linear-gradient(145deg,rgba(12,25,43,.88),rgba(7,15,27,.78));position:relative;overflow:hidden}
+.auth-card:before{content:"";position:absolute;left:12%;right:12%;top:0;height:1px;background:linear-gradient(90deg,transparent,var(--chat-cyan),var(--chat-gold),transparent);opacity:.6}
+@media(max-width:700px){.auth-gate{padding-bottom:max(14px,env(safe-area-inset-bottom))}.modal{border-radius:24px 24px 0 0}.profile-page{padding-bottom:calc(10px + env(safe-area-inset-bottom))}}
+@media(prefers-reduced-motion:reduce){button,.chat-row,.contact-row{transition:none!important}}
