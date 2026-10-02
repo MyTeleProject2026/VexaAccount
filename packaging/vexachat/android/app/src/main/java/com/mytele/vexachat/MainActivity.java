@@ -142,7 +142,7 @@ public class MainActivity extends Activity {
             @Override public void onPageFinished(WebView view, String url) {
                 pageFinished = true;
                 startupHandler.removeCallbacks(startupWatchdog);
-                startupHandler.postDelayed(startupWatchdog, 5000);
+                startupHandler.postDelayed(startupWatchdog, 15000);
             }
 
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
