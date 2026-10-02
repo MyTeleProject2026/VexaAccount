@@ -71,3 +71,44 @@ html[data-density="compact"] .chat-row{padding-top:7px;padding-bottom:7px}html[d
  .auth-card p{margin-bottom:12px}
  .auth-help{margin-top:12px}
 }
+
+/* VexaChat authentication screen — isolated responsive layout */
+.auth-gate{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;box-sizing:border-box;width:100%;min-width:0;min-height:100dvh;padding:24px;overflow:auto;background:#06101d;color:#f4f8ff}
+.auth-card{width:min(430px,100%);box-sizing:border-box;padding:32px 30px 26px;border:1px solid rgba(136,162,187,.18);border-radius:24px;background:rgba(10,22,38,.96);box-shadow:0 24px 70px rgba(0,0,0,.38);display:flex;flex-direction:column;align-items:stretch;text-align:left}
+.auth-card .auth-mark{width:64px;height:64px;margin:0 auto 16px;display:grid;place-items:center;flex:0 0 auto;border-radius:19px;background:linear-gradient(135deg,#2b72ff,#18c8ff);color:#fff;font-size:28px;font-weight:800;box-shadow:0 12px 30px rgba(24,125,255,.25)}
+.auth-card h1{margin:0;text-align:center;font-size:28px;line-height:1.15;letter-spacing:-.4px}
+.auth-card>p{margin:9px 0 25px;text-align:center;color:#91a5bb;font-size:13px;line-height:1.5}
+.auth-card .auth-title{margin:0 0 17px;font-size:20px;line-height:1.25;text-align:left}
+.auth-card #authForm{display:flex;flex-direction:column;align-items:stretch;gap:8px;width:100%;margin:0}
+.auth-card #authForm label{margin-top:4px;font-size:12px;font-weight:700;line-height:1.3;color:#b9c9d9}
+.auth-card #authForm input{display:block;width:100%;min-width:0;min-height:48px;box-sizing:border-box;padding:12px 13px;border:1px solid #293e56;border-radius:12px;background:#081522;color:#f4f8ff;font:inherit;line-height:1.25;outline:none}
+.auth-card #authForm input::placeholder{color:#60758b}
+.auth-card #authForm input:focus{border-color:#6387ff;box-shadow:0 0 0 3px rgba(99,135,255,.13)}
+.auth-card .auth-submit{width:100%;min-height:48px;margin-top:8px;border-radius:12px}
+.auth-card .auth-links{display:flex;justify-content:center;align-items:center;gap:4px 14px;flex-wrap:wrap;width:100%;margin-top:15px}
+.auth-card .auth-links .text-link{padding:5px 2px}
+.auth-card .auth-help{box-sizing:border-box;width:100%;margin-top:17px;padding-top:15px;border-top:1px solid rgba(136,162,187,.12);text-align:center;color:#71869c;font-size:11px;line-height:1.55;overflow-wrap:anywhere}
+@media(max-width:600px){
+ .auth-gate{place-items:start center;padding:14px max(14px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))}
+ .auth-card{width:min(430px,100%);margin:clamp(12px,7dvh,46px) auto 18px;padding:25px 18px 20px;border-radius:20px}
+ .auth-card .auth-mark{width:58px;height:58px;margin-bottom:13px;border-radius:17px}
+ .auth-card h1{font-size:25px}
+ .auth-card>p{margin:8px 0 20px;font-size:12.5px}
+ .auth-card .auth-title{font-size:18px;margin-bottom:14px}
+ .auth-card #authForm input,.auth-card .auth-submit{min-height:48px}
+}
+@media(max-width:360px){
+ .auth-card{padding-left:15px;padding-right:15px}
+ .auth-card h1{font-size:23px}
+ .auth-card>p{font-size:12px}
+ .auth-card .auth-title{font-size:17px}
+ .auth-card .auth-links{gap:3px 10px}
+}
+@media(min-width:601px){.auth-card{margin:0 auto}}
+@media(max-height:620px) and (max-width:600px){
+ .auth-gate{place-items:start center}
+ .auth-card{margin-top:8px;padding-top:18px;padding-bottom:15px}
+ .auth-card .auth-mark{width:50px;height:50px;margin-bottom:9px}
+ .auth-card>p{margin-bottom:13px}
+ .auth-card .auth-help{margin-top:11px;padding-top:10px}
+}
