@@ -31,6 +31,7 @@ public class MainActivity extends Activity {
     private final Handler startupHandler = new Handler(Looper.getMainLooper());
     private boolean pageFinished = false;
     private boolean startupFailureShown = false;
+    private PermissionRequest pendingPermissionRequest;
     private final Runnable startupWatchdog = new Runnable() {
         @Override public void run() {
             if (startupFailureShown || webView == null) return;
@@ -116,13 +117,18 @@ public class MainActivity extends Activity {
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
         webView.setWebChromeClient(new WebChromeClient() {
             @Override public void onPermissionRequest(PermissionRequest request) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-                    (checkSelfPermission("android.permission.CAMERA") != PackageManager.PERMISSION_GRANTED ||
-                     checkSelfPermission("android.permission.RECORD_AUDIO") != PackageManager.PERMISSION_GRANTED)) {
-                    runOnUiThread(() -> requestPermissions(new String[]{"android.permission.CAMERA", "android.permission.RECORD_AUDIO"}, 4101));
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+                    request.grant(request.getResources());
                     return;
                 }
-                runOnUiThread(() -> request.grant(request.getResources()));
+                boolean cameraOk = checkSelfPermission("android.permission.CAMERA") == PackageManager.PERMISSION_GRANTED;
+                boolean audioOk = checkSelfPermission("android.permission.RECORD_AUDIO") == PackageManager.PERMISSION_GRANTED;
+                if (cameraOk && audioOk) {
+                    request.grant(request.getResources());
+                    return;
+                }
+                pendingPermissionRequest = request;
+                requestPermissions(new String[]{"android.permission.CAMERA", "android.permission.RECORD_AUDIO"}, 4101);
             }
         });
         webView.setWebViewClient(new WebViewClient() {
@@ -161,11 +167,6 @@ public class MainActivity extends Activity {
             try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
             catch(Exception e){ Toast.makeText(this,"Unable to open download",Toast.LENGTH_SHORT).show(); }
         });
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-            (checkSelfPermission("android.permission.CAMERA") != PackageManager.PERMISSION_GRANTED ||
-             checkSelfPermission("android.permission.RECORD_AUDIO") != PackageManager.PERMISSION_GRANTED)) {
-            requestPermissions(new String[]{"android.permission.CAMERA", "android.permission.RECORD_AUDIO"}, 4101);
-        }
         startupHandler.postDelayed(startupWatchdog, 20000);
         webView.loadUrl(BuildConfig.VEXACHAT_WEB_URL);
     }
@@ -176,6 +177,20 @@ public class MainActivity extends Activity {
         startupHandler.removeCallbacks(startupWatchdog);
         if (webView != null) webView.stopLoading();
         runOnUiThread(() -> showOffline("VexaChat could not finish starting.\n\nPlease check your connection and try again.\n\nStartup: " + diagnostics));
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != 4101 || pendingPermissionRequest == null) return;
+        boolean cameraOk = checkSelfPermission("android.permission.CAMERA") == PackageManager.PERMISSION_GRANTED;
+        boolean audioOk = checkSelfPermission("android.permission.RECORD_AUDIO") == PackageManager.PERMISSION_GRANTED;
+        PermissionRequest request = pendingPermissionRequest;
+        pendingPermissionRequest = null;
+        if (cameraOk && audioOk) {
+            request.grant(request.getResources());
+        } else {
+            request.deny();
+        }
     }
 
     @Override protected void onDestroy() {
