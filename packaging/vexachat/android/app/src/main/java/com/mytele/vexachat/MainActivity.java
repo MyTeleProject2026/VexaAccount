@@ -3,6 +3,8 @@ package com.mytele.vexachat;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -26,8 +28,31 @@ import android.widget.Button;
 public class MainActivity extends Activity {
     private WebView webView;
     private LinearLayout offlineView;
+    private final Handler startupHandler = new Handler(Looper.getMainLooper());
+    private boolean pageFinished = false;
+    private boolean startupFailureShown = false;
+    private PermissionRequest pendingPermissionRequest;
+    private final Runnable startupWatchdog = new Runnable() {
+        @Override public void run() {
+            if (startupFailureShown || webView == null) return;
+            webView.evaluateJavascript(
+                "(function(){var t=(document.body&&document.body.innerText)||'';return JSON.stringify({title:document.title||'',text:t.slice(0,500),ready:document.readyState,splash:t.indexOf('Starting secure messenger')>=0});})()",
+                value -> {
+                    if (startupFailureShown) return;
+                    if (!pageFinished || value.contains("\"splash\":true")) {
+                        showStartupFailure(value);
+                    }
+                }
+            );
+        }
+    };
+
 
     private void showOffline() {
+        showOffline("You're offline\n\nCheck your internet connection and try again.");
+    }
+
+    private void showOffline(String messageText) {
         if (offlineView != null) return;
         offlineView = new LinearLayout(this);
         offlineView.setOrientation(LinearLayout.VERTICAL);
@@ -48,7 +73,7 @@ public class MainActivity extends Activity {
         offlineView.addView(title, new LinearLayout.LayoutParams(-1,-2));
 
         TextView message = new TextView(this);
-        message.setText("You're offline\\n\\nCheck your internet connection and try again.");
+        message.setText(messageText);
         message.setTextColor(Color.rgb(143,164,189));
         message.setTextSize(15);
         message.setGravity(Gravity.CENTER);
@@ -61,7 +86,11 @@ public class MainActivity extends Activity {
         retry.setTextColor(Color.WHITE);
         retry.setOnClickListener(v -> {
             offlineView = null;
+            startupFailureShown = false;
+            pageFinished = false;
             setContentView(webView);
+            startupHandler.removeCallbacks(startupWatchdog);
+            startupHandler.postDelayed(startupWatchdog, 20000);
             webView.reload();
         });
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2,-2);
@@ -88,16 +117,34 @@ public class MainActivity extends Activity {
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
         webView.setWebChromeClient(new WebChromeClient() {
             @Override public void onPermissionRequest(PermissionRequest request) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-                    (checkSelfPermission("android.permission.CAMERA") != PackageManager.PERMISSION_GRANTED ||
-                     checkSelfPermission("android.permission.RECORD_AUDIO") != PackageManager.PERMISSION_GRANTED)) {
-                    runOnUiThread(() -> requestPermissions(new String[]{"android.permission.CAMERA", "android.permission.RECORD_AUDIO"}, 4101));
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+                    request.grant(request.getResources());
                     return;
                 }
-                runOnUiThread(() -> request.grant(request.getResources()));
+                boolean cameraOk = checkSelfPermission("android.permission.CAMERA") == PackageManager.PERMISSION_GRANTED;
+                boolean audioOk = checkSelfPermission("android.permission.RECORD_AUDIO") == PackageManager.PERMISSION_GRANTED;
+                if (cameraOk && audioOk) {
+                    request.grant(request.getResources());
+                    return;
+                }
+                pendingPermissionRequest = request;
+                requestPermissions(new String[]{"android.permission.CAMERA", "android.permission.RECORD_AUDIO"}, 4101);
             }
         });
         webView.setWebViewClient(new WebViewClient() {
+            @Override public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                pageFinished = false;
+                startupFailureShown = false;
+                startupHandler.removeCallbacks(startupWatchdog);
+                startupHandler.postDelayed(startupWatchdog, 20000);
+            }
+
+            @Override public void onPageFinished(WebView view, String url) {
+                pageFinished = true;
+                startupHandler.removeCallbacks(startupWatchdog);
+                startupHandler.postDelayed(startupWatchdog, 15000);
+            }
+
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
                 String host = uri.getHost();
@@ -106,20 +153,50 @@ public class MainActivity extends Activity {
                 try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); } catch (Exception ignored) {}
                 return true;
             }
+            @Override public void onReceivedHttpError(WebView view, WebResourceRequest request, android.webkit.WebResourceResponse errorResponse) {
+                if (request.isForMainFrame() && errorResponse != null && errorResponse.getStatusCode() >= 500) {
+                    showStartupFailure("HTTP " + errorResponse.getStatusCode());
+                }
+            }
+
             @Override public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-                if (request.isForMainFrame()) runOnUiThread(() -> showOffline());
+                if (request.isForMainFrame()) runOnUiThread(() -> showStartupFailure(String.valueOf(error.getDescription())));
             }
         });
         webView.setDownloadListener((url,userAgent,contentDisposition,mimeType,contentLength)->{
             try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
             catch(Exception e){ Toast.makeText(this,"Unable to open download",Toast.LENGTH_SHORT).show(); }
         });
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-            (checkSelfPermission("android.permission.CAMERA") != PackageManager.PERMISSION_GRANTED ||
-             checkSelfPermission("android.permission.RECORD_AUDIO") != PackageManager.PERMISSION_GRANTED)) {
-            requestPermissions(new String[]{"android.permission.CAMERA", "android.permission.RECORD_AUDIO"}, 4101);
-        }
+        startupHandler.postDelayed(startupWatchdog, 20000);
         webView.loadUrl(BuildConfig.VEXACHAT_WEB_URL);
+    }
+
+    private void showStartupFailure(String diagnostics) {
+        if (startupFailureShown) return;
+        startupFailureShown = true;
+        startupHandler.removeCallbacks(startupWatchdog);
+        if (webView != null) webView.stopLoading();
+        runOnUiThread(() -> showOffline("VexaChat could not finish starting.\n\nPlease check your connection and try again.\n\nStartup: " + diagnostics));
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != 4101 || pendingPermissionRequest == null) return;
+        boolean cameraOk = checkSelfPermission("android.permission.CAMERA") == PackageManager.PERMISSION_GRANTED;
+        boolean audioOk = checkSelfPermission("android.permission.RECORD_AUDIO") == PackageManager.PERMISSION_GRANTED;
+        PermissionRequest request = pendingPermissionRequest;
+        pendingPermissionRequest = null;
+        if (cameraOk && audioOk) {
+            request.grant(request.getResources());
+        } else {
+            request.deny();
+        }
+    }
+
+    @Override protected void onDestroy() {
+        startupHandler.removeCallbacks(startupWatchdog);
+        if (webView != null) webView.destroy();
+        super.onDestroy();
     }
 
     @Override public void onBackPressed() {

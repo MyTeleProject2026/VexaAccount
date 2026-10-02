@@ -5,7 +5,7 @@ const clients=new Map();
 function emit(userId,event,data){
   const set=clients.get(Number(userId));
   if(!set)return;
-  const payload='event: '+event+'\\ndata: '+JSON.stringify(data)+'\\n\\n';
+  const payload='event: '+event+'\ndata: '+JSON.stringify(data)+'\n\n';
   for(const res of [...set]){
     try{res.write(payload)}catch{set.delete(res)}
   }
