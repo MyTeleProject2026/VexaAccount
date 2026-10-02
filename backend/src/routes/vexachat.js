@@ -34,7 +34,7 @@ router.get('/events',async(req,res)=>{
 });
 
 router.get('/me',async(req,res,next)=>{try{
- const [rows]=await pool.query('SELECT u.id,u.email,u.name,u.avatar_url,p.status,p.last_seen_at FROM store_users u LEFT JOIN vexachat_presence p ON p.user_id=u.id WHERE u.id=? LIMIT 1',[uid(req)]);
+ const [rows]=await pool.query('SELECT u.id,u.email,u.name,u.avatar_url,u.first_name,u.last_name,u.phone,u.bio,u.country,p.status,p.last_seen_at FROM store_users u LEFT JOIN vexachat_presence p ON p.user_id=u.id WHERE u.id=? LIMIT 1',[uid(req)]);
  res.json({success:true,user:rows[0]||null});
 }catch(e){next(e)}});
 
