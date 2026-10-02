@@ -38,7 +38,7 @@ public class MainActivity extends Activity {
                 "(function(){var t=(document.body&&document.body.innerText)||'';return JSON.stringify({title:document.title||'',text:t.slice(0,500),ready:document.readyState,splash:t.indexOf('Starting secure messenger')>=0});})()",
                 value -> {
                     if (startupFailureShown) return;
-                    if (!pageFinished || value.contains("\\"splash\\":true")) {
+                    if (!pageFinished || value.contains("\"splash\":true")) {
                         showStartupFailure(value);
                     }
                 }
@@ -48,7 +48,7 @@ public class MainActivity extends Activity {
 
 
     private void showOffline() {
-        showOffline("You're offline\\n\\nCheck your internet connection and try again.");
+        showOffline("You're offline\n\nCheck your internet connection and try again.");
     }
 
     private void showOffline(String messageText) {
@@ -85,7 +85,11 @@ public class MainActivity extends Activity {
         retry.setTextColor(Color.WHITE);
         retry.setOnClickListener(v -> {
             offlineView = null;
+            startupFailureShown = false;
+            pageFinished = false;
             setContentView(webView);
+            startupHandler.removeCallbacks(startupWatchdog);
+            startupHandler.postDelayed(startupWatchdog, 20000);
             webView.reload();
         });
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2,-2);
@@ -171,7 +175,7 @@ public class MainActivity extends Activity {
         startupFailureShown = true;
         startupHandler.removeCallbacks(startupWatchdog);
         if (webView != null) webView.stopLoading();
-        runOnUiThread(() -> showOffline("VexaChat could not finish starting.\\n\\nPlease check your connection and try again.\\n\\nStartup: " + diagnostics));
+        runOnUiThread(() -> showOffline("VexaChat could not finish starting.\n\nPlease check your connection and try again.\n\nStartup: " + diagnostics));
     }
 
     @Override protected void onDestroy() {
