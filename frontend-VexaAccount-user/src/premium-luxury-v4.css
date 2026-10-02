@@ -16,3 +16,14 @@ button,.button{min-height:44px;touch-action:manipulation}
 .bottom-nav{box-shadow:0 20px 70px rgba(0,0,0,.52),inset 0 1px rgba(255,255,255,.08)!important;background:rgba(6,10,20,.78)!important}
 @media(max-width:760px){.shell{padding-bottom:104px}.content{padding-bottom:128px}.card,.panel{border-radius:22px}.bottom-nav{bottom:max(8px,env(safe-area-inset-bottom));padding:7px}.bottom-nav .nav{min-height:46px}.button,.primary,.secondary{min-height:46px}}
 @media(prefers-reduced-motion:reduce){.row,.app-card,.button,button{transition:none!important}}
+
+/* v4.1 auth surface refinement */
+.vexa-auth-route body{min-height:100dvh}.vexa-auth-route #app{min-height:100dvh}
+.auth{min-height:100dvh;display:grid;place-items:center;padding:clamp(18px,4vw,42px);position:relative;isolation:isolate}
+.auth:before{content:"";position:absolute;inset:0;background:radial-gradient(520px 360px at 50% 8%,rgba(87,231,255,.10),transparent 70%);pointer-events:none}
+.auth-card{position:relative;z-index:1;width:min(520px,100%);border:1px solid rgba(255,255,255,.14)!important;border-radius:30px!important;padding:clamp(24px,5vw,42px)!important;background:linear-gradient(145deg,rgba(14,24,43,.92),rgba(5,10,20,.82))!important;box-shadow:0 35px 110px rgba(0,0,0,.52),inset 0 1px rgba(255,255,255,.10)!important;backdrop-filter:blur(34px) saturate(145%);-webkit-backdrop-filter:blur(34px) saturate(145%)}
+.auth-card:before{content:"";position:absolute;left:14%;right:14%;top:0;height:1px;background:linear-gradient(90deg,transparent,var(--vx-premium-cyan),var(--vx-premium-gold),transparent);opacity:.8}
+.auth .logo{width:74px;height:74px;object-fit:contain;margin:0 auto 14px;filter:drop-shadow(0 14px 28px rgba(87,231,255,.16))}
+.auth-form{gap:14px}.auth-form .field{display:grid;gap:7px;text-align:left}.auth-form input{width:100%;min-height:50px;border-radius:15px;border:1px solid rgba(255,255,255,.12);background:rgba(2,7,15,.48);color:inherit;padding:13px 14px;box-shadow:inset 0 1px rgba(255,255,255,.04);transition:border-color .2s,box-shadow .2s,background .2s}.auth-form input:focus{background:rgba(8,17,31,.72);border-color:rgba(87,231,255,.55);box-shadow:0 0 0 4px rgba(87,231,255,.08)}
+.auth-form .submit{width:100%;min-height:52px;border-radius:16px;font-weight:800;letter-spacing:.01em}.links{gap:10px;flex-wrap:wrap;justify-content:center}.links a,.link-button{color:#8eefff}.message{min-height:20px}.help-grid{display:grid;gap:10px;text-align:left}.help-card{border:1px solid rgba(255,255,255,.10);border-radius:18px;padding:15px 16px;background:rgba(255,255,255,.035);transition:.2s}.help-card:hover{transform:translateY(-1px);border-color:rgba(87,231,255,.24);background:rgba(255,255,255,.055)}
+@media(min-width:820px){.auth-card{width:min(560px,100%)}}
