@@ -37,3 +37,37 @@ html[data-density="compact"] .chat-row{padding-top:7px;padding-bottom:7px}html[d
 .profile-photo-wrap{position:relative;flex:0 0 auto}.profile-photo{width:104px;height:104px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:linear-gradient(135deg,#314d9b,#18243e);border:3px solid rgba(255,255,255,.12);font-size:32px;font-weight:800;color:#fff}.profile-photo img{width:100%;height:100%;object-fit:cover}.profile-photo-edit{position:absolute;right:0;bottom:0;border:2px solid #101827;border-radius:50%;width:34px;height:34px;background:#fff;color:#101827;cursor:pointer}.profile-identity{min-width:0}.profile-identity h2{margin:0 0 5px;font-size:22px;overflow-wrap:anywhere}.profile-identity p{margin:0 0 7px;color:var(--muted,#91a0b8);overflow-wrap:anywhere}.profile-status{font-size:12px;color:#5ee0ad}.profile-photo-actions{display:flex;gap:9px;flex-wrap:wrap}.profile-section,.profile-menu{border:1px solid var(--line,#24314a);border-radius:18px;background:rgba(255,255,255,.025);overflow:hidden}.profile-section{padding:16px}.profile-section-title{margin-bottom:12px}.profile-section-title h3{margin:0;font-size:16px}.profile-section-title span{display:block;margin-top:4px;color:var(--muted,#91a0b8);font-size:12px}.profile-field{display:flex;flex-direction:column;gap:7px;margin:12px 0}.profile-field>span{font-size:12px;color:var(--muted,#91a0b8);font-weight:650}.profile-field input,.profile-field textarea{width:100%;box-sizing:border-box;border:1px solid var(--line,#29364e);background:#0b1425;color:inherit;border-radius:12px;padding:11px 12px;font:inherit;outline:none;resize:vertical}.profile-field input:focus,.profile-field textarea:focus{border-color:#6885ff;box-shadow:0 0 0 3px rgba(104,133,255,.12)}.profile-save{width:100%;min-height:44px}.profile-menu{display:flex;flex-direction:column}.profile-menu-row{display:grid;grid-template-columns:40px minmax(0,1fr) 20px;gap:10px;align-items:center;text-align:left;border:0;border-bottom:1px solid var(--line,#24314a);background:transparent;color:inherit;padding:14px 15px;cursor:pointer}.profile-menu-row:last-child{border-bottom:0}.profile-menu-row:hover{background:rgba(255,255,255,.04)}.profile-menu-icon{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:rgba(105,130,255,.12);font-size:16px}.profile-menu-row b,.profile-menu-row small{display:block}.profile-menu-row b{font-size:14px}.profile-menu-row small{margin-top:3px;color:var(--muted,#91a0b8);font-size:11px;line-height:1.35}.profile-menu-row>strong{color:var(--muted,#91a0b8);font-size:22px;text-align:center}.profile-signout{width:100%;min-height:44px}.security-page{display:flex;flex-direction:column;gap:14px}.security-banner{display:flex;flex-direction:column;gap:5px;padding:14px;border-radius:14px;background:rgba(74,112,255,.09);border:1px solid rgba(104,133,255,.2)}.security-banner span{font-size:12px;color:var(--muted,#91a0b8);line-height:1.45}.stack-form{display:flex;flex-direction:column;gap:12px}.stack-form label{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:650}.stack-form input{padding:11px;border-radius:11px;border:1px solid var(--line,#29364e);background:#0b1425;color:inherit;font:inherit}.stack-form code{overflow-wrap:anywhere}.ghost{border:0;background:transparent;color:var(--muted,#91a0b8);padding:10px;cursor:pointer}.ghost:hover{color:inherit}
 @media (min-width:800px){.profile-page{max-height:80vh;min-width:min(680px,82vw);gap:18px}.profile-hero{padding:22px}.profile-photo{width:120px;height:120px}.profile-section{padding:20px}.profile-field{display:grid;grid-template-columns:130px minmax(0,1fr);align-items:center}.profile-field textarea{min-height:78px}.profile-save{width:auto;min-width:180px;margin-left:130px}.profile-menu-row{padding:16px 18px}}
 @media (max-width:479px){.profile-page{max-height:calc(100dvh - 120px);gap:12px}.profile-hero{padding:14px;gap:12px}.profile-photo{width:82px;height:82px;font-size:26px}.profile-photo-edit{width:30px;height:30px}.profile-identity h2{font-size:18px}.profile-section{padding:13px}.profile-field{margin:10px 0}.profile-menu-row{grid-template-columns:36px minmax(0,1fr) 18px;padding:13px 12px}.profile-menu-icon{width:31px;height:31px}.profile-menu-row small{font-size:10px}.modal{width:min(96vw,760px);max-height:94dvh}}
+
+/* Auth gate mobile/desktop layout hardening */
+.auth-gate{width:100%;box-sizing:border-box;min-height:100dvh;overflow:auto;align-items:center;justify-items:center}
+.auth-card{box-sizing:border-box;display:flex;flex-direction:column;align-items:stretch;gap:0;overflow:hidden}
+.auth-card .auth-mark{align-self:center;flex:0 0 auto}
+.auth-card h1,.auth-card h2,.auth-card p{width:100%;box-sizing:border-box}
+.auth-card h2.auth-title{margin:0 0 18px;font-size:20px;line-height:1.25;color:#f4f8ff}
+.auth-card form{width:100%;display:flex;flex-direction:column;align-items:stretch;gap:8px;text-align:left}
+.auth-card form label{font-size:12px;font-weight:700;color:#b7c7d9;margin-top:4px}
+.auth-card form input{width:100%;box-sizing:border-box;min-height:46px;padding:11px 13px;border-radius:12px;border:1px solid #29415b;background:#081522;color:#f4f8ff;font:inherit;outline:none}
+.auth-card form input:focus{border-color:#5b86ff;box-shadow:0 0 0 3px rgba(91,134,255,.13)}
+.auth-links{display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+.auth-help{width:100%;box-sizing:border-box;text-align:center;overflow-wrap:anywhere}
+@media(max-width:600px){
+ .auth-gate{padding:max(14px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));align-items:start}
+ .auth-card{width:min(100%,430px);margin:clamp(12px,6dvh,48px) auto 18px;padding:24px 18px;border-radius:20px}
+ .auth-mark{width:60px;height:60px;margin-bottom:12px;border-radius:18px}
+ .auth-card h1{font-size:27px;line-height:1.15}
+ .auth-card p{font-size:13px;line-height:1.5;margin-bottom:20px}
+ .auth-card h2.auth-title{font-size:19px;margin-bottom:15px}
+ .auth-card form input{min-height:48px}
+ .auth-submit{min-height:48px}
+}
+@media(min-width:601px){
+ .auth-card{width:min(440px,calc(100vw - 48px))}
+}
+@media(max-height:620px) and (max-width:600px){
+ .auth-gate{align-items:start}
+ .auth-card{margin-top:10px;padding-top:18px;padding-bottom:18px}
+ .auth-mark{width:52px;height:52px}
+ .auth-card h1{font-size:24px}
+ .auth-card p{margin-bottom:12px}
+ .auth-help{margin-top:12px}
+}
