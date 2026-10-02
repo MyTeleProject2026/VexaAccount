@@ -12,3 +12,16 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .modal{background:linear-gradient(145deg,rgba(15,22,39,.88),rgba(7,12,23,.82));box-shadow:0 30px 100px rgba(0,0,0,.55),inset 0 1px rgba(255,255,255,.06)}
 @media(max-width:900px){.layout{border-radius:0}.content{padding-bottom:112px}.mobile-nav{bottom:max(8px,env(safe-area-inset-bottom));box-shadow:0 22px 72px rgba(0,0,0,.55),inset 0 1px rgba(255,255,255,.08)}}
 @media(prefers-reduced-motion:reduce){button,.mail-row{transition:none!important}}
+
+
+/* v4.3 final responsive mail surfaces */
+html,body{min-height:100dvh;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+button,a,input,textarea,select{touch-action:manipulation}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid rgba(97,232,255,.78);outline-offset:2px}
+.mail-row{min-height:64px;border-radius:16px!important;transition:transform .16s ease,background .16s ease,border-color .16s ease,box-shadow .16s ease}
+.mail-row:active{transform:scale(.995)}
+.icon-btn,.toolbar-settings,.top-profile,.primary{min-height:44px;min-width:44px}
+.modal{border:1px solid rgba(255,255,255,.12);border-radius:22px}
+@media(max-width:900px){.layout{min-height:100dvh}.content{min-height:calc(100dvh - 64px);padding:14px 12px calc(118px + env(safe-area-inset-bottom))}.topbar{min-height:64px}.mail-row{padding:12px 10px}.mobile-nav{left:10px;right:10px;padding-bottom:max(8px,env(safe-area-inset-bottom));border-radius:22px}.primary{min-height:48px}}
+@media(max-width:480px){.mail-row{min-height:68px}.modal{width:calc(100vw - 20px);max-height:88dvh}.content{padding-left:10px;padding-right:10px}.mobile-nav{left:8px;right:8px}}
+@media(prefers-reduced-motion:reduce){.mail-row,button{transition:none!important}}
