@@ -74,7 +74,7 @@ router.post('/conversations/direct',async(req,res,next)=>{try{
  JOIN vexachat_participants b ON b.conversation_id=c.id AND b.user_id=?
  WHERE c.conversation_type='direct' LIMIT 1`,[userId,other]);
  if(existing.length)return res.json({success:true,conversation_id:existing[0].id,existing:true});
- const [c]=await pool.query('INSERT INTO vexachat_conversations(conversation_type,created_by) VALUES("direct",?)',[userId]);
+ const [c]=await pool.query('INSERT INTO vexachat_conversations(conversation_type,created_by) VALUES(?,?)',['direct',userId]);
  await pool.query('INSERT INTO vexachat_participants(conversation_id,user_id,role) VALUES(?,?, "owner"),(?,?, "member")',[c.insertId,userId,other]);
  await pool.query('INSERT INTO vexachat_presence(user_id,status) VALUES(?,"offline") ON DUPLICATE KEY UPDATE user_id=user_id',[userId]);
  res.status(201).json({success:true,conversation_id:c.insertId,existing:false});
@@ -125,7 +125,11 @@ router.post('/conversations/:id/messages',async(req,res,next)=>{try{
 router.post('/conversations/:id/read',async(req,res,next)=>{try{
  const conversationId=Number(req.params.id),userId=uid(req),messageId=Number(req.body?.message_id||0);
  if(!(await isMember(conversationId,userId)))return res.status(403).json({success:false,message:'Conversation access denied'});
- if(!messageId)return res.status(400).json({success:false,message:'message_id is required'});
+ if(!messageId){
+  const [latest]=await pool.query('SELECT id FROM vexachat_messages WHERE conversation_id=? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1',[conversationId]);
+  if(!latest.length)return res.json({success:true,message_id:null});
+  messageId=Number(latest[0].id);
+}
  await pool.query('UPDATE vexachat_participants SET last_read_message_id=? WHERE conversation_id=? AND user_id=?',[messageId,conversationId,userId]);
  await broadcast(conversationId,'read',{conversation_id:conversationId,user_id:userId,message_id:messageId});
  res.json({success:true});
