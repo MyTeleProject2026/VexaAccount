@@ -43,6 +43,25 @@ router.patch('/contacts/:userId',async(req,res,next)=>{try{await pool.query('UPD
 
 router.patch('/profile',async(req,res,next)=>{try{const userId=uid(req),b=req.body||{},allowed=['name','first_name','last_name','phone','bio','country','avatar_url'],fields=[],values=[];for(const key of allowed)if(Object.prototype.hasOwnProperty.call(b,key)){fields.push(`${key}=?`);values.push(key==='avatar_url'?(b[key]?clean(b[key]).slice(0,1000):null):clean(b[key]).slice(0,key==='bio'?500:255)||null)}if(!fields.length)return res.status(400).json({success:false,message:'No profile changes supplied'});values.push(userId);await pool.query(`UPDATE store_users SET ${fields.join(', ')} WHERE id=?`,values);const [r]=await pool.query('SELECT id,email,name,avatar_url,first_name,last_name,phone,bio,country FROM store_users WHERE id=?',[userId]);res.json({success:true,user:r[0]})}catch(e){next(e)}});
 
+router.get('/privacy/settings',async(req,res,next)=>{try{
+ const userId=uid(req);
+ await pool.query('INSERT IGNORE INTO vexachat_privacy_settings(user_id) VALUES(?)',[userId]);
+ const [r]=await pool.query('SELECT read_receipts,last_seen,profile_photo,calls_from FROM vexachat_privacy_settings WHERE user_id=?',[userId]);
+ res.json({success:true,settings:r[0]});
+}catch(e){next(e)}});
+
+router.patch('/privacy/settings',async(req,res,next)=>{try{
+ const userId=uid(req);
+ const readReceipts=req.body?.read_receipts===false?0:1;
+ const allowed=v=>['everyone','contacts','nobody'].includes(v)?v:null;
+ const lastSeen=allowed(req.body?.last_seen)||'everyone';
+ const profilePhoto=allowed(req.body?.profile_photo)||'everyone';
+ const callsFrom=allowed(req.body?.calls_from)||'contacts';
+ await pool.query('INSERT INTO vexachat_privacy_settings(user_id,read_receipts,last_seen,profile_photo,calls_from) VALUES(?,?,?,?,?) ON DUPLICATE KEY UPDATE read_receipts=VALUES(read_receipts),last_seen=VALUES(last_seen),profile_photo=VALUES(profile_photo),calls_from=VALUES(calls_from)',[userId,readReceipts,lastSeen,profilePhoto,callsFrom]);
+ const [r]=await pool.query('SELECT read_receipts,last_seen,profile_photo,calls_from FROM vexachat_privacy_settings WHERE user_id=?',[userId]);
+ res.json({success:true,settings:r[0]});
+}catch(e){next(e)}});
+
 router.get('/notifications/settings',async(req,res,next)=>{try{await pool.query('INSERT IGNORE INTO vexachat_notification_settings(user_id) VALUES(?)',[uid(req)]);const [r]=await pool.query('SELECT messages_enabled,calls_enabled,previews_enabled FROM vexachat_notification_settings WHERE user_id=?',[uid(req)]);res.json({success:true,settings:r[0]})}catch(e){next(e)}});
 
 router.put('/notifications/settings',async(req,res,next)=>{try{const userId=uid(req);await pool.query('INSERT INTO vexachat_notification_settings(user_id,messages_enabled,calls_enabled,previews_enabled) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE messages_enabled=VALUES(messages_enabled),calls_enabled=VALUES(calls_enabled),previews_enabled=VALUES(previews_enabled)',[userId,req.body?.messages_enabled===false?0:1,req.body?.calls_enabled===false?0:1,req.body?.previews_enabled===false?0:1]);const [r]=await pool.query('SELECT messages_enabled,calls_enabled,previews_enabled FROM vexachat_notification_settings WHERE user_id=?',[userId]);res.json({success:true,settings:r[0]})}catch(e){next(e)}});
