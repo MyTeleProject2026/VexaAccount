@@ -1,0 +1,18 @@
+/* VexaAccount Premium Glass UI v4 — visual layer only */
+:root{--vx-premium-cyan:#57e7ff;--vx-premium-violet:#9b7cff;--vx-premium-gold:#f6cf72;--vx-premium-line:rgba(255,255,255,.14);--vx-premium-surface:rgba(12,18,34,.68)}
+body{background:radial-gradient(900px 560px at 4% -8%,rgba(87,231,255,.12),transparent 60%),radial-gradient(900px 650px at 100% 105%,rgba(155,124,255,.16),transparent 58%),linear-gradient(145deg,#02040a,#070d18 52%,#03050a);overflow-x:hidden}
+.shell:before{content:"";position:fixed;inset:0;pointer-events:none;background:linear-gradient(120deg,transparent 20%,rgba(255,255,255,.018) 50%,transparent 80%);z-index:0}
+.shell>*{position:relative;z-index:1}
+.card,.panel,.glass{border-color:var(--vx-premium-line);background:linear-gradient(145deg,rgba(255,255,255,.105),rgba(255,255,255,.035) 55%,rgba(87,231,255,.025));box-shadow:0 28px 90px rgba(0,0,0,.38),inset 0 1px rgba(255,255,255,.065);backdrop-filter:blur(30px) saturate(135%);-webkit-backdrop-filter:blur(30px) saturate(135%)}
+.card,.panel{position:relative;overflow:hidden}
+.card:after,.panel:after{content:"";position:absolute;left:12%;right:12%;top:0;height:1px;background:linear-gradient(90deg,transparent,var(--vx-premium-cyan),var(--vx-premium-gold),transparent);opacity:.45;pointer-events:none}
+button,.button{min-height:44px;touch-action:manipulation}
+.button,.primary{border-color:rgba(255,255,255,.16);background:linear-gradient(115deg,#7655ee,#168fa9 72%,#3fd9df);box-shadow:0 14px 36px rgba(73,91,220,.22),inset 0 1px rgba(255,255,255,.2)}
+.button.secondary,.secondary{background:rgba(255,255,255,.055);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.button:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid rgba(87,231,255,.8);outline-offset:3px}
+.toolbar{scroll-snap-type:x proximity}.toolbar .button{scroll-snap-align:start}
+.row,.app-card{border-color:rgba(255,255,255,.075);background:rgba(255,255,255,.025);border-radius:18px;transition:transform .2s,background .2s,border-color .2s}
+.row:hover,.app-card:hover{transform:translateY(-1px);background:rgba(255,255,255,.05);border-color:rgba(87,231,255,.16)}
+.bottom-nav{box-shadow:0 20px 70px rgba(0,0,0,.52),inset 0 1px rgba(255,255,255,.08)!important;background:rgba(6,10,20,.78)!important}
+@media(max-width:760px){.shell{padding-bottom:104px}.content{padding-bottom:128px}.card,.panel{border-radius:22px}.bottom-nav{bottom:max(8px,env(safe-area-inset-bottom));padding:7px}.bottom-nav .nav{min-height:46px}.button,.primary,.secondary{min-height:46px}}
+@media(prefers-reduced-motion:reduce){.row,.app-card,.button,button{transition:none!important}}
