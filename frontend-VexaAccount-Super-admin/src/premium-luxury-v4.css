@@ -1,0 +1,15 @@
+/* VexaAccount Owner OS Premium Glass UI v4 — visual layer only */
+:root{--owner-cyan:#61e8ff;--owner-violet:#a78bfa;--owner-gold:#f4d06f;--owner-line:rgba(255,255,255,.14)}
+body{background:radial-gradient(1000px 650px at 0 -10%,rgba(97,232,255,.11),transparent 58%),radial-gradient(900px 650px at 105% 110%,rgba(167,139,250,.16),transparent 58%),#03060c;overflow-x:hidden}
+.console{position:relative;border-color:var(--owner-line);background:linear-gradient(145deg,rgba(9,15,28,.78),rgba(4,8,16,.64));box-shadow:0 34px 120px rgba(0,0,0,.46),inset 0 1px rgba(255,255,255,.06);backdrop-filter:blur(28px) saturate(135%);-webkit-backdrop-filter:blur(28px) saturate(135%)}
+.sidebar{background:linear-gradient(180deg,rgba(4,8,17,.72),rgba(5,9,18,.46));border-right-color:rgba(255,255,255,.10)}
+.nav{min-height:46px}.nav.active{border-color:rgba(97,232,255,.22);box-shadow:0 12px 34px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.05)}
+.topbar{background:linear-gradient(180deg,rgba(8,14,26,.48),rgba(8,14,26,.18));backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px)}
+.hero,.panel,.metric,.app-card{position:relative;overflow:hidden;border-color:var(--owner-line);box-shadow:0 22px 70px rgba(0,0,0,.24),inset 0 1px rgba(255,255,255,.05)}
+.hero:before,.panel:before,.metric:before,.app-card:before{content:"";position:absolute;left:12%;right:12%;top:0;height:1px;background:linear-gradient(90deg,transparent,var(--owner-cyan),var(--owner-gold),transparent);opacity:.38}
+.primary{background:linear-gradient(115deg,#6848dc,#0d91aa 70%,#42d8df);box-shadow:0 14px 38px rgba(74,91,220,.22),inset 0 1px rgba(255,255,255,.18)}
+.secondary{background:rgba(255,255,255,.055);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid rgba(97,232,255,.82);outline-offset:3px}
+.bottom-nav{background:rgba(5,9,18,.78)!important;box-shadow:0 22px 72px rgba(0,0,0,.55),inset 0 1px rgba(255,255,255,.08)!important}
+@media(max-width:760px){.content{padding-bottom:128px}.hero,.panel{border-radius:21px}.bottom-nav{bottom:max(8px,env(safe-area-inset-bottom));padding:7px}.bottom-nav .nav{min-height:46px}}
+@media(prefers-reduced-motion:reduce){button,.nav{transition:none!important}}
