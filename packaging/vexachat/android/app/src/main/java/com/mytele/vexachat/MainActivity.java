@@ -32,6 +32,8 @@ public class MainActivity extends Activity {
     private boolean pageFinished = false;
     private boolean startupFailureShown = false;
     private PermissionRequest pendingPermissionRequest;
+    private boolean pendingNeedsCamera = false;
+    private boolean pendingNeedsAudio = false;
     private final Runnable startupWatchdog = new Runnable() {
         @Override public void run() {
             if (startupFailureShown || webView == null) return;
@@ -121,14 +123,33 @@ public class MainActivity extends Activity {
                     request.grant(request.getResources());
                     return;
                 }
-                boolean cameraOk = checkSelfPermission("android.permission.CAMERA") == PackageManager.PERMISSION_GRANTED;
-                boolean audioOk = checkSelfPermission("android.permission.RECORD_AUDIO") == PackageManager.PERMISSION_GRANTED;
+                boolean needsCamera = false;
+                boolean needsAudio = false;
+                for (String resource : request.getResources()) {
+                    if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) needsCamera = true;
+                    if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) needsAudio = true;
+                }
+                boolean cameraOk = !needsCamera || checkSelfPermission("android.permission.CAMERA") == PackageManager.PERMISSION_GRANTED;
+                boolean audioOk = !needsAudio || checkSelfPermission("android.permission.RECORD_AUDIO") == PackageManager.PERMISSION_GRANTED;
                 if (cameraOk && audioOk) {
                     request.grant(request.getResources());
                     return;
                 }
                 pendingPermissionRequest = request;
-                requestPermissions(new String[]{"android.permission.CAMERA", "android.permission.RECORD_AUDIO"}, 4101);
+                pendingNeedsCamera = needsCamera;
+                pendingNeedsAudio = needsAudio;
+                if (needsCamera && needsAudio) {
+                    requestPermissions(new String[]{"android.permission.CAMERA", "android.permission.RECORD_AUDIO"}, 4101);
+                } else if (needsCamera) {
+                    requestPermissions(new String[]{"android.permission.CAMERA"}, 4101);
+                } else if (needsAudio) {
+                    requestPermissions(new String[]{"android.permission.RECORD_AUDIO"}, 4101);
+                } else {
+                    pendingPermissionRequest = null;
+                    pendingNeedsCamera = false;
+                    pendingNeedsAudio = false;
+                    request.deny();
+                }
             }
         });
         webView.setWebViewClient(new WebViewClient() {
@@ -182,10 +203,15 @@ public class MainActivity extends Activity {
     @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode != 4101 || pendingPermissionRequest == null) return;
-        boolean cameraOk = checkSelfPermission("android.permission.CAMERA") == PackageManager.PERMISSION_GRANTED;
-        boolean audioOk = checkSelfPermission("android.permission.RECORD_AUDIO") == PackageManager.PERMISSION_GRANTED;
         PermissionRequest request = pendingPermissionRequest;
+        boolean needsCamera = pendingNeedsCamera;
+        boolean needsAudio = pendingNeedsAudio;
         pendingPermissionRequest = null;
+        pendingNeedsCamera = false;
+        pendingNeedsAudio = false;
+        if (request == null) return;
+        boolean cameraOk = !needsCamera || checkSelfPermission("android.permission.CAMERA") == PackageManager.PERMISSION_GRANTED;
+        boolean audioOk = !needsAudio || checkSelfPermission("android.permission.RECORD_AUDIO") == PackageManager.PERMISSION_GRANTED;
         if (cameraOk && audioOk) {
             request.grant(request.getResources());
         } else {
