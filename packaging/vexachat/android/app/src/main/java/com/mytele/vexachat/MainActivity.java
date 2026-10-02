@@ -33,11 +33,14 @@ public class MainActivity extends Activity {
     private boolean startupFailureShown = false;
     private final Runnable startupWatchdog = new Runnable() {
         @Override public void run() {
-            if (pageFinished || startupFailureShown || webView == null) return;
+            if (startupFailureShown || webView == null) return;
             webView.evaluateJavascript(
-                "(function(){return {title:document.title||'',text:(document.body&&document.body.innerText||'').slice(0,500),ready:document.readyState};})()",
+                "(function(){var t=(document.body&&document.body.innerText)||'';return JSON.stringify({title:document.title||'',text:t.slice(0,500),ready:document.readyState,splash:t.indexOf('Starting secure messenger')>=0});})()",
                 value -> {
-                    if (!pageFinished && !startupFailureShown) showStartupFailure(value);
+                    if (startupFailureShown) return;
+                    if (!pageFinished || value.contains("\\"splash\\":true")) {
+                        showStartupFailure(value);
+                    }
                 }
             );
         }
@@ -129,6 +132,7 @@ public class MainActivity extends Activity {
             @Override public void onPageFinished(WebView view, String url) {
                 pageFinished = true;
                 startupHandler.removeCallbacks(startupWatchdog);
+                startupHandler.postDelayed(startupWatchdog, 5000);
             }
 
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
