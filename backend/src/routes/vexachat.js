@@ -164,7 +164,9 @@ router.post('/reactions',async(req,res,next)=>{try{
 
 router.delete('/reactions',async(req,res,next)=>{try{
  const userId=uid(req),messageId=Number(req.body?.message_id),emoji=clean(req.body?.emoji);
+ if(!messageId||!emoji)return res.status(400).json({success:false,message:'message_id and emoji are required'});
  const [m]=await pool.query('SELECT conversation_id FROM vexachat_messages WHERE id=? LIMIT 1',[messageId]);if(!m.length)return res.status(404).json({success:false,message:'Message not found'});
+ if(!(await isMember(m[0].conversation_id,userId)))return res.status(403).json({success:false,message:'Conversation access denied'});
  await pool.query('DELETE FROM vexachat_reactions WHERE message_id=? AND user_id=? AND emoji=?',[messageId,userId,emoji]);
  await broadcast(m[0].conversation_id,'reaction',{message_id:messageId,user_id:userId,emoji,active:false});
  res.json({success:true});
