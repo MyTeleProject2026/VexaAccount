@@ -1,0 +1,14 @@
+/* VexaMail Premium Glass UI v4 — visual layer only */
+:root{--mail-cyan:#61e8ff;--mail-violet:#9b7cff;--mail-gold:#f4d276}
+body{background:radial-gradient(900px 600px at 0 -10%,rgba(97,232,255,.12),transparent 58%),radial-gradient(900px 680px at 105% 110%,rgba(155,124,255,.16),transparent 58%),#04070f}
+.layout{border-color:rgba(255,255,255,.14);background:linear-gradient(145deg,rgba(8,14,27,.78),rgba(4,8,16,.66));box-shadow:0 34px 120px rgba(0,0,0,.46),inset 0 1px rgba(255,255,255,.06);backdrop-filter:blur(28px) saturate(135%);-webkit-backdrop-filter:blur(28px) saturate(135%)}
+.sidebar{background:rgba(3,7,14,.62)}.topbar{background:rgba(7,12,22,.42);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px)}
+.mail-row{border-color:rgba(255,255,255,.08);background:rgba(255,255,255,.028);box-shadow:inset 0 1px rgba(255,255,255,.025)}
+.mail-row:hover{border-color:rgba(97,232,255,.18);background:rgba(255,255,255,.055)}
+.mail-row.unread{background:linear-gradient(100deg,rgba(139,92,246,.12),rgba(97,232,255,.035))}
+.primary{background:linear-gradient(115deg,#7655ee,#168fa9 72%,#45d8df)!important;box-shadow:0 14px 38px rgba(72,86,220,.22),inset 0 1px rgba(255,255,255,.18)}
+.icon-btn,.toolbar-settings,.top-profile{backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid rgba(97,232,255,.82);outline-offset:3px}
+.modal{background:linear-gradient(145deg,rgba(15,22,39,.88),rgba(7,12,23,.82));box-shadow:0 30px 100px rgba(0,0,0,.55),inset 0 1px rgba(255,255,255,.06)}
+@media(max-width:900px){.layout{border-radius:0}.content{padding-bottom:112px}.mobile-nav{bottom:max(8px,env(safe-area-inset-bottom));box-shadow:0 22px 72px rgba(0,0,0,.55),inset 0 1px rgba(255,255,255,.08)}}
+@media(prefers-reduced-motion:reduce){button,.mail-row{transition:none!important}}
