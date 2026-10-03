@@ -65,3 +65,7 @@ html,body{overscroll-behavior:none}body{min-height:100dvh;-webkit-tap-highlight-
 .attachment-audio{display:block;width:100%;min-width:240px;margin:2px 0 0}
 .attachment-preview:hover,.attachment-video:hover,.attachment-card:hover{filter:brightness(1.06)}
 @media(max-width:760px){.attachment-shell{max-width:min(82vw,360px)}.attachment-preview,.attachment-video{max-height:300px}}
+
+
+/* Group management identity and responsive controls */
+.group-identity{display:flex;align-items:center;gap:14px;padding:4px 0 14px}.group-identity>div:last-child{min-width:0}.group-identity .detail-title{margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.group-identity small{display:block;margin-top:3px;opacity:.65}.group-avatar{width:64px;height:64px;flex:0 0 64px;border-radius:20px;overflow:hidden}.group-avatar img{width:100%;height:100%;object-fit:cover}.group-avatar span{display:flex;width:100%;height:100%;align-items:center;justify-content:center}.group-avatar-actions{display:flex;gap:8px;flex-wrap:wrap;margin:-4px 0 14px}.group-avatar-actions button{min-height:38px}@media(max-width:480px){.group-identity{gap:11px}.group-avatar{width:56px;height:56px;flex-basis:56px;border-radius:17px}.group-avatar-actions button{flex:1 1 140px}.member-list .member{gap:8px;flex-wrap:wrap}.member-list .member>button{margin-left:auto}}
