@@ -136,7 +136,76 @@ function shell(){document.querySelector('#app').innerHTML=`<div class="chat-shel
   <button id="mobileContacts">Contacts</button>
   <button id="mobileCalls">Calls</button>
   <button id="mobileProfile">Profile</button>
-</nav>`;$('#composer').addEventListener('submit',send);updateComposerState();$('#search').oninput=e=>{state.query=e.target.value.trim().toLowerCase();if(state.view==='contacts')renderContacts();else if(state.view==='calls')renderCalls();else {renderChats();searchPeople(state.query)}};$('#search').onkeydown=e=>{if(e.key==='Escape'){e.target.value='';state.query='';clearTimeout(searchTimer);searchRequest++;renderChats();e.target.blur()}};$('#newChat').onclick=newChat;$('#mobileNew').onclick=newChat;$('#settingsTop').onclick=()=>window.VexaChatSettings?.open({state,api,modal,profile,accountSecurity,logout,notify,initials,esc});$('#profile').onclick=profile;$('#mobileProfile').onclick=profile;$('#back').onclick=()=>{state.active=null;renderActive();showMobileList(state.lastListView||'chats')};$('#info').onclick=conversationInfo;$('#searchMessages').onclick=messageSearch;$('#voice').onclick=()=>startCall('voice');$('#video').onclick=()=>startCall('video');$('#attach').onclick=attachmentMenu;$('#file').onchange=uploadFile;$('#emoji').onclick=emojiPicker;$('#messageInput').oninput=e=>{typing();updateComposerState()};$('#messageInput').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){let p={};try{p=JSON.parse(localStorage.getItem('vexachat_preferences_v1')||'{}')}catch{}if(p.enter_to_send!==false){e.preventDefault();$('#composer').requestSubmit()}}};document.querySelectorAll('.tab').forEach(x=>x.onclick=()=>sideView(x.dataset.view));document.querySelectorAll('.folder-tab').forEach(x=>x.onclick=()=>{state.folder=x.dataset.folder||'all';document.querySelectorAll('.folder-tab').forEach(b=>b.classList.toggle('active',b===x));renderChats()});$('#folderInfo').onclick=()=>notify('Folders currently use local conversation filters. Custom folder creation needs a server folder API.');document.querySelectorAll('.filter').forEach(x=>x.onclick=()=>{state.chatFilter=x.dataset.filter||'all';document.querySelectorAll('.filter').forEach(b=>b.classList.toggle('active',b===x));state.view='chats';document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.view==='chats'));document.querySelectorAll('.mobile-bar button').forEach(b=>b.classList.remove('active'));$('#mobileChats')?.classList.add('active');renderChats()});$('#mobileContacts').onclick=()=>showMobileList('contacts');$('#mobileCalls').onclick=()=>showMobileList('calls');$('#mobileChats').onclick=()=>showMobileList('chats')}
+</nav>`;$('#composer').addEventListener('submit',send);updateComposerState();$('#search').oninput=e=>{state.query=e.target.value.trim().toLowerCase();if(state.view==='contacts')renderContacts();else if(state.view==='calls')renderCalls();else {renderChats();searchPeople(state.query)}};$('#search').onkeydown=e=>{if(e.key==='Escape'){e.target.value='';state.query='';clearTimeout(searchTimer);searchRequest++;renderChats();e.target.blur()}};$('#newChat').onclick=newChat;$('#mobileNew').onclick=newChat;$('#settingsTop').onclick=()=>window.VexaChatSettings?.open({state,api,modal,profile,accountSecurity,logout,notify,initials,esc});$('#profile').onclick=profile;$('#mobileProfile').onclick=profile;$('#back').onclick=()=>{state.active=null;renderActive();showMobileList(state.lastListView||'chats')};$('#info').onclick=conversationInfo;$('#searchMessages').onclick=messageSearch;$('#voice').onclick=()=>startCall('voice');$('#video').onclick=()=>startCall('video');$('#attach').onclick=attachmentMenu;$('#file').onchange=uploadFile;$('#emoji').onclick=emojiPicker;$('#messageInput').oninput=e=>{typing();updateComposerState()};$('#messageInput').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){let p={};try{p=JSON.parse(localStorage.getItem('vexachat_preferences_v1')||'{}')}catch{}if(p.enter_to_send!==false){e.preventDefault();$('#composer').requestSubmit()}}};document.querySelectorAll('.tab').forEach(x=>x.onclick=()=>sideView(x.dataset.view));document.querySelectorAll('.folder-tab').forEach(x=>x.onclick=()=>{state.folder=x.dataset.folder||'all';document.querySelectorAll('.folder-tab').forEach(b=>b.classList.toggle('active',b===x));renderChats()});$('#folderInfo').onclick=()=>notify('Folders currently use local conversation filters. Custom folder creation needs a server folder API.');document.querySelectorAll('.filter').forEach(x=>x.onclick=()=>{state.chatFilter=x.dataset.filter||'all';document.querySelectorAll('.filter').forEach(b=>b.classList.toggle('active',b===x));state.view='chats';document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.view==='chats'));document.querySelectorAll('.mobile-bar button').forEach(b=>b.classList.remove('active'));$('#mobileChats')?.classList.add('active');renderChats()});$('#mobileContacts').onclick=()=>showMobileList('contacts');$('#mobileCalls').onclick=()=>showMobileList('calls');$('#mobileChats').onclick=()=>showMobileList('chats');bindTelegramInteractions()}
+
+function bindTelegramInteractions(){
+ const list=$('#chatList'), input=$('#messageInput'), messages=$('#messages');
+ if(!list||!input||!messages)return;
+ const resize=()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,130)+'px'};
+ input.addEventListener('input',resize);resize();
+ ['dragenter','dragover'].forEach(ev=>messages.addEventListener(ev,e=>{e.preventDefault();messages.classList.add('drop-target')}));
+ ['dragleave','drop'].forEach(ev=>messages.addEventListener(ev,e=>{e.preventDefault();if(ev==='dragleave'&&!messages.contains(e.relatedTarget))messages.classList.remove('drop-target');if(ev==='drop'){messages.classList.remove('drop-target');const files=[...(e.dataTransfer?.files||[])];if(files[0]){const dt=new DataTransfer();dt.items.add(files[0]);const file=$('#file');if(file){file.files=dt.files;file.dispatchEvent(new Event('change',{bubbles:true}))}}}}));
+ document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+   if($('#modal')){$('#modal').remove();return}
+   if(state.active&&window.matchMedia('(max-width:760px)').matches){state.active=null;renderActive();showMobileList(state.lastListView||'chats');return}
+   if(document.activeElement===input){input.value='';updateComposerState();input.blur()}
+  }
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();$('#search')?.focus();$('#search')?.select()}
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'&&state.active){e.preventDefault();messageSearch()}
+ });
+ let touchX=0,touchY=0;
+ messages.addEventListener('touchstart',e=>{const t=e.touches?.[0];if(t){touchX=t.clientX;touchY=t.clientY}},{passive:true});
+ messages.addEventListener('touchend',e=>{const t=e.changedTouches?.[0];if(!t)return;const dx=t.clientX-touchX,dy=Math.abs(t.clientY-touchY);if(window.matchMedia('(max-width:760px)').matches&&dx>85&&dy<70&&state.active){state.active=null;renderActive();showMobileList(state.lastListView||'chats')}},{passive:true});
+ list.addEventListener('contextmenu',e=>{
+  const row=e.target.closest('[data-id]');if(!row)return;e.preventDefault();
+  const id=Number(row.dataset.id),chat=state.chats.find(x=>Number(x.id)===id);if(!chat)return;
+  chatQuickMenu(chat,e.clientX,e.clientY);
+ });
+ messages.addEventListener('contextmenu',e=>{
+  const bubble=e.target.closest('[data-message-id]');if(!bubble)return;e.preventDefault();
+  const id=Number(bubble.dataset.messageId),m=state.messages.find(x=>Number(x.id)===id);if(!m)return;
+  messageQuickMenu(m,e.clientX,e.clientY);
+ });
+ messages.addEventListener('dblclick',e=>{
+  const bubble=e.target.closest('[data-message-id]');if(!bubble)return;
+  const m=state.messages.find(x=>Number(x.id)===Number(bubble.dataset.messageId));if(!m||m.deleted_at)return;
+  const quote=$('#replyComposer');if(quote){quote.remove();return}
+  const wrap=document.createElement('div');wrap.id='replyComposer';wrap.className='reply-composer';
+  wrap.innerHTML='<b>Replying to</b><span>'+esc(m.body||'Attachment')+'</span>';
+  messages.parentElement?.appendChild(wrap);
+  state.replyTo=m.id;updateComposerState();input.focus();
+ });
+}
+function closeContextMenu(){document.querySelector('#vcContextMenu')?.remove()}
+function contextMenu(items,x,y){
+ closeContextMenu();
+ const menu=document.createElement('div');menu.id='vcContextMenu';menu.className='vc-context-menu';
+ menu.innerHTML=items.map((i,n)=>i==='-'?'<div class="vc-context-sep"></div>:'<button type="button" data-cm="'+n+'"><span>'+esc(i[0])+'</span><b>'+esc(i[1])+'</b></button>').join('');
+ document.body.appendChild(menu);
+ const w=menu.offsetWidth,h=menu.offsetHeight;
+ menu.style.left=Math.max(8,Math.min(x,innerWidth-w-8))+'px';menu.style.top=Math.max(8,Math.min(y,innerHeight-h-8))+'px';
+ menu.querySelectorAll('[data-cm]').forEach(b=>b.onclick=()=>{const i=items[Number(b.dataset.cm)];if(i&&i[2])i[2]();closeContextMenu()});
+ setTimeout(()=>document.addEventListener('pointerdown',closeContextMenu,{once:true}),0);
+}
+function chatQuickMenu(chat,x,y){
+ const id=Number(chat.id),pinned=Number(chat.pinned)===1,archived=Number(chat.archived)===1,muted=isChatMuted(chat);
+ contextMenu([
+  ['💬','Open',()=>openChat(id)],
+  ['📌',pinned?'Unpin':'Pin',async()=>{try{await api('/api/chat/conversations/'+id+'/settings',{method:'POST',body:JSON.stringify({pinned:!pinned})});await loadChats()}catch(e){notify(e.message)}}],
+  ['🔕',muted?'Unmute':'Mute',async()=>{try{await api('/api/chat/conversations/'+id+'/settings',{method:'POST',body:JSON.stringify({muted:!muted})});await loadChats()}catch(e){notify(e.message)}}],
+  ['📦',archived?'Unarchive':'Archive',async()=>{try{await api('/api/chat/conversations/'+id+'/settings',{method:'POST',body:JSON.stringify({archived:!archived})});await loadChats()}catch(e){notify(e.message)}}],
+  '-',
+  ['ⓘ','Details',async()=>{if(state.active?.id!==id)await openChat(id);conversationInfo()}]
+ ],x,y);
+}
+function messageQuickMenu(m,x,y){
+ const id=Number(m.id),mine=Number(m.sender_id)===Number(state.me?.id),deleted=!!m.deleted_at;
+ const items=[['↩','Reply',()=>{state.replyTo=id;const input=$('#messageInput');if(input){input.focus();updateComposerState()}}],['😊','React',()=>reactionPicker(m)],['📋','Copy',()=>navigator.clipboard?.writeText(m.body||'').then(()=>notify('Message copied')).catch(()=>notify('Copy unavailable'))]];
+ if(mine&&!deleted&&String(m.message_type||'text')==='text')items.push(['✎','Edit',()=>editMessage(m)]);
+ if((mine||state.groupRole==='owner'||state.groupRole==='admin')&&!deleted)items.push(['🗑','Delete',()=>deleteMessage(m)]);
+ contextMenu(items,x,y);
+}
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function connectionStatus(message){const el=$('#connectionStatus');if(el)el.textContent=message}
 async function boot(){if(!token()&&resetTokenFromUrl()){authCard('reset');return}if(!token()){authGate();return}shell();connectionStatus('Connecting…');if('Notification' in window&&Notification.permission==='default')Notification.requestPermission().catch(()=>{});let delay=1500;for(let attempt=1;attempt<=8;attempt++){try{state.me=(await api('/api/chat/me')).user;connectionStatus('Connected');await Promise.allSettled([loadChats(),loadContacts(),loadCalls(),loadNotifications(),setPresence('online')]);connectEvents();return}catch(e){if(e.message==='Sign-in required')return;connectionStatus('Connecting… ('+attempt+'/8)');if(attempt===8){connectionStatus('Service unavailable · Tap to retry');const el=$('#connectionStatus');if(el){el.style.cursor='pointer';el.title='Retry connection';el.onclick=()=>{el.onclick=null;boot()}}return}await sleep(delay);delay=Math.min(Math.round(delay*1.65),25000)}}}
