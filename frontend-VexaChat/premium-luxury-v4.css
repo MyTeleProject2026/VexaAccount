@@ -57,3 +57,11 @@ html,body{overscroll-behavior:none}body{min-height:100dvh;-webkit-tap-highlight-
 
 /* Reply composer */
 .reply-composer{display:flex;align-items:center;gap:10px;padding:8px 12px;margin:0 10px 7px;border-left:3px solid rgba(101,232,255,.7);border-radius:9px;background:rgba(101,232,255,.055);min-width:0}.reply-composer>div{display:grid;gap:2px;min-width:0;flex:1}.reply-composer b{font-size:10px;color:#6edfff}.reply-composer span{font-size:11px;color:#9db1c3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.reply-composer .icon-btn{flex:0 0 auto;width:30px;height:30px}.reply-preview{cursor:pointer}
+
+/* Rich attachment surfaces */
+.attachment-shell{margin-top:8px;max-width:min(420px,100%)}
+.attachment-card{width:100%;text-align:left;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.045);color:inherit;border-radius:14px;padding:11px 13px;cursor:pointer}
+.attachment-preview,.attachment-video{display:block;width:100%;max-height:360px;object-fit:cover;border-radius:14px;background:#050a12;border:1px solid rgba(255,255,255,.08);cursor:pointer}
+.attachment-audio{display:block;width:100%;min-width:240px;margin:2px 0 0}
+.attachment-preview:hover,.attachment-video:hover,.attachment-card:hover{filter:brightness(1.06)}
+@media(max-width:760px){.attachment-shell{max-width:min(82vw,360px)}.attachment-preview,.attachment-video{max-height:300px}}
