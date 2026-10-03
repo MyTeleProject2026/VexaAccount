@@ -78,7 +78,65 @@ const avatarMarkup=(item,cls='avatar')=>{const url=item?.avatar_url||item?.pictu
 function modal(title,body){document.querySelector('#modal')?.remove();document.body.insertAdjacentHTML('beforeend','<div class="modal-back" id="modal"><div class="modal"><div class="modal-head"><h2>'+title+'</h2><button class="icon-btn" id="closeModal" aria-label="Close">×</button></div>'+body+'</div></div>');const close=()=>$('#modal')?.remove();$('#closeModal').onclick=close;$('#modal').addEventListener('click',e=>{if(e.target.id==='modal')close()});document.addEventListener('keydown',function escModal(e){if(e.key==='Escape'&&$('#modal')){close();document.removeEventListener('keydown',escModal)}})}
 function showMobileList(view='chats'){document.body.classList.add('mobile-list-open');state.lastListView=view;sideView(view);window.scrollTo?.({top:0,behavior:'instant'})}
 function showMobileChat(){document.body.classList.remove('mobile-list-open');window.scrollTo?.({top:0,behavior:'instant'});setTimeout(()=>$('#messageInput')?.focus(),80)}
-function shell(){document.querySelector('#app').innerHTML=`<div class="chat-shell"><aside class="sidebar"><div class="side-head"><div class="logo">V</div><div class="brand">VexaChat<small id="connectionStatus">Connecting…</small></div><button id="newChat" class="icon-btn" aria-label="New chat">＋</button><button id="settingsTop" class="icon-btn" aria-label="Settings">⚙</button><button id="profile" class="icon-btn" aria-label="Profile">●</button></div><div class="search"><span>⌕</span><input id="search" placeholder="Search chats"></div><div class="folder-tabs" role="tablist"><button class="folder-tab active" data-folder="all">All</button><button class="folder-tab" data-folder="personal">Personal</button><button class="folder-tab" data-folder="work">Work</button><button class="folder-tab" data-folder="groups">Groups</button><button class="folder-tab" data-folder="channels">Channels</button><button class="folder-edit" id="folderInfo" type="button" aria-label="Folder settings">⚙</button></div><div class="side-tabs"><button class="tab active" data-view="chats">Chats</button><button class="tab" data-view="contacts">Contacts</button><button class="tab" data-view="calls">Calls</button></div><div class="list-filters"><button class="filter active" data-filter="all">All</button><button class="filter" data-filter="pinned">Pinned</button><button class="filter" data-filter="archived">Archived</button></div><div id="chatList" class="list"></div></aside><main class="main"><header class="chat-head"><button id="back" class="icon-btn mobile-only">‹</button><div class="avatar" id="headAvatar">V</div><div class="title"><strong id="headName">VexaChat</strong><small id="headStatus">Choose a conversation</small></div><div class="head-actions"><button id="voice" class="icon-btn">☎</button><button id="video" class="icon-btn">▣</button><button id="searchMessages" class="icon-btn">⌕</button><button id="info" class="icon-btn">ⓘ</button></div></header><section id="messages" class="messages"><div class="empty"><strong>VexaChat</strong><span>Private conversations, groups, media and calls.</span></div></section><form id="composer" class="composer"><button type="button" id="attach" class="icon-btn">＋</button><textarea id="messageInput" rows="1" placeholder="Write a message…" disabled></textarea><button type="button" id="emoji" class="icon-btn">☺</button><button class="send" disabled>➤</button><input id="file" type="file" hidden accept="image/*,video/*,audio/*,.pdf,.zip,.txt,.doc,.docx,.xls,.xlsx"></form></main></div><nav class="mobile-bar"><button id="mobileChats" class="active">Chats</button><button id="mobileNew">＋ New</button><button id="mobileContacts">Contacts</button><button id="mobileCalls">Calls</button><button id="mobileProfile">Profile</button></nav>`;$('#composer').addEventListener('submit',send);$('#search').oninput=e=>{state.query=e.target.value.trim().toLowerCase();if(state.view==='contacts')renderContacts();else if(state.view==='calls')renderCalls();else {renderChats();searchPeople(state.query)}};$('#search').onkeydown=e=>{if(e.key==='Escape'){e.target.value='';state.query='';clearTimeout(searchTimer);searchRequest++;renderChats();e.target.blur()}};$('#newChat').onclick=newChat;$('#mobileNew').onclick=newChat;$('#settingsTop').onclick=()=>window.VexaChatSettings?.open({state,api,modal,profile,logout,notify,initials,esc});$('#profile').onclick=profile;$('#mobileProfile').onclick=profile;$('#back').onclick=()=>{state.active=null;renderActive();showMobileList(state.lastListView||'chats')};$('#info').onclick=conversationInfo;$('#searchMessages').onclick=messageSearch;$('#voice').onclick=()=>startCall('voice');$('#video').onclick=()=>startCall('video');$('#attach').onclick=attachmentMenu;$('#file').onchange=uploadFile;$('#emoji').onclick=emojiPicker;$('#messageInput').oninput=typing;$('#messageInput').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){let p={};try{p=JSON.parse(localStorage.getItem('vexachat_preferences_v1')||'{}')}catch{}if(p.enter_to_send!==false){e.preventDefault();$('#composer').requestSubmit()}}};document.querySelectorAll('.tab').forEach(x=>x.onclick=()=>sideView(x.dataset.view));document.querySelectorAll('.folder-tab').forEach(x=>x.onclick=()=>{state.folder=x.dataset.folder||'all';document.querySelectorAll('.folder-tab').forEach(b=>b.classList.toggle('active',b===x));renderChats()});$('#folderInfo').onclick=()=>notify('Folders currently use local conversation filters. Custom folder creation needs a server folder API.');document.querySelectorAll('.filter').forEach(x=>x.onclick=()=>{state.chatFilter=x.dataset.filter||'all';document.querySelectorAll('.filter').forEach(b=>b.classList.toggle('active',b===x));state.view='chats';document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.view==='chats'));document.querySelectorAll('.mobile-bar button').forEach(b=>b.classList.remove('active'));$('#mobileChats')?.classList.add('active');renderChats()});$('#mobileContacts').onclick=()=>showMobileList('contacts');$('#mobileCalls').onclick=()=>showMobileList('calls');$('#mobileChats').onclick=()=>showMobileList('chats')}
+function shell(){document.querySelector('#app').innerHTML=`<div class="chat-shell">
+<aside class="sidebar" aria-label="VexaChat navigation">
+  <div class="side-head">
+    <div class="logo">V</div>
+    <div class="brand">VexaChat<small id="connectionStatus">Connecting…</small></div>
+    <button id="newChat" class="icon-btn" aria-label="New chat" title="New chat">＋</button>
+    <button id="settingsTop" class="icon-btn" aria-label="Settings" title="Settings">⚙</button>
+    <button id="profile" class="icon-btn" aria-label="Profile" title="Profile">●</button>
+  </div>
+  <div class="search"><span>⌕</span><input id="search" placeholder="Search chats and people" aria-label="Search chats and people"></div>
+  <div class="folder-tabs" role="tablist" aria-label="Chat folders">
+    <button class="folder-tab active" data-folder="all">All</button>
+    <button class="folder-tab" data-folder="personal">Personal</button>
+    <button class="folder-tab" data-folder="work">Work</button>
+    <button class="folder-tab" data-folder="groups">Groups</button>
+    <button class="folder-tab" data-folder="channels">Channels</button>
+    <button class="folder-edit" id="folderInfo" type="button" aria-label="Folder settings" title="Folder settings">⚙</button>
+  </div>
+  <div class="side-tabs" role="tablist" aria-label="Main sections">
+    <button class="tab active" data-view="chats">Chats</button>
+    <button class="tab" data-view="contacts">Contacts</button>
+    <button class="tab" data-view="calls">Calls</button>
+  </div>
+  <div class="list-filters">
+    <button class="filter active" data-filter="all">All</button>
+    <button class="filter" data-filter="pinned">Pinned</button>
+    <button class="filter" data-filter="archived">Archived</button>
+  </div>
+  <div id="chatList" class="list" aria-live="polite"></div>
+</aside>
+<main class="main">
+  <header class="chat-head">
+    <button id="back" class="icon-btn mobile-only" aria-label="Back to chats">‹</button>
+    <div class="avatar" id="headAvatar">V</div>
+    <div class="title"><strong id="headName">VexaChat</strong><small id="headStatus">Choose a conversation</small></div>
+    <div class="head-actions">
+      <button id="voice" class="icon-btn" aria-label="Voice call" title="Voice call">☎</button>
+      <button id="video" class="icon-btn" aria-label="Video call" title="Video call">▣</button>
+      <button id="searchMessages" class="icon-btn" aria-label="Search messages" title="Search messages">⌕</button>
+      <button id="info" class="icon-btn" aria-label="Conversation details" title="Conversation details">ⓘ</button>
+    </div>
+  </header>
+  <section id="messages" class="messages" aria-live="polite"><div class="empty"><strong>VexaChat</strong><span>Private conversations, groups, media and calls.</span></div></section>
+  <form id="composer" class="composer" aria-label="Message composer">
+    <button type="button" id="attach" class="icon-btn" aria-label="Attach media or file" title="Attach">＋</button>
+    <textarea id="messageInput" rows="1" placeholder="Write a message…" aria-label="Write a message" disabled></textarea>
+    <button type="button" id="emoji" class="icon-btn" aria-label="Emoji" title="Emoji">☺</button>
+    <button class="send" aria-label="Send message" title="Send" disabled>➤</button>
+    <input id="file" type="file" hidden accept="image/*,video/*,audio/*,.pdf,.zip,.txt,.doc,.docx,.xls,.xlsx">
+  </form>
+</main>
+</div>
+<nav class="mobile-bar" aria-label="Mobile navigation">
+  <button id="mobileChats" class="active">Chats</button>
+  <button id="mobileNew">＋ New</button>
+  <button id="mobileContacts">Contacts</button>
+  <button id="mobileCalls">Calls</button>
+  <button id="mobileProfile">Profile</button>
+</nav>`;$('#composer').addEventListener('submit',send);$('#search').oninput=e=>{state.query=e.target.value.trim().toLowerCase();if(state.view==='contacts')renderContacts();else if(state.view==='calls')renderCalls();else {renderChats();searchPeople(state.query)}};$('#search').onkeydown=e=>{if(e.key==='Escape'){e.target.value='';state.query='';clearTimeout(searchTimer);searchRequest++;renderChats();e.target.blur()}};$('#newChat').onclick=newChat;$('#mobileNew').onclick=newChat;$('#settingsTop').onclick=()=>window.VexaChatSettings?.open({state,api,modal,profile,logout,notify,initials,esc});$('#profile').onclick=profile;$('#mobileProfile').onclick=profile;$('#back').onclick=()=>{state.active=null;renderActive();showMobileList(state.lastListView||'chats')};$('#info').onclick=conversationInfo;$('#searchMessages').onclick=messageSearch;$('#voice').onclick=()=>startCall('voice');$('#video').onclick=()=>startCall('video');$('#attach').onclick=attachmentMenu;$('#file').onchange=uploadFile;$('#emoji').onclick=emojiPicker;$('#messageInput').oninput=typing;$('#messageInput').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){let p={};try{p=JSON.parse(localStorage.getItem('vexachat_preferences_v1')||'{}')}catch{}if(p.enter_to_send!==false){e.preventDefault();$('#composer').requestSubmit()}}};document.querySelectorAll('.tab').forEach(x=>x.onclick=()=>sideView(x.dataset.view));document.querySelectorAll('.folder-tab').forEach(x=>x.onclick=()=>{state.folder=x.dataset.folder||'all';document.querySelectorAll('.folder-tab').forEach(b=>b.classList.toggle('active',b===x));renderChats()});$('#folderInfo').onclick=()=>notify('Folders currently use local conversation filters. Custom folder creation needs a server folder API.');document.querySelectorAll('.filter').forEach(x=>x.onclick=()=>{state.chatFilter=x.dataset.filter||'all';document.querySelectorAll('.filter').forEach(b=>b.classList.toggle('active',b===x));state.view='chats';document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.view==='chats'));document.querySelectorAll('.mobile-bar button').forEach(b=>b.classList.remove('active'));$('#mobileChats')?.classList.add('active');renderChats()});$('#mobileContacts').onclick=()=>showMobileList('contacts');$('#mobileCalls').onclick=()=>showMobileList('calls');$('#mobileChats').onclick=()=>showMobileList('chats')}
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function connectionStatus(message){const el=$('#connectionStatus');if(el)el.textContent=message}
 async function boot(){if(!token()&&resetTokenFromUrl()){authCard('reset');return}if(!token()){authGate();return}shell();connectionStatus('Connecting…');if('Notification' in window&&Notification.permission==='default')Notification.requestPermission().catch(()=>{});let delay=1500;for(let attempt=1;attempt<=8;attempt++){try{state.me=(await api('/api/chat/me')).user;connectionStatus('Connected');await Promise.allSettled([loadChats(),loadContacts(),loadCalls(),loadNotifications(),setPresence('online')]);connectEvents();return}catch(e){if(e.message==='Sign-in required')return;connectionStatus('Connecting… ('+attempt+'/8)');if(attempt===8){connectionStatus('Service unavailable · Tap to retry');const el=$('#connectionStatus');if(el){el.style.cursor='pointer';el.title='Retry connection';el.onclick=()=>{el.onclick=null;boot()}}return}await sleep(delay);delay=Math.min(Math.round(delay*1.65),25000)}}}
