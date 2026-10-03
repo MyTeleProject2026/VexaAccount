@@ -113,3 +113,23 @@ img{max-width:100%;display:block}a{color:#8dccff}
 .message-avatar{box-shadow:0 2px 8px rgba(0,0,0,.18)}
 @media(max-width:760px){.vc-context-menu{min-width:210px;max-width:calc(100vw - 16px);border-radius:16px}.vc-context-menu button{min-height:42px;font-size:12px}.messages.drop-target:before{content:"Drop to attach";position:fixed;left:14px;right:14px;top:calc(50% - 22px);z-index:4;padding:12px;text-align:center;border:1px solid rgba(53,169,255,.28);border-radius:14px;background:rgba(7,17,31,.94);color:#bfe7ff;font-weight:800}}
 @media(prefers-reduced-motion:reduce){.chat-row,.bubble{transition:none}}
+
+/* VexaChat v5.7 — mobile navigation, app branding and touch interaction polish */
+.side-head .logo{overflow:hidden;position:relative}
+.side-head .logo img{width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block}
+.chat-head .head-avatar img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.mobile-nav-icon{display:block;font-size:15px;line-height:1;margin-bottom:3px}
+.mobile-bar button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:9px;font-weight:700;letter-spacing:.1px}
+.mobile-bar button.active .mobile-nav-icon{transform:translateY(-1px)}
+@media(max-width:760px){
+ .mobile-bar{height:68px}
+ .mobile-bar button{padding:6px 2px 4px}
+ .mobile-nav-icon{font-size:17px}
+ .chat-head{box-shadow:0 4px 18px rgba(0,0,0,.12)}
+ .messages{padding-bottom:88px}
+}
+@media(max-width:420px){
+ .mobile-bar{height:64px}
+ .mobile-nav-icon{font-size:16px}
+ .mobile-bar button{font-size:8px}
+}
