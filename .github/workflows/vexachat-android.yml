@@ -46,7 +46,10 @@ jobs:
         run: |
           test -f config.js
           grep -F 'api-vexaaccount.onrender.com' config.js
-          test -f index.html && test -f app.js && test -f styles.css && test -f manifest.webmanifest && test -f sw.js
+          test -f index.html && test -f app.js && test -f telegram-style-v5.css && test -f manifest.webmanifest && test -f sw.js
+          ! grep -Eq 'styles\\.css|premium-luxury-v4\\.css' index.html
+          ! test -e styles.css
+          ! test -e premium-luxury-v4.css
 
   build-apk:
     needs: verify-web
@@ -76,6 +79,10 @@ jobs:
           test -s "$APK"
           echo "APK=$APK"
           sha256sum "$APK" | tee app/build/outputs/apk/release/SHA256SUMS.txt
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose "$APK"
+          echo "Verified signed APK: $APK"
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
