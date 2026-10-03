@@ -20,6 +20,7 @@ async function blockedEither(a,b){
  const [rows]=await pool.query('SELECT 1 FROM vexachat_blocks WHERE (user_id=? AND blocked_user_id=?) OR (user_id=? AND blocked_user_id=?) LIMIT 1',[a,b,b,a]);
  return rows.length>0;
 }
+async function privacyFor(viewerId,targetId){const [p]=await pool.query("SELECT read_receipts,last_seen,profile_photo FROM vexachat_privacy_settings WHERE user_id=? LIMIT 1",[targetId]);const x=p[0]||{};const [c]=await pool.query("SELECT 1 FROM vexachat_contacts WHERE user_id=? AND contact_user_id=? LIMIT 1",[targetId,viewerId]);return {read_receipts:x.read_receipts!==0,last_seen:x.last_seen||'everyone',profile_photo:x.profile_photo||'everyone',isContact:!!c.length}}
 
 router.get('/events',async(req,res)=>{
  const userId=uid(req);
@@ -44,6 +45,8 @@ router.get('/users',async(req,res,next)=>{try{
  if(q){where+=' AND (LOWER(u.email) LIKE ? OR LOWER(COALESCE(u.name,\'\')) LIKE ?)';const x='%'+q+'%';params.push(x,x)}
  const [rows]=await pool.query(`SELECT u.id,u.email,u.name,u.avatar_url,COALESCE(p.status,'offline') status,p.last_seen_at
  FROM store_users u LEFT JOIN vexachat_presence p ON p.user_id=u.id WHERE ${where} ORDER BY u.name,u.email LIMIT 50`,params);
+ const viewer=userId;
+ for(const u of rows){const v=await privacyFor(viewer,Number(u.id));if(v.profile_photo==='nobody'||(v.profile_photo==='contacts'&&!v.isContact))u.avatar_url=null;if(v.last_seen==='nobody'||(v.last_seen==='contacts'&&!v.isContact)){u.status='offline';u.last_seen_at=null}}
  res.json({success:true,users:rows});
 }catch(e){next(e)}});
 
@@ -125,14 +128,16 @@ router.post('/conversations/:id/messages',async(req,res,next)=>{try{
 router.post('/conversations/:id/read',async(req,res,next)=>{try{
  const conversationId=Number(req.params.id),userId=uid(req),messageId=Number(req.body?.message_id||0);
  if(!(await isMember(conversationId,userId)))return res.status(403).json({success:false,message:'Conversation access denied'});
+ const [privacy]=await pool.query('SELECT read_receipts FROM vexachat_privacy_settings WHERE user_id=? LIMIT 1',[userId]);
+ if(privacy[0]&&privacy[0].read_receipts===0)return res.json({success:true,read_receipts:false});
  if(!messageId){
   const [latest]=await pool.query('SELECT id FROM vexachat_messages WHERE conversation_id=? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1',[conversationId]);
   if(!latest.length)return res.json({success:true,message_id:null});
   messageId=Number(latest[0].id);
-}
+ }
  await pool.query('UPDATE vexachat_participants SET last_read_message_id=? WHERE conversation_id=? AND user_id=?',[messageId,conversationId,userId]);
  await broadcast(conversationId,'read',{conversation_id:conversationId,user_id:userId,message_id:messageId});
- res.json({success:true});
+ res.json({success:true,read_receipts:true});
 }catch(e){next(e)}});
 
 router.post('/conversations/:id/typing',async(req,res,next)=>{try{
