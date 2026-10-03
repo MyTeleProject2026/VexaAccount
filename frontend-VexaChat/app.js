@@ -191,11 +191,11 @@ function closeContextMenu(){document.querySelector('#vcContextMenu')?.remove()}
 function contextMenu(items,x,y){
  closeContextMenu();
  const menu=document.createElement('div');menu.id='vcContextMenu';menu.className='vc-context-menu';
- menu.innerHTML=items.map((i,n)=>i==='-'?'<div class="vc-context-sep"></div>:'<button type="button" data-cm="'+n+'"><span>'+esc(i[0])+'</span><b>'+esc(i[1])+'</b></button>').join('');
+ menu.innerHTML=items.map((i,n)=>i==='-'?'<div class="vc-context-sep"></div>':'<button type="button" data-cm="'+n+'"><span>'+esc(i[0])+'</span><b>'+esc(i[1])+'</b></button>').join('');
  document.body.appendChild(menu);
  const w=menu.offsetWidth,h=menu.offsetHeight;
  menu.style.left=Math.max(8,Math.min(x,innerWidth-w-8))+'px';menu.style.top=Math.max(8,Math.min(y,innerHeight-h-8))+'px';
- menu.querySelectorAll('[data-cm]').forEach(b=>b.onclick=()=>{const i=items[Number(b.dataset.cm)];if(i&&i[2])i[2]();closeContextMenu()});
+ menu.querySelectorAll('[data-cm]').forEach(btn=>btn.onclick=()=>{const i=items[Number(btn.dataset.cm)];if(i&&i[2])i[2]();closeContextMenu()});
  setTimeout(()=>document.addEventListener('pointerdown',closeContextMenu,{once:true}),0);
 }
 function chatQuickMenu(chat,x,y){
