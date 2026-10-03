@@ -1,29 +1,19 @@
 # VexaChat Static Site
 
-VexaChat is a VexaAccount-connected messenger with an original Vexa visual system and familiar modern chat patterns. It is not a pixel-for-pixel copy of Telegram or WhatsApp.
+VexaChat is the VexaAccount-connected messenger frontend. The UI is now built as a single VexaChat Telegram-style v5 design system with responsive mobile and desktop chat patterns.
+
+## UI architecture
+- `telegram-style-v5.css` is the sole application stylesheet.
+- The retired `vexachat-foundation.css`, `styles.css`, and `premium-luxury-v4.css` visual layers are no longer loaded or required.
+- Authentication, chat, contacts, calls, profile, conversation details, settings, composer, attachment, and responsive mobile surfaces use the unified v5 system.
+- The implementation uses familiar Telegram/WhatsApp-style interaction patterns without copying their proprietary branding or assets.
 
 ## Render Static Site
 - Root directory: `frontend-VexaChat`
 - Build command: `npm run build`
-- Publish directory: `frontend-VexaChat` (when Render Root Directory is the repository root)
+- Publish directory: `frontend-VexaChat` (when Render Root Directory is repository root)
 - If Root Directory is already `frontend-VexaChat`, Publish Directory: `.`
 - Environment variable: `VEXA_CHAT_API_BASE=https://api-vexaaccount.onrender.com`
-
-The static client authenticates through the existing VexaAccount session/token and calls:
-- `/api/chat/me`
-- `/api/chat/users`
-- `/api/chat/conversations`
-- `/api/chat/conversations/:id/messages`
-- `/api/chat/events` (SSE)
-- `/api/chat/presence`
-- `/api/chat/reactions`
-- `/api/chat/blocks`
-
-## Required backend CORS
-Set the backend Render environment variable:
-`VEXA_ALLOWED_ORIGINS=https://<your-actual-vexachat-render-host>`
-
-If the site uses the default `https://vexachat.onrender.com`, the example configuration already matches it.
 
 ## Android
 The Android project in `packaging/vexachat/android` hosts the Static Site in a secure WebView. The GitHub Actions workflow produces a release APK artifact.
