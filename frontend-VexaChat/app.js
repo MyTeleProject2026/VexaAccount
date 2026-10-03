@@ -158,12 +158,11 @@ function bindTelegramInteractions(){
  const cancelLongPress=()=>{clearTimeout(longPressTimer);longPressTimer=null;longPressTarget=null};
  const suppressClickOnce=()=>{suppressNextClick=true;setTimeout(()=>{suppressNextClick=false},450)};
  document.addEventListener('click',e=>{if(!suppressNextClick)return;suppressNextClick=false;e.preventDefault();e.stopPropagation()},true);
- messages.addEventListener('touchstart',e=>{const t=e.touches?.[0];if(t){touchX=t.clientX;touchY=t.clientY;const bubble=e.target.closest('[data-message-id]');if(bubble){longPressTarget=bubble;longPressTimer=setTimeout(()=>{const id=Number(bubble.dataset.messageId),m=state.messages.find(x=>Number(x.id)===id);if(m){suppressClickOnce();messageQuickMenu(m,t.clientX,t.clientY)}cancelLongPress()},520)} }},{passive:true});
- messages.addEventListener('touchmove',()=>cancelLongPress(),{passive:true});
- messages.addEventListener('touchcancel',cancelLongPress,{passive:true});
- messages.addEventListener('touchend',()=>cancelLongPress(),{passive:true});
- messages.addEventListener('touchend',e=>{const t=e.changedTouches?.[0];if(!t)return;const dx=t.clientX-touchX,dy=Math.abs(t.clientY-touchY);if(window.matchMedia('(max-width:760px)').matches&&dx>85&&dy<70&&state.active){state.active=null;renderActive();showMobileList(state.lastListView||'chats')}},{passive:true});
- list.addEventListener('touchstart',e=>{const row=e.target.closest('[data-id]');if(!row)return;const t=e.touches?.[0];if(!t)return;cancelLongPress();longPressTarget=row;longPressTimer=setTimeout(()=>{const id=Number(row.dataset.id),chat=state.chats.find(x=>Number(x.id)===id);if(chat){suppressClickOnce();chatQuickMenu(chat,t.clientX,t.clientY)}cancelLongPress()},520)},{passive:true});
+ messages.addEventListener('touchstart',e=>{const t=e.touches?.[0];if(!t)return;touchX=t.clientX;touchY=t.clientY;longPressTarget=null;cancelLongPress();const bubble=e.target.closest('[data-message-id]');if(bubble){longPressTarget=bubble;longPressTimer=setTimeout(()=>{const id=Number(bubble.dataset.messageId),m=state.messages.find(x=>Number(x.id)===id);if(m){suppressClickOnce();messageQuickMenu(m,t.clientX,t.clientY)}cancelLongPress()},520)}},{passive:true});
+messages.addEventListener('touchmove',e=>{const t=e.touches?.[0];if(!t)return;const bubble=longPressTarget;if(bubble&&Math.abs(t.clientX-touchX)>10){cancelLongPress();bubble.classList.add('swipe-active');bubble.style.transform='translateX('+Math.max(-18,Math.min(72,t.clientX-touchX))+'px)'}},{passive:true});
+messages.addEventListener('touchcancel',()=>{if(longPressTarget){longPressTarget.classList.remove('swipe-active');longPressTarget.style.transform=''}cancelLongPress()},{passive:true});
+messages.addEventListener('touchend',e=>{const t=e.changedTouches?.[0];if(!t)return;const bubble=longPressTarget;const dx=t.clientX-touchX,dy=Math.abs(t.clientY-touchY);if(bubble){bubble.classList.remove('swipe-active');bubble.style.transform='';if(window.matchMedia('(max-width:760px)').matches&&dx>62&&dy<70){const id=Number(bubble.dataset.messageId);cancelLongPress();suppressClickOnce();replyTo(id);return}}cancelLongPress()},{passive:true});
+list.addEventListener('touchstart',e=>{const row=e.target.closest('[data-id]');if(!row)return;const t=e.touches?.[0];if(!t)return;cancelLongPress();longPressTarget=row;longPressTimer=setTimeout(()=>{const id=Number(row.dataset.id),chat=state.chats.find(x=>Number(x.id)===id);if(chat){suppressClickOnce();chatQuickMenu(chat,t.clientX,t.clientY)}cancelLongPress()},520)},{passive:true});
  list.addEventListener('touchmove',cancelLongPress,{passive:true});
  list.addEventListener('touchcancel',cancelLongPress,{passive:true});
  list.addEventListener('touchend',cancelLongPress,{passive:true});
@@ -180,11 +179,9 @@ function bindTelegramInteractions(){
  messages.addEventListener('dblclick',e=>{
   const bubble=e.target.closest('[data-message-id]');if(!bubble)return;
   const m=state.messages.find(x=>Number(x.id)===Number(bubble.dataset.messageId));if(!m||m.deleted_at)return;
-  const quote=$('#replyComposer');if(quote){quote.remove();return}
-  const wrap=document.createElement('div');wrap.id='replyComposer';wrap.className='reply-composer';
-  wrap.innerHTML='<b>Replying to</b><span>'+esc(m.body||'Attachment')+'</span>';
-  messages.parentElement?.appendChild(wrap);
-  state.replyTo=m.id;updateComposerState();input.focus();
+  const current=(state.reactions[m.id]||[]).find(r=>Number(r.user_id)===Number(state.me?.id));
+  const emoji=current?.emoji||'❤️';
+  api('/api/chat/reactions',{method:current?'DELETE':'POST',body:JSON.stringify({message_id:m.id,emoji})}).then(()=>loadReactions(m.id)).catch(()=>notify('Reaction unavailable'));
  });
 }
 function closeContextMenu(){document.querySelector('#vcContextMenu')?.remove()}
