@@ -177,3 +177,12 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
  .bubble.swipe-active:before{content:'↩';position:absolute;left:-30px;top:50%;transform:translateY(-50%);width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:rgba(53,169,255,.14);color:#83d2ff;font-size:13px;font-weight:800}
  .bubble{will-change:transform}
 }
+
+
+/* VexaChat v5.9 — voice-message composer interaction */
+.voice-note-btn{flex:0 0 38px;position:relative;transition:transform .15s ease,background .15s ease,border-color .15s ease}
+.voice-note-btn:not(:disabled):hover{background:rgba(53,169,255,.1)}
+.voice-note-btn.recording{background:rgba(255,75,92,.14)!important;border-color:rgba(255,75,92,.3)!important;color:#ff8b98!important;transform:scale(1.05)}
+.voice-note-btn.recording:after{content:attr(data-duration);position:absolute;right:calc(100% + 6px);top:50%;transform:translateY(-50%);padding:4px 7px;border-radius:8px;background:#0b1b2b;border:1px solid var(--vc-line);color:#9bc9e5;font-size:9px;white-space:nowrap;pointer-events:none}
+.voice-note-btn:disabled{opacity:.3;filter:grayscale(.4)}
+@media(max-width:760px){.voice-note-btn{width:38px;height:38px}.voice-note-btn.recording:after{right:auto;left:50%;top:auto;bottom:calc(100% + 7px);transform:translateX(-50%)}}
