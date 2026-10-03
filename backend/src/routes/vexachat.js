@@ -130,11 +130,17 @@ router.post('/conversations/:id/read',async(req,res,next)=>{try{
  if(!(await isMember(conversationId,userId)))return res.status(403).json({success:false,message:'Conversation access denied'});
  const [privacy]=await pool.query('SELECT read_receipts FROM vexachat_privacy_settings WHERE user_id=? LIMIT 1',[userId]);
  if(privacy[0]&&privacy[0].read_receipts===0)return res.json({success:true,read_receipts:false});
- if(!messageId){
+ if(messageId){
+  const [target]=await pool.query('SELECT id FROM vexachat_messages WHERE id=? AND conversation_id=? LIMIT 1',[messageId,conversationId]);
+  if(!target.length)return res.status(400).json({success:false,message:'Message does not belong to this conversation'});
+ }else{
   const [latest]=await pool.query('SELECT id FROM vexachat_messages WHERE conversation_id=? AND deleted_at IS NULL ORDER BY id DESC LIMIT 1',[conversationId]);
   if(!latest.length)return res.json({success:true,message_id:null});
   messageId=Number(latest[0].id);
  }
+ const [current]=await pool.query('SELECT last_read_message_id FROM vexachat_participants WHERE conversation_id=? AND user_id=? LIMIT 1',[conversationId,userId]);
+ const previous=Number(current[0]?.last_read_message_id||0);
+ if(messageId<=previous)return res.json({success:true,read_receipts:true,message_id:previous});
  await pool.query('UPDATE vexachat_participants SET last_read_message_id=? WHERE conversation_id=? AND user_id=?',[messageId,conversationId,userId]);
  await broadcast(conversationId,'read',{conversation_id:conversationId,user_id:userId,message_id:messageId});
  res.json({success:true,read_receipts:true});
