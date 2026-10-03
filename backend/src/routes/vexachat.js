@@ -99,7 +99,7 @@ router.get('/conversations/:id/messages',async(req,res,next)=>{try{
  const conversationId=Number(req.params.id),userId=uid(req);
  if(!(await isMember(conversationId,userId)))return res.status(403).json({success:false,message:'Conversation access denied'});
  const before=Number(req.query.before||0),limit=Math.min(Math.max(Number(req.query.limit||60),1),100);
- const [rows]=await pool.query(`SELECT m.id,m.conversation_id,m.sender_id,m.client_message_id,m.message_type,m.body,m.reply_to_id,m.metadata,m.created_at,m.edited_at,m.deleted_at,u.name sender_name,u.email sender_email,u.avatar_url sender_avatar
+ const [rows]=await pool.query(`SELECT m.id,m.conversation_id,m.sender_id,m.client_message_id,m.message_type,m.body,m.reply_to_id,m.metadata,m.created_at,m.edited_at,m.deleted_at,u.name sender_name,u.email sender_email,u.avatar_url sender_avatar,CASE WHEN EXISTS(SELECT 1 FROM vexachat_participants rp JOIN vexachat_privacy_settings rps ON rps.user_id=rp.user_id WHERE rp.conversation_id=m.conversation_id AND rp.user_id<>m.sender_id AND rp.last_read_message_id>=m.id AND rps.read_receipts<>0) THEN m.created_at ELSE NULL END AS read_at
  FROM vexachat_messages m JOIN store_users u ON u.id=m.sender_id WHERE m.conversation_id=? AND m.id<COALESCE(NULLIF(?,0),18446744073709551615)
  ORDER BY m.id DESC LIMIT ${limit}`,[conversationId,before]);
  rows.reverse();res.json({success:true,messages:rows});
