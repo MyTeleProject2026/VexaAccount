@@ -166,6 +166,36 @@ function activeChatMenu(){
 
  const list=$('#chatList'), input=$('#messageInput'), messages=$('#messages');
  if(!list||!input||!messages)return;
+ // Desktop right-click + mobile long-press on chat rows exposes the same messenger quick actions.
+ let chatPressTimer=null, chatPressTarget=null, chatPressStartX=0, chatPressStartY=0;
+ const cancelChatPress=()=>{clearTimeout(chatPressTimer);chatPressTimer=null;chatPressTarget=null};
+ list.addEventListener('contextmenu',e=>{
+  const row=e.target.closest('[data-id]');
+  if(!row)return;
+  const chat=state.chats.find(c=>Number(c.id)===Number(row.dataset.id));
+  if(!chat)return;
+  e.preventDefault();
+  chatQuickMenu(chat,e.clientX,e.clientY);
+ });
+ list.addEventListener('touchstart',e=>{
+  const row=e.target.closest('[data-id]');
+  if(!row)return;
+  const t=e.touches?.[0];if(!t)return;
+  chatPressTarget=row;chatPressStartX=t.clientX;chatPressStartY=t.clientY;cancelChatPress();
+  chatPressTarget=row;
+  chatPressTimer=setTimeout(()=>{
+   const chat=state.chats.find(c=>Number(c.id)===Number(row.dataset.id));
+   if(chat){chatPressTarget.classList.add('pressing');chatQuickMenu(chat,t.clientX,t.clientY);setTimeout(()=>row.classList.remove('pressing'),220)}
+   cancelChatPress();
+  },520);
+ },{passive:true});
+ list.addEventListener('touchmove',e=>{
+  if(!chatPressTimer)return;
+  const t=e.touches?.[0];if(!t)return;
+  if(Math.abs(t.clientX-chatPressStartX)>12||Math.abs(t.clientY-chatPressStartY)>12)cancelChatPress();
+ },{passive:true});
+ list.addEventListener('touchend',cancelChatPress,{passive:true});
+ list.addEventListener('touchcancel',cancelChatPress,{passive:true});
  const resize=()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,130)+'px'};
  input.addEventListener('input',resize);resize();
  ['dragenter','dragover'].forEach(ev=>messages.addEventListener(ev,e=>{e.preventDefault();messages.classList.add('drop-target')}));
