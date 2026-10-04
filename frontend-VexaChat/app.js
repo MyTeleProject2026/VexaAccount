@@ -142,6 +142,25 @@ function shell(){document.querySelector('#app').innerHTML=`<div class="chat-shel
 
 function bindTelegramInteractions(){
  bindVoiceRecorder();
+ // Telegram/WhatsApp-style mobile navigation: swipe from the left edge or tap the chat identity to return/open details.
+ const main=$('.main'), chatHead=$('.chat-head');
+ let navTouchX=0, navTouchY=0;
+ main?.addEventListener('touchstart',e=>{
+  const t=e.touches?.[0]; if(!t)return;
+  navTouchX=t.clientX; navTouchY=t.clientY;
+ },{passive:true});
+ main?.addEventListener('touchend',e=>{
+  const t=e.changedTouches?.[0]; if(!t)return;
+  const dx=t.clientX-navTouchX, dy=Math.abs(t.clientY-navTouchY);
+  if(window.matchMedia('(max-width:760px)').matches && state.active && navTouchX<34 && dx>88 && dy<80){
+   state.active=null; renderActive(); showMobileList(state.lastListView||'chats');
+  }
+ },{passive:true});
+ chatHead?.addEventListener('click',e=>{
+  if(!state.active || e.target.closest('button'))return;
+  conversationInfo();
+ });
+
  const list=$('#chatList'), input=$('#messageInput'), messages=$('#messages');
  if(!list||!input||!messages)return;
  const resize=()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,130)+'px'};
@@ -156,6 +175,7 @@ function bindTelegramInteractions(){
   }
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();$('#search')?.focus();$('#search')?.select()}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'&&state.active){e.preventDefault();messageSearch()}
+  if(e.altKey&&e.key==='ArrowLeft'&&state.active&&window.matchMedia('(max-width:760px)').matches){e.preventDefault();state.active=null;renderActive();showMobileList(state.lastListView||'chats')}
  });
  let touchX=0,touchY=0,longPressTimer=null,longPressTarget=null,suppressNextClick=false;
  const cancelLongPress=()=>{clearTimeout(longPressTimer);longPressTimer=null;longPressTarget=null};
