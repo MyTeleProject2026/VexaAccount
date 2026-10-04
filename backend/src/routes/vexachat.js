@@ -78,7 +78,7 @@ router.post('/conversations/direct',async(req,res,next)=>{try{
  WHERE c.conversation_type='direct' LIMIT 1`,[userId,other]);
  if(existing.length)return res.json({success:true,conversation_id:existing[0].id,existing:true});
  const [c]=await pool.query('INSERT INTO vexachat_conversations(conversation_type,created_by) VALUES(?,?)',['direct',userId]);
- await pool.query('INSERT INTO vexachat_participants(conversation_id,user_id,role) VALUES(?,?, "owner"),(?,?, "member")',[c.insertId,userId,other]);
+ await pool.query('INSERT INTO vexachat_participants(conversation_id,user_id,role) VALUES(?,?,?),(?,?,?)',[c.insertId,userId,'owner',c.insertId,other,'member']);
  await pool.query('INSERT INTO vexachat_presence(user_id,status) VALUES(?,"offline") ON DUPLICATE KEY UPDATE user_id=user_id',[userId]);
  res.status(201).json({success:true,conversation_id:c.insertId,existing:false});
 }catch(e){next(e)}});
