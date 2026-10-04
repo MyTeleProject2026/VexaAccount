@@ -40,3 +40,5 @@
 #recordVoice.recording{background:#ff71851c;border-color:#ff718566;color:#ff9aab;box-shadow:0 0 0 3px #ff71851a}
 #recordVoice.recording::after{content:attr(data-duration);margin-left:4px;font-size:9px;font-weight:800}
 @media(max-width:760px){.chat-row{touch-action:pan-y}.composer{padding-bottom:max(8px,env(safe-area-inset-bottom));}.messages{overscroll-behavior:contain}.message-content{max-width:min(84vw,520px)}}
+
+.row-preview-text.draft-preview{color:#ff8f9e}.draft-preview b{font-weight:850;color:#ff7185}
