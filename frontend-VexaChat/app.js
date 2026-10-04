@@ -301,7 +301,7 @@ const el=$('#messages');
 if(!el)return;
 const previousDistance=el.scrollHeight-el.scrollTop-el.clientHeight;
 const wasNearBottom=previousDistance<180;
-if(!state.messages.length){el.innerHTML='<div class="empty"><strong>Start the conversation</strong><span>Send a message, image, document or call.</span></div>';return}{el.innerHTML='<div class="empty"><strong>Start the conversation</strong><span>Send a message, image, document or call.</span></div>';return}
+if(!state.messages.length){el.innerHTML='<div class="empty"><strong>Start the conversation</strong><span>Send a message, image, document or call.</span></div>';return}
 let lastDay='',lastSender=null,unreadInserted=false;const group=state.active?.conversation_type==='group',lastRead=Number(state.active?.last_read_message_id||0);
 el.innerHTML=state.messages.map(m=>{
 const mine=Number(m.sender_id)===Number(state.me.id),rx=state.reactions[m.id]||[],meta=messageMeta(m),reply=m.reply_to_id?state.messages.find(x=>+x.id===+m.reply_to_id):null,day=new Date(m.created_at).toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'}),sep=day!==lastDay?(lastDay=day,'<div class="date-separator"><span>'+esc(day)+'</span></div>'):'',isUnread=!mine&&!unreadInserted&&lastRead>0&&Number(m.id)>lastRead,unread=isUnread?'<div class="unread-divider"><span>New messages</span></div>':'';
