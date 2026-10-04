@@ -166,36 +166,7 @@ function activeChatMenu(){
 
  const list=$('#chatList'), input=$('#messageInput'), messages=$('#messages');
  if(!list||!input||!messages)return;
- // Desktop right-click + mobile long-press on chat rows exposes the same messenger quick actions.
- let chatPressTimer=null, chatPressTarget=null, chatPressStartX=0, chatPressStartY=0;
- const cancelChatPress=()=>{clearTimeout(chatPressTimer);chatPressTimer=null;chatPressTarget=null};
- list.addEventListener('contextmenu',e=>{
-  const row=e.target.closest('[data-id]');
-  if(!row)return;
-  const chat=state.chats.find(c=>Number(c.id)===Number(row.dataset.id));
-  if(!chat)return;
-  e.preventDefault();
-  chatQuickMenu(chat,e.clientX,e.clientY);
- });
- list.addEventListener('touchstart',e=>{
-  const row=e.target.closest('[data-id]');
-  if(!row)return;
-  const t=e.touches?.[0];if(!t)return;
-  chatPressTarget=row;chatPressStartX=t.clientX;chatPressStartY=t.clientY;cancelChatPress();
-  chatPressTarget=row;
-  chatPressTimer=setTimeout(()=>{
-   const chat=state.chats.find(c=>Number(c.id)===Number(row.dataset.id));
-   if(chat){chatPressTarget.classList.add('pressing');chatQuickMenu(chat,t.clientX,t.clientY);setTimeout(()=>row.classList.remove('pressing'),220)}
-   cancelChatPress();
-  },520);
- },{passive:true});
- list.addEventListener('touchmove',e=>{
-  if(!chatPressTimer)return;
-  const t=e.touches?.[0];if(!t)return;
-  if(Math.abs(t.clientX-chatPressStartX)>12||Math.abs(t.clientY-chatPressStartY)>12)cancelChatPress();
- },{passive:true});
- list.addEventListener('touchend',cancelChatPress,{passive:true});
- list.addEventListener('touchcancel',cancelChatPress,{passive:true});
+ // Desktop context-click and mobile long-press are handled by the unified handlers below.
  // Mobile messenger gesture: swipe a conversation left to archive it.
  let rowSwipe=null,rowSwipeStartX=0,rowSwipeStartY=0,rowSwipeMoved=false;
  const resetRowSwipe=()=>{if(rowSwipe){rowSwipe.style.transform='';rowSwipe.classList.remove('swipe-archive-ready')}rowSwipe=null;rowSwipeMoved=false};
@@ -383,6 +354,7 @@ let voiceRecorder=null,voiceChunks=[],voiceStartedAt=0,voiceTimer=null;
 function setVoiceButton(recording=false){const b=$('#recordVoice');if(!b)return;b.classList.toggle('recording',recording);b.textContent=recording?'■':'🎙';b.title=recording?'Release to send voice message':'Hold to record voice message';}
 async function stopVoiceRecording(sendIt=true){if(!voiceRecorder)return;const r=voiceRecorder;voiceRecorder=null;clearInterval(voiceTimer);voiceTimer=null;setVoiceButton(false);r._sendAfterStop=!!sendIt;if(r.state!=='inactive')r.stop();else if(!sendIt)voiceChunks=[]}
 async function beginVoiceRecording(e){if(!state.active||state.pendingAttachment||$('#messageInput')?.value.trim())return;if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder)return notify('Voice recording is not supported on this device');e?.preventDefault();try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});const mime=['audio/webm;codecs=opus','audio/webm','audio/mp4'].find(x=>MediaRecorder.isTypeSupported?.(x))||'';const r=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);voiceChunks=[];voiceStartedAt=Date.now();voiceRecorder=r;r.ondataavailable=x=>x.data?.size&&voiceChunks.push(x.data);r.onstop=async()=>{stream.getTracks().forEach(t=>t.stop());const sendAfter=r._sendAfterStop!==false;if(!sendAfter){voiceChunks=[];return}try{const blob=new Blob(voiceChunks,{type:r.mimeType||'audio/webm'});if(blob.size>8*1024*1024)throw Error('Voice message is too large');const dataUrl=await new Promise((resolve,reject)=>{const fr=new FileReader();fr.onload=()=>resolve(String(fr.result||''));fr.onerror=reject;fr.readAsDataURL(blob)});state.pendingAttachment={file_name:'Voice message '+new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})+'.webm',mime_type:r.mimeType||'audio/webm',file_size:blob.size,data_url:dataUrl};renderAttachmentDraft();await send({preventDefault(){}})}catch(err){notify(err.message||'Unable to send voice message')}finally{voiceChunks=[]}};r.start(200);setVoiceButton(true);voiceTimer=setInterval(()=>{const b=$('#recordVoice');if(b)b.dataset.duration=String(Math.floor((Date.now()-voiceStartedAt)/1000))+'s'},500)}catch(err){notify('Microphone permission is required')}} 
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&voiceRecorder){stopVoiceRecording(false).catch(()=>{})}});
 function bindVoiceRecorder(){const b=$('#recordVoice');if(!b||b.dataset.voiceBound)return;b.dataset.voiceBound='1';let pressed=false,startToken=0,startPromise=null;const finish=async cancel=>{if(!pressed)return;pressed=false;const token=startToken;b.releasePointerCapture?.(b._pointerId);b._pointerId=null;try{await startPromise}catch{}startPromise=null;if(token!==startToken)return;if(voiceRecorder){voiceRecorder._sendAfterStop=!cancel;await stopVoiceRecording(!cancel)}else if(cancel){setVoiceButton(false)}};const start=e=>{if(pressed)return;if(e.pointerType==='mouse'&&e.button!==0)return;pressed=true;startToken++;b._pointerId=e.pointerId;b.setPointerCapture?.(e.pointerId);startPromise=beginVoiceRecording(e).catch(err=>{if(pressed)notify(err?.message||'Microphone permission is required')})};b.addEventListener('pointerdown',start);b.addEventListener('pointerup',()=>finish(false));b.addEventListener('pointercancel',()=>finish(true));b.addEventListener('lostpointercapture',()=>finish(false));}
 function bindComposerInteractions(){const input=$('#messageInput');if(!input||input.dataset.interactionsBound)return;input.dataset.interactionsBound='1';input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();if(!e.repeat)$('#composer')?.requestSubmit()}});input.addEventListener('input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,130)+'px';saveChatDraft();typing();updateComposerState()});input.addEventListener('paste',e=>{const files=[...(e.clipboardData?.files||[])];if(files.length){e.preventDefault();const f=files[0];if(f.size<=8*1024*1024){fileToDataUrl(f).then(dataUrl=>{state.pendingAttachment={file_name:f.name||'Pasted image',mime_type:f.type||'application/octet-stream',file_size:f.size,data_url:dataUrl};renderAttachmentDraft();notify('Pasted attachment ready')}).catch(()=>notify('Could not read pasted attachment'))}else notify('Maximum attachment size is 8 MB')}});}
 function updateComposerState(){const active=!!state.active;const hasText=!!$('#messageInput')?.value.trim();const hasAttachment=!!state.pendingAttachment;if($('#messageInput'))$('#messageInput').disabled=!active;const sendBtn=$('.send');if(sendBtn){sendBtn.disabled=!(active&&(hasText||hasAttachment))}const mic=$('#recordVoice');if(mic){mic.disabled=!active||hasText||hasAttachment;mic.setAttribute('aria-disabled',String(mic.disabled))}}
