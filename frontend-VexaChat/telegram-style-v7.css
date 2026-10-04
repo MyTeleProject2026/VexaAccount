@@ -33,3 +33,10 @@
 @media(max-width:760px){.msg-menu{display:none}.attachment-draft{bottom:59px;left:6px;right:6px}.attachment-preview{max-height:250px}.context-actions{grid-template-columns:repeat(3,1fr)}.call-stage #localVideo{width:94px;height:132px;right:8px;top:8px}.incoming-call-card{padding:12px}.modal.dialog-modal{height:auto;max-height:88dvh;border-radius:18px;margin:auto}.modal.page-modal{height:100%;border-radius:0}.result-list{max-height:48dvh}}
 @media(max-width:420px){.context-action{min-height:62px}.context-action span{font-size:16px}.incoming-actions{grid-template-columns:1fr}.settings-feature-card,.settings-device-card,.settings-premium-card{align-items:flex-start;flex-wrap:wrap}.settings-feature-card button{width:100%}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+
+/* Interaction polish: native-feeling mobile gestures and composer states. */
+.chat-row.swipe-active{transition:none;transform:translateX(-72px);}
+.messages.drop-target{outline:2px dashed #2fa7ff66;outline-offset:-8px;background:#0c1c2c}
+#recordVoice.recording{background:#ff71851c;border-color:#ff718566;color:#ff9aab;box-shadow:0 0 0 3px #ff71851a}
+#recordVoice.recording::after{content:attr(data-duration);margin-left:4px;font-size:9px;font-weight:800}
+@media(max-width:760px){.chat-row{touch-action:pan-y}.composer{padding-bottom:max(8px,env(safe-area-inset-bottom));}.messages{overscroll-behavior:contain}.message-content{max-width:min(84vw,520px)}}
