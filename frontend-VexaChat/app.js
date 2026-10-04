@@ -196,6 +196,33 @@ function activeChatMenu(){
  },{passive:true});
  list.addEventListener('touchend',cancelChatPress,{passive:true});
  list.addEventListener('touchcancel',cancelChatPress,{passive:true});
+ // Mobile messenger gesture: swipe a conversation left to archive it.
+ let rowSwipe=null,rowSwipeStartX=0,rowSwipeStartY=0,rowSwipeMoved=false;
+ const resetRowSwipe=()=>{if(rowSwipe){rowSwipe.style.transform='';rowSwipe.classList.remove('swipe-archive-ready')}rowSwipe=null;rowSwipeMoved=false};
+ list.addEventListener('touchstart',e=>{
+  const row=e.target.closest('.chat-row');if(!row)return;
+  const t=e.touches?.[0];if(!t)return;
+  rowSwipe=row;rowSwipeStartX=t.clientX;rowSwipeStartY=t.clientY;rowSwipeMoved=false;
+ },{passive:true});
+ list.addEventListener('touchmove',e=>{
+  if(!rowSwipe)return;
+  const t=e.touches?.[0];if(!t)return;
+  const dx=t.clientX-rowSwipeStartX,dy=t.clientY-rowSwipeStartY;
+  if(Math.abs(dx)>8||Math.abs(dy)>8)rowSwipeMoved=true;
+  if(Math.abs(dx)>Math.abs(dy)&&dx<0&&Math.abs(dx)<118){
+   rowSwipe.style.transform='translateX('+Math.max(-86,dx*.7)+'px)';
+   rowSwipe.classList.toggle('swipe-archive-ready',dx<-55);
+  }else if(Math.abs(dy)>Math.abs(dx)) resetRowSwipe();
+ },{passive:true});
+ list.addEventListener('touchend',async e=>{
+  if(!rowSwipe)return;
+  const row=rowSwipe,t=e.changedTouches?.[0],dx=t?t.clientX-rowSwipeStartX:0,dy=t?Math.abs(t.clientY-rowSwipeStartY):0;
+  if(window.matchMedia('(max-width:760px)').matches&&rowSwipeMoved&&dx<-62&&dy<55){
+   const id=Number(row.dataset.id),chat=state.chats.find(x=>Number(x.id)===id);
+   resetRowSwipe();
+   if(chat)try{await api('/api/chat/conversations/'+id+'/settings',{method:'POST',body:JSON.stringify({archived:true})});if(state.active?.id===id){state.active=null;renderActive()}await loadChats();notify('Conversation archived')}catch(err){notify(err.message)}
+  }else resetRowSwipe();
+ },{passive:true});
  const resize=()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,130)+'px'};
  input.addEventListener('input',resize);resize();
  ['dragenter','dragover'].forEach(ev=>messages.addEventListener(ev,e=>{e.preventDefault();messages.classList.add('drop-target')}));
