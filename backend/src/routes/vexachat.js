@@ -24,14 +24,24 @@ async function privacyFor(viewerId,targetId){const [p]=await pool.query("SELECT 
 
 router.get('/events',async(req,res)=>{
  const userId=uid(req);
- res.setHeader('Content-Type','text/event-stream');
+ res.status(200);
+ res.setHeader('Content-Type','text/event-stream; charset=utf-8');
  res.setHeader('Cache-Control','no-cache, no-transform');
  res.setHeader('Connection','keep-alive');
+ res.setHeader('X-Accel-Buffering','no');
  res.flushHeaders?.();
+ if(req.socket)req.socket.setTimeout(0);
  const unsubscribe=subscribe(userId,res);
+ let closed=false;
+ const close=()=>{if(closed)return;closed=true;clearInterval(heartbeat);unsubscribe()};
+ const heartbeat=setInterval(()=>{
+  if(res.writableEnded||res.destroyed)return close();
+  try{res.write(': heartbeat '+Date.now()+'\\n\\n')}catch{close()}
+ },15000);
+ req.on('close',close);
+ res.on('close',close);
+ res.write(': connected\\n\\n');
  res.write('event: ready\\ndata: '+JSON.stringify({ok:true,ts:Date.now()})+'\\n\\n');
- const heartbeat=setInterval(()=>{try{res.write(': heartbeat\\n\\n')}catch{}},25000);
- req.on('close',()=>{clearInterval(heartbeat);unsubscribe();});
 });
 
 router.get('/me',async(req,res,next)=>{try{
