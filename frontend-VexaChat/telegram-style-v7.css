@@ -86,3 +86,7 @@ button,input,textarea,select{outline:none}button:focus-visible,input:focus-visib
 @media(min-width:761px){.chat-shell{grid-template-columns:minmax(330px,36vw) minmax(0,1fr)}.sidebar{max-width:520px}.messages{padding-left:clamp(18px,3vw,52px);padding-right:clamp(18px,3vw,52px)}.composer{padding-left:clamp(18px,3vw,52px);padding-right:clamp(18px,3vw,52px)}}
 @media(max-width:760px){body{overscroll-behavior:none}.chat-shell{height:100dvh}.sidebar{height:100dvh}.main{height:100dvh}.chat-row::after{left:70px}.chat-head{padding-left:7px;padding-right:7px}.chat-head .head-actions{gap:1px}.chat-head .head-actions .icon-btn{width:38px;height:38px}.messages{padding-bottom:calc(18px + env(safe-area-inset-bottom))}.composer{min-height:58px}.side-head{padding-left:9px;padding-right:9px}.folder-tabs{overflow-x:auto}.side-tabs{overflow-x:auto}.mobile-list-open .main{display:none}.mobile-list-open .sidebar{display:flex}.mobile-bar{display:flex}.main:not(:has(#messageInput:disabled)) .mobile-bar{display:none}}
 @media(max-width:380px){.folder-tabs{gap:2px}.folder-tab{padding-inline:8px}.side-tabs .tab{padding-inline:10px}.chat-head .head-actions .icon-btn:nth-child(3){display:none}.message-content{max-width:88vw}}
+
+/* v7.4 mobile conversation gesture affordance. */
+.chat-row{touch-action:pan-y;transition:transform .14s ease,background .12s ease}.chat-row.swipe-archive-ready{background:#ff71851a!important;box-shadow:inset -3px 0 0 var(--danger)}
+@media(max-width:760px){.chat-row{will-change:transform}.chat-row.swipe-archive-ready .row-name-text{color:#ffd7dc}}
