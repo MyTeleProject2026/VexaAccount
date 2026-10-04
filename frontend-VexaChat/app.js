@@ -487,5 +487,8 @@ function cleanupCallUi(){clearTimeout(state.incomingCallTimer);state.incomingCal
 async function endCall(status='ended'){const id=state.callId;try{if(id){await api('/api/chat/calls/'+id,{method:'PATCH',body:JSON.stringify({status})});const signal_type=status==='declined'?'decline':'hangup';await api('/api/chat/calls/'+id+'/signal',{method:'POST',body:JSON.stringify({signal_type,payload:{}})})}}catch{}cleanupCallUi();loadCalls().catch(()=>{})}
 async function handleSignal(x){if(String(x.call_id)!==String(state.callId)||+x.sender_id===+state.me.id)return;if(['offer','answer','ice'].includes(x.signal_type)&&!state.pc){if(!state.pendingCallSignals.some(s=>String(s.id||'')===String(x.id||'')&&s.signal_type===x.signal_type)){state.pendingCallSignals.push(x)}return}const p=x.payload;if(x.signal_type==='offer'){if(!state.pc)await createPeer(false);await state.pc.setRemoteDescription(p);const a=await state.pc.createAnswer();await state.pc.setLocalDescription(a);await signal('answer',a)}else if(x.signal_type==='answer'&&state.pc)await state.pc.setRemoteDescription(p);else if(x.signal_type==='ice'&&state.pc)try{await state.pc.addIceCandidate(p)}catch{}else if(['hangup','decline'].includes(x.signal_type)){cleanupCallUi();loadCalls().catch(()=>{});notify(x.signal_type==='decline'?'Call declined':'Call ended')}}
 window.addEventListener('pagehide',markPresenceOffline,{capture:true});
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')markPresenceOffline()});boot();
+document.addEventListener('visibilitychange',()=>{
+ if(document.visibilityState==='hidden')markPresenceOffline();
+ else if(document.visibilityState==='visible'&&token()){presenceOfflineSent=false;setPresence('online').catch(()=>{})}
+});boot();
 })();
