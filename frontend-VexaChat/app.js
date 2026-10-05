@@ -118,7 +118,8 @@ function shell(){document.querySelector('#app').innerHTML=`<div class="chat-shel
       <button id="voice" class="icon-btn" aria-label="Voice call" title="Voice call">☎</button>
       <button id="video" class="icon-btn" aria-label="Video call" title="Video call">▣</button>
       <button id="searchMessages" class="icon-btn" aria-label="Search messages" title="Search messages">⌕</button>
-      <button id="info" class="icon-btn" aria-label="Conversation details" title="Conversation details">ⓘ</button>\n      <button id="chatMenu" class="icon-btn" aria-label="Chat menu" title="Chat menu" disabled>⋮</button>
+      <button id="info" class="icon-btn" aria-label="Conversation details" title="Conversation details">ⓘ</button>
+      <button id="chatMenu" class="icon-btn" aria-label="Chat menu" title="Chat menu" disabled>⋮</button>
     </div>
   </header>
   <div id="conversationBanner" class="conversation-banner" hidden></div>
