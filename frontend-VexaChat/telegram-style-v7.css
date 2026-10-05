@@ -90,3 +90,24 @@ button,input,textarea,select{outline:none}button:focus-visible,input:focus-visib
 /* v7.4 mobile conversation gesture affordance. */
 .chat-row{touch-action:pan-y;transition:transform .14s ease,background .12s ease}.chat-row.swipe-archive-ready{background:#ff71851a!important;box-shadow:inset -3px 0 0 var(--danger)}
 @media(max-width:760px){.chat-row{will-change:transform}.chat-row.swipe-archive-ready .row-name-text{color:#ffd7dc}}
+
+/* v7.5 interaction architecture: lock the messenger hierarchy across desktop and mobile. */
+.chat-shell{isolation:isolate}
+.sidebar,.main{min-height:0}
+.chat-head .title small{transition:color .15s ease}
+.chat-head .title small:empty{display:none}
+.messages .empty{user-select:none}
+.bubble{scroll-margin-block:80px}
+.bubble.mine .delivery-state{display:inline-block;min-width:15px;margin-left:3px;font-size:9px;font-weight:900;letter-spacing:-2px}
+.bubble.mine .delivery-state[aria-label="Read"]{color:#9de1ff}
+.bubble.mine .delivery-state[aria-label="Sent"]{color:#8ca5ba}
+.reaction-chip{transition:transform .12s ease,background .12s ease}.reaction-chip:hover{background:#2fa7ff1c;transform:translateY(-1px)}
+.search-result-row{min-height:58px}
+.search-result-row .avatar{width:40px;height:40px}
+.chat-row:focus-visible{z-index:2}
+.composer .icon-btn:disabled{opacity:.35}
+.composer .send{transition:transform .12s ease,filter .12s ease}.composer .send:not(:disabled):hover{filter:brightness(1.08)}
+.modal.page-modal .modal-head{position:sticky;top:-18px;z-index:4;padding-top:4px;background:var(--panel)}
+@media(min-width:761px){.chat-shell{grid-template-columns:minmax(340px,36vw) minmax(0,1fr)}.sidebar{box-shadow:1px 0 0 #0004}.main{position:relative}.messages{scrollbar-gutter:stable}}
+@media(max-width:760px){.chat-shell{grid-template-columns:1fr}.sidebar{border-right:0}.main{width:100%}.mobile-list-open .sidebar{box-shadow:none}.chat-head .title small{max-width:48vw}.bubble{scroll-margin-block:64px}.modal.page-modal .modal-head{top:-14px}.settings-nav{overscroll-behavior:contain}}
+@media(prefers-reduced-motion:reduce){.bubble,.chat-row,.reaction-chip,.composer .send{transition:none!important}}
