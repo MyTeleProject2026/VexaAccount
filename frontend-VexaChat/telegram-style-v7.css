@@ -130,3 +130,10 @@ button,input,textarea,select{min-height:var(--touch)}button.icon-btn,.composer .
 /* v7.6 interaction depth: live typing surface + familiar double-tap reaction affordance. */
 .typing-indicator{align-self:flex-start;display:flex;align-items:center;gap:4px;max-width:min(76%,420px);margin:2px 0 7px 8px;padding:7px 10px;border:1px solid var(--line);border-radius:13px;background:#0d1e30eF;color:#7891a7;font-size:10px;box-shadow:0 5px 16px #0003}.typing-indicator span{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.typing-indicator i{width:4px;height:4px;border-radius:50%;background:#70c9ff;animation:vexaTyping .9s infinite ease-in-out}.typing-indicator i:nth-of-type(2){animation-delay:.12s}.typing-indicator i:nth-of-type(3){animation-delay:.24s}.bubble{user-select:text}.bubble[data-message-id]{touch-action:pan-y}.bubble[data-message-id]:active{transform:scale(.997)}
 @media(max-width:760px){.typing-indicator{max-width:86%;margin-left:5px}.typing-indicator span{max-width:145px}}
+
+/* User conversation details */
+.detail-about{display:grid;gap:0;border:1px solid var(--line,#223047);border-radius:16px;overflow:hidden;background:rgba(255,255,255,.025)}
+.detail-about-row{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:12px 14px;border-bottom:1px solid var(--line,#223047)}
+.detail-about-row:last-child{border-bottom:0}
+.detail-about-row span{color:var(--muted,#8f9db1);font-size:12px}.detail-about-row b{font-size:13px;text-align:right;max-width:65%;overflow-wrap:anywhere}
+@media(max-width:760px){.detail-about-row{align-items:flex-start}.detail-about-row b{max-width:58%}}
