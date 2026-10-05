@@ -264,8 +264,8 @@ function chatQuickMenu(chat,x,y){
  contextMenu([
   ['💬','Open',()=>openChat(id)],
   ['📌',pinned?'Unpin':'Pin',async()=>{try{await api('/api/chat/conversations/'+id+'/settings',{method:'POST',body:JSON.stringify({pinned:!pinned})});await loadChats()}catch(e){notify(e.message)}}],
-  ['🔕',muted?'Unmute':'Mute',async()=>{try{await api('/api/chat/conversations/'+id+'/settings',{method:'POST',body:JSON.stringify({muted:!muted})});await loadChats()}catch(e){notify(e.message)}}],
-  ['📦',archived?'Unarchive':'Archive',async()=>{try{await api('/api/chat/conversations/'+id+'/settings',{method:'POST',body:JSON.stringify({archived:!archived})});await loadChats()}catch(e){notify(e.message)}}],
+  ['🔕',muted?'Unmute':'Mute',async()=>{try{await api('/api/chat/conversations/'+id+'/settings',{method:'POST',body:JSON.stringify({muted_until:muted?null:new Date(Date.now()+86400000).toISOString()})});await loadChats();notify(muted?'Notifications unmuted':'Notifications muted for 24 hours')}catch(e){notify(e.message)}}],
+  ['📦',archived?'Unarchive':'Archive',async()=>{try{await api('/api/chat/conversations/'+id+'/settings',{method:'POST',body:JSON.stringify({archived:!archived})});if(state.active?.id===id&&!archived){state.active=null;renderActive();showMobileList('chats')}await loadChats();notify(archived?'Conversation restored':'Conversation archived')}catch(e){notify(e.message)}}],
   '-',
   ['ⓘ','Details',async()=>{if(state.active?.id!==id)await openChat(id);conversationInfo()}]
  ],x,y);
