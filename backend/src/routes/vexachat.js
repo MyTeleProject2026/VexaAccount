@@ -198,6 +198,14 @@ router.post('/blocks',async(req,res,next)=>{try{
  await pool.query('INSERT IGNORE INTO vexachat_blocks(user_id,blocked_user_id) VALUES(?,?)',[userId,blocked]);res.json({success:true,blocked:true});
 }catch(e){next(e)}});
 
+router.get('/blocks/:userId/status',async(req,res,next)=>{try{
+ const userId=uid(req),other=Number(req.params.userId);
+ if(!other||other===userId)return res.status(400).json({success:false,message:'Invalid user'});
+ const [mine]=await pool.query('SELECT 1 FROM vexachat_blocks WHERE user_id=? AND blocked_user_id=? LIMIT 1',[userId,other]);
+ const [theirs]=await pool.query('SELECT 1 FROM vexachat_blocks WHERE user_id=? AND blocked_user_id=? LIMIT 1',[other,userId]);
+ res.json({success:true,blocked_by_me:!!mine.length,blocked_by_other:!!theirs.length,blocked:!!mine.length||!!theirs.length});
+}catch(e){next(e)}});
+
 router.delete('/blocks/:userId',async(req,res,next)=>{try{
  await pool.query('DELETE FROM vexachat_blocks WHERE user_id=? AND blocked_user_id=?',[uid(req),Number(req.params.userId)]);res.json({success:true,blocked:false});
 }catch(e){next(e)}});
