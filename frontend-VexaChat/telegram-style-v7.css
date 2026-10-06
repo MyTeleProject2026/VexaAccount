@@ -137,3 +137,9 @@ button,input,textarea,select{min-height:var(--touch)}button.icon-btn,.composer .
 .detail-about-row:last-child{border-bottom:0}
 .detail-about-row span{color:var(--muted,#8f9db1);font-size:12px}.detail-about-row b{font-size:13px;text-align:right;max-width:65%;overflow-wrap:anywhere}
 @media(max-width:760px){.detail-about-row{align-items:flex-start}.detail-about-row b{max-width:58%}}
+
+/* v7.7 page navigation: full-screen messenger pages keep a familiar back affordance. */
+.modal-head .modal-back-btn{display:none;width:40px;height:40px;margin-left:-4px;border-radius:11px;color:#9edbff;font-size:25px;line-height:1}
+.modal.page-modal .modal-head .modal-back-btn{display:grid}
+.modal.page-modal .modal-head{gap:5px}
+@media(max-width:760px){.modal.page-modal .modal-head{min-height:46px;margin:-5px -5px 10px;padding:3px 2px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:-14px}.modal.page-modal .modal-head h2{font-size:16px}.modal.page-modal .modal-head .modal-back-btn{width:42px;height:42px;font-size:27px}.modal.page-modal .modal-head #closeModal{margin-left:auto}}
