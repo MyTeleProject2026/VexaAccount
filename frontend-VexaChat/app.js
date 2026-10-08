@@ -408,7 +408,7 @@ function renderDashboard(){
    '<span class="empty-chat-hint">Your messages, media, contacts and calls stay inside VexaChat.</span>'+ 
  '</div>';
 }
-async function renderActive(){
+function renderActive(){
  renderChats();
  const c=state.active;
  const back=$('#back'),headName=$('#headName'),headStatus=$('#headStatus'),headAvatar=$('#headAvatar'),messageInput=$('#messageInput'),sendButton=$('.send'),voiceButton=$('#voice'),videoButton=$('#video'),infoButton=$('#info'),chatMenuButton=$('#chatMenu');
