@@ -392,33 +392,12 @@ async function openChat(id){saveChatDraft();clearTimeout(searchTimer);searchRequ
 function renderDashboard(){
  const el=$('#messages');
  if(!el)return;
- const me=state.me||{};
- const chats=(state.chats||[]).filter(c=>Number(c.archived)!==1);
- const unread=chats.reduce((n,c)=>n+(Number(c.unread_count)||0),0);
- const contacts=(state.contacts||[]).length;
- const calls=(state.calls||[]).length;
- const firstName=String(me.name||me.email||'there').trim().split(/\s+/)[0]||'there';
- const avatar=avatarMarkup(me,'dashboard-avatar');
- const recent=chats.slice().sort((a,b)=>Number(b.pinned)-Number(a.pinned)||new Date(b.last_message_at||b.updated_at||0)-new Date(a.last_message_at||a.updated_at||0)).slice(0,5);
- el.innerHTML='<div class="vexa-dashboard">'+
-   '<section class="dashboard-hero">'+avatar+'<div class="dashboard-hero-copy"><span class="dashboard-eyebrow">VexaChat</span><h1>Welcome back, '+esc(firstName)+'</h1><p>Your secure messaging dashboard is ready. Start a conversation, check your contacts, or review recent calls.</p></div></section>'+
-   '<section class="dashboard-actions" aria-label="Quick actions">'+
-     '<button class="dashboard-action primary" id="dashboardNewChat" type="button"><span>＋</span><b>New conversation</b><small>Message a VexaAccount user</small></button>'+
-     '<button class="dashboard-action" id="dashboardContacts" type="button"><span>♙</span><b>Contacts</b><small>Browse and manage contacts</small></button>'+
-     '<button class="dashboard-action" id="dashboardCalls" type="button"><span>☎</span><b>Calls</b><small>Voice and video history</small></button>'+
-   '</section>'+
-   '<section class="dashboard-stats" aria-label="VexaChat overview"><div><strong>'+esc(chats.length)+'</strong><span>Conversations</span></div><div><strong>'+esc(unread)+'</strong><span>Unread</span></div><div><strong>'+esc(contacts)+'</strong><span>Contacts</span></div><div><strong>'+esc(calls)+'</strong><span>Calls</span></div></section>'+
-   '<section class="dashboard-recent"><div class="dashboard-section-head"><div><h2>Recent conversations</h2><span>Pick up where you left off</span></div><button class="ghost" id="dashboardAllChats" type="button">View all</button></div>'+
-     (recent.length?'<div class="dashboard-chat-list">'+recent.map(c=>'<button class="dashboard-chat" data-dashboard-chat="'+esc(c.id)+'">'+avatarMarkup(c,'avatar')+'<span><b>'+esc(nameOf(c))+'</b><small>'+esc(c.last_message||'No messages yet')+'</small></span><time>'+esc(time(c.last_message_at||c.updated_at))+'</time></button>').join('')+'</div>':'<div class="dashboard-empty"><strong>No conversations yet</strong><span>Start your first secure VexaChat conversation.</span><button class="primary" id="dashboardEmptyNew" type="button">＋ Start a conversation</button></div>')+
-   '</section>'+
-   '<section class="dashboard-security"><span>✓</span><div><b>Secure VexaAccount session</b><small>Authentication completed inside VexaChat. Your session stays in the messenger.</small></div></section>'+
+ el.innerHTML='<div class="empty-chat-state" aria-label="Select a conversation">'+
+   '<div class="empty-chat-icon"><img src="./icon.svg" alt="VexaChat"></div>'+
+   '<h2>Select a chat</h2>'+
+   '<p>Choose a conversation from the list to start messaging.</p>'+
+   '<span class="empty-chat-hint">Your conversations, contacts and calls stay inside VexaChat.</span>'+
  '</div>';
- $('#dashboardNewChat')?.addEventListener('click',newChat);
- $('#dashboardEmptyNew')?.addEventListener('click',newChat);
- $('#dashboardContacts')?.addEventListener('click',()=>sideView('contacts'));
- $('#dashboardCalls')?.addEventListener('click',()=>sideView('calls'));
- $('#dashboardAllChats')?.addEventListener('click',()=>sideView('chats'));
- el.querySelectorAll('[data-dashboard-chat]').forEach(b=>b.addEventListener('click',()=>openChat(Number(b.dataset.dashboardChat))));
 }
 async function renderActive(){
  renderChats();
