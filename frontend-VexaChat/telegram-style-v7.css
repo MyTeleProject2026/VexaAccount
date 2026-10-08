@@ -555,3 +555,10 @@ button,input,textarea,select{max-width:100%}
   .list-filters{padding-left:8px;padding-right:8px;gap:4px}
   .list-filters .filter{min-height:34px;padding-inline:11px}
 }
+
+/* v8.16 VexaChat sidebar count badges */
+.list-filters .filter{white-space:nowrap}
+.list-filters .filter.active{font-variant-numeric:tabular-nums}
+.chat-row .row-meta{min-width:38px}
+.chat-row .badge{min-width:20px;height:20px;padding:0 6px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;font-size:9px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.chat-row .muted-badge{opacity:.78}
