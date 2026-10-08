@@ -619,6 +619,56 @@ async function signal(type,payload){if(state.callId)await api('/api/chat/calls/'
 function cleanupCallUi(){clearTimeout(state.incomingCallTimer);state.incomingCallTimer=null;state.localStream?.getTracks().forEach(t=>t.stop());state.localStream=null;state.pc?.close();state.pc=null;state.callId=null;state.callType=null;state.callStartedAt=null;state.incomingCallData=null;state.pendingCallSignals=[];$('#callWindow')?.remove();$('#modal')?.remove()}
 async function endCall(status='ended'){const id=state.callId;try{if(id){await api('/api/chat/calls/'+id,{method:'PATCH',body:JSON.stringify({status})});const signal_type=status==='declined'?'decline':'hangup';await api('/api/chat/calls/'+id+'/signal',{method:'POST',body:JSON.stringify({signal_type,payload:{}})})}}catch{}cleanupCallUi();loadCalls().catch(()=>{})}
 async function handleSignal(x){if(String(x.call_id)!==String(state.callId)||+x.sender_id===+state.me.id)return;if(['offer','answer','ice'].includes(x.signal_type)&&!state.pc){if(!state.pendingCallSignals.some(s=>String(s.id||'')===String(x.id||'')&&s.signal_type===x.signal_type)){state.pendingCallSignals.push(x)}return}const p=x.payload;if(x.signal_type==='offer'){if(!state.pc)await createPeer(false);await state.pc.setRemoteDescription(p);const a=await state.pc.createAnswer();await state.pc.setLocalDescription(a);await signal('answer',a)}else if(x.signal_type==='answer'&&state.pc)await state.pc.setRemoteDescription(p);else if(x.signal_type==='ice'&&state.pc)try{await state.pc.addIceCandidate(p)}catch{}else if(['hangup','decline'].includes(x.signal_type)){cleanupCallUi();loadCalls().catch(()=>{});notify(x.signal_type==='decline'?'Call declined':'Call ended')}}
+
+// VexaChat UI v8 interaction layer.
+// Keeps the existing API-backed messenger logic intact while adding a denser, familiar
+// Telegram-style navigation surface, mobile drawer behavior, keyboard shortcuts and
+// resilient focus handling. No Telegram source code or proprietary assets are used.
+const _vexaOriginalShell=shell;
+shell=function(){
+  _vexaOriginalShell();
+  const sidebar=document.querySelector('.sidebar');
+  const main=document.querySelector('.main');
+  const head=document.querySelector('.chat-head');
+  if(!sidebar||!main||!head)return;
+  if(!document.querySelector('#mobileMenu')){
+    const b=document.createElement('button');
+    b.id='mobileMenu'; b.className='icon-btn mobile-only menu-trigger';
+    b.type='button'; b.setAttribute('aria-label','Open navigation'); b.title='Navigation';
+    b.textContent='☰';
+    head.insertBefore(b,head.firstChild);
+    b.addEventListener('click',()=>document.body.classList.add('nav-drawer-open'));
+  }
+  if(!document.querySelector('#navScrim')){
+    const s=document.createElement('button');
+    s.id='navScrim'; s.className='nav-scrim'; s.type='button';
+    s.setAttribute('aria-label','Close navigation');
+    document.body.appendChild(s);
+    s.addEventListener('click',()=>document.body.classList.remove('nav-drawer-open'));
+  }
+  sidebar.addEventListener('click',e=>{
+    if(e.target.closest('.chat-row,.tab,.folder-tab,.filter,[data-view],[data-folder],[data-filter]'))
+      document.body.classList.remove('nav-drawer-open');
+  },{passive:true});
+  const search=document.querySelector('#search');
+  search?.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){search.value='';search.dispatchEvent(new Event('input',{bubbles:true}));search.blur()}
+  });
+  document.addEventListener('keydown',function vexaShortcuts(e){
+    if(e.defaultPrevented||e.target.matches('input,textarea,select,[contenteditable="true"]'))return;
+    if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();search?.focus()}
+    if(e.key==='Escape')document.body.classList.remove('nav-drawer-open');
+  });
+  let sx=0,sy=0;
+  main.addEventListener('touchstart',e=>{const t=e.touches[0];sx=t.clientX;sy=t.clientY},{passive:true});
+  main.addEventListener('touchend',e=>{
+    const t=e.changedTouches[0],dx=t.clientX-sx,dy=t.clientY-sy;
+    if(Math.abs(dx)>70&&Math.abs(dx)>Math.abs(dy)*1.35){
+      if(dx>0)showMobileList(state.lastListView||'chats');
+    }
+  },{passive:true});
+  document.documentElement.classList.add('vexachat-v8');
+};
 window.addEventListener('pagehide',markPresenceOffline,{capture:true});
 document.addEventListener('visibilitychange',()=>{
  if(document.visibilityState==='hidden')markPresenceOffline();
