@@ -143,3 +143,48 @@ button,input,textarea,select{min-height:var(--touch)}button.icon-btn,.composer .
 .modal.page-modal .modal-head .modal-back-btn{display:grid}
 .modal.page-modal .modal-head{gap:5px}
 @media(max-width:760px){.modal.page-modal .modal-head{min-height:46px;margin:-5px -5px 10px;padding:3px 2px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:-14px}.modal.page-modal .modal-head h2{font-size:16px}.modal.page-modal .modal-head .modal-back-btn{width:42px;height:42px;font-size:27px}.modal.page-modal .modal-head #closeModal{margin-left:auto}}
+
+/* VexaChat UI v8: messenger interaction polish and mobile navigation drawer. */
+:root{--sidebar-width:clamp(320px,35vw,460px);--header-height:64px}
+.chat-shell{grid-template-columns:var(--sidebar-width) minmax(0,1fr)}
+.sidebar{box-shadow:8px 0 30px rgba(0,0,0,.12)}
+.side-head{height:var(--header-height)}
+.chat-row{position:relative}
+.chat-row.active:before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:var(--accent)}
+.search:focus-within{border-color:#2fa7ff66;box-shadow:0 0 0 3px #2fa7ff0d}
+.chat-head{min-width:0}
+.head-actions .icon-btn{transition:background .15s ease,color .15s ease,transform .15s ease}
+.head-actions .icon-btn:hover{background:#ffffff12}
+.messages{overscroll-behavior:contain;scrollbar-gutter:stable}
+.bubble{transition:transform .12s ease,background .15s ease}
+.bubble:hover{background:#122a40!important}
+.bubble.mine:hover{background:linear-gradient(145deg,#17658f,#285987)!important}
+.composer textarea:focus{border-color:#2fa7ff66!important;box-shadow:0 0 0 3px #2fa7ff0d}
+.icon-btn:focus-visible,.primary:focus-visible,.secondary:focus-visible,.danger:focus-visible,.ghost:focus-visible,
+.tab:focus-visible,.folder-tab:focus-visible,.filter:focus-visible,.chat-row:focus-visible{
+ outline:2px solid #70c9ff;outline-offset:2px
+}
+.nav-scrim{display:none;position:fixed;inset:0;border:0;background:#0009;z-index:25}
+.menu-trigger{display:none}
+@media(max-width:760px){
+  .chat-shell{display:block}
+  .sidebar{position:fixed;left:0;top:0;bottom:0;width:min(88vw,390px);transform:translateX(-105%);
+    transition:transform .22s ease;z-index:30;box-shadow:18px 0 60px #0009}
+  .main{position:fixed;inset:0;transform:translateX(0);transition:none;z-index:20}
+  .mobile-list-open .main{transform:translateX(100%)}
+  .nav-drawer-open .sidebar{transform:translateX(0)}
+  .nav-drawer-open .nav-scrim{display:block}
+  .menu-trigger{display:grid}
+  .chat-head{padding-left:7px}
+  .chat-head .head-actions{gap:2px}
+  .chat-head .head-actions .icon-btn{width:34px;height:34px}
+  .messages{padding-left:9px;padding-right:9px}
+  .bubble{max-width:86%}
+  .composer{padding-top:7px}
+}
+@media(min-width:761px){
+  .sidebar{width:var(--sidebar-width)}
+}
+@media(prefers-reduced-motion:reduce){
+  .sidebar,.bubble,.head-actions .icon-btn{transition:none!important}
+}
