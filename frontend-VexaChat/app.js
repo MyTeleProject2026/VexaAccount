@@ -153,8 +153,35 @@ function activeChatMenu(){
   ['⌕','Search messages',()=>messageSearch()]
  ],Math.max(8,innerWidth-250),64);
 }
+function syncMobileViewport(){
+ const vv=window.visualViewport;
+ const root=document.documentElement;
+ const h=vv?.height||window.innerHeight;
+ const top=vv?.offsetTop||0;
+ root.style.setProperty('--vexa-viewport-height',Math.round(h)+'px');
+ root.style.setProperty('--vexa-viewport-top',Math.round(top)+'px');
+ const input=document.querySelector('#messageInput');
+ const keyboardOpen=!!(vv&&window.innerHeight-vv.height>120&&document.activeElement===input);
+ document.body.classList.toggle('vexa-keyboard-open',keyboardOpen);
+ if(keyboardOpen){
+  requestAnimationFrame(()=>{
+   const main=document.querySelector('.main');
+   if(main)main.scrollTop=0;
+  });
+ }
+}
+function bindMobileKeyboardViewport(){
+ syncMobileViewport();
+ const vv=window.visualViewport;
+ vv?.addEventListener('resize',syncMobileViewport,{passive:true});
+ vv?.addEventListener('scroll',syncMobileViewport,{passive:true});
+ window.addEventListener('resize',syncMobileViewport,{passive:true});
+ document.addEventListener('focusin',e=>{if(e.target?.id==='messageInput')setTimeout(syncMobileViewport,50)},{passive:true});
+ document.addEventListener('focusout',e=>{if(e.target?.id==='messageInput')setTimeout(syncMobileViewport,120)},{passive:true});
+}
 function bindTelegramInteractions(){
  bindVoiceRecorder();
+ bindMobileKeyboardViewport();
  const chatMenu=$('#chatMenu');if(chatMenu&&!chatMenu.dataset.bound){chatMenu.dataset.bound='1';chatMenu.addEventListener('click',activeChatMenu)}
  // Telegram/WhatsApp-style mobile navigation: swipe from the left edge or tap the chat identity to return/open details.
  const main=$('.main'), chatHead=$('.chat-head');
