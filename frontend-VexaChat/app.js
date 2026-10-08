@@ -759,6 +759,39 @@ shell=function(){
     document.body.appendChild(s);
     s.addEventListener('click',()=>document.body.classList.remove('nav-drawer-open'));
   }
+function installVexaNavigation(){
+  if(document.querySelector('#vexaNavDrawer'))return;
+  const drawer=document.createElement('aside');
+  drawer.id='vexaNavDrawer';
+  drawer.className='vexa-nav-drawer';
+  drawer.setAttribute('aria-label','VexaChat navigation');
+  drawer.innerHTML='<div class="nav-drawer-head"><div class="avatar nav-drawer-avatar"><img src="./icon.svg" alt="VexaChat"></div><div><strong>VexaChat</strong><small>VexaAccount messenger</small></div><button type="button" class="icon-btn" data-nav-close aria-label="Close menu">×</button></div>'+
+    '<div class="nav-drawer-user"><div class="avatar">'+avatarMarkup(state.me||{},'avatar')+'</div><div><strong>'+esc(state.me?.name||state.me?.email||'Account')+'</strong><small>'+esc(state.me?.email||'Connected account')+'</small></div></div>'+
+    '<nav class="nav-drawer-list">'+
+      '<button type="button" data-nav="chats">⌂<span>Chats</span></button>'+
+      '<button type="button" data-nav="contacts">♙<span>Contacts</span></button>'+
+      '<button type="button" data-nav="calls">☎<span>Calls</span></button>'+
+      '<button type="button" data-nav="new">＋<span>New conversation</span></button>'+
+      '<button type="button" data-nav="profile">●<span>Profile</span></button>'+
+      '<button type="button" data-nav="settings">⚙<span>Settings</span></button>'+
+      '<button type="button" data-nav="folders">▤<span>Chat folders</span></button>'+
+    '</nav>'+
+    '<div class="nav-drawer-foot"><small>Secure VexaAccount session</small></div>';
+  document.body.appendChild(drawer);
+  const close=()=>document.body.classList.remove('nav-drawer-open');
+  drawer.querySelector('[data-nav-close]')?.addEventListener('click',close);
+  drawer.querySelectorAll('[data-nav]').forEach(b=>b.addEventListener('click',()=>{
+    const v=b.dataset.nav;
+    close();
+    if(v==='new'){newChat();return}
+    if(v==='profile'){profile();return}
+    if(v==='settings'){window.VexaChatSettings?.open({state,api,modal,profile,accountSecurity,logout,notify,initials,esc});return}
+    if(v==='contacts'||v==='calls'){openAppSurface(v);return}
+    if(v==='folders'){modal('Chat folders','<div class="hint">Chat folders are managed from your VexaChat settings.</div>');return}
+    state.active=null;
+    showMobileList('chats');
+  }));
+}
   installVexaNavigation();
   sidebar.addEventListener('click',e=>{
     if(e.target.closest('.chat-row,.tab,.folder-tab,.filter,[data-view],[data-folder],[data-filter]'))
