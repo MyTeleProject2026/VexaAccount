@@ -389,51 +389,65 @@ async function contactDetails(userId){const c=state.contacts.find(x=>Number(x.us
 async function editContactName(c){contactNameModal('Edit contact name',c.name||'',async nickname=>{try{await api('/api/chat/contacts/'+Number(c.user_id),{method:'PATCH',body:JSON.stringify({nickname})});await loadContacts();$('#modal')?.remove();renderContacts();notify('Contact updated')}catch(e){notify(e.message)}})}
 async function removeContact(c){modal('Remove contact','<div class="confirm-card"><div class="confirm-icon">×</div><strong>Remove '+esc(c.name||'this contact')+'?</strong><p>This removes the contact relationship. Your existing conversation is kept.</p><div class="modal-actions"><button class="secondary" id="removeCancel">Cancel</button><button class="danger" id="removeConfirm">Remove contact</button></div></div>');$('#removeCancel').onclick=()=>$('#modal')?.remove();$('#removeConfirm').onclick=async()=>{try{await api('/api/chat/contacts/'+Number(c.user_id),{method:'DELETE'});await loadContacts();$('#modal')?.remove();renderContacts();notify('Contact removed')}catch(e){notify(e.message)}}}
 async function openChat(id){saveChatDraft();clearTimeout(searchTimer);searchRequest++;state.query='';if($('#search'))$('#search').value='';showMobileChat();state.active=state.chats.find(x=>Number(x.id)===Number(id))||{id:Number(id),conversation_type:'direct',name:'Conversation'};state.groupRole=null;restoreChatDraft();try{const details=await api('/api/chat/conversations/'+Number(id)+'/details');if(!state.active||Number(state.active.id)!==Number(id))return;const other=details.members?.find(x=>Number(x.user_id)!==Number(state.me?.id));if(other&&state.active.conversation_type==='direct'){state.active=Object.assign({},state.active,{name:other.name||other.email||'Conversation',email:other.email||'',avatar_url:other.avatar_url||other.picture||'',online:other.status==='online',presence:other.status||'offline'});const bs=await api('/api/chat/blocks/'+Number(other.user_id)+'/status');if(state.active&&Number(state.active.id)===Number(id)){state.active.blocked=!!bs.blocked;state.active.blocked_by_me=!!bs.blocked_by_me;state.active.blocked_by_other=!!bs.blocked_by_other}}else if(details.title){state.active=Object.assign({},state.active,{name:details.title,conversation_type:details.conversation_type||state.active.conversation_type});}}catch{}state.messages=[];state.reactions={};state.hasMoreMessages=true;state.loadingOlderMessages=false;renderActive();try{if(state.active?.conversation_type==='group'){try{const details=await api('/api/chat/conversations/'+id+'/details');if(Number(state.active?.id)!==Number(id))return;state.groupRole=details.members.find(x=>Number(x.user_id)===Number(state.me?.id))?.role||null}catch{state.groupRole=null}}const d=await api('/api/chat/conversations/'+id+'/messages?limit=100');if(!state.active||Number(state.active.id)!==Number(id))return;state.messages=d.messages||[];state.hasMoreMessages=state.messages.length>=100;const visible=state.messages.slice(-100);await Promise.all(visible.map(async m=>{try{state.reactions[m.id]=(await api('/api/chat/conversations/'+id+'/messages/'+m.id+'/reactions')).reactions||[]}catch{state.reactions[m.id]=[]}}));if(!state.active||Number(state.active.id)!==Number(id))return;renderMessages();if(state.messages.length){await markRead(state.messages.at(-1).id);await loadChats()}}catch(e){if(Number(state.active?.id)===Number(id))notify(e.message)}}
+function renderDashboard(){
+ const el=$('#messages');
+ if(!el)return;
+ const me=state.me||{};
+ const chats=(state.chats||[]).filter(c=>Number(c.archived)!==1);
+ const unread=chats.reduce((n,c)=>n+(Number(c.unread_count)||0),0);
+ const contacts=(state.contacts||[]).length;
+ const calls=(state.calls||[]).length;
+ const firstName=String(me.name||me.email||'there').trim().split(/\\s+/)[0]||'there';
+ const avatar=avatarMarkup(me,'dashboard-avatar');
+ const recent=chats.slice().sort((a,b)=>Number(b.pinned)-Number(a.pinned)||new Date(b.last_message_at||b.updated_at||0)-new Date(a.last_message_at||a.updated_at||0)).slice(0,5);
+ el.innerHTML='<div class="vexa-dashboard">'+
+   '<section class="dashboard-hero">'+avatar+'<div class="dashboard-hero-copy"><span class="dashboard-eyebrow">VexaChat</span><h1>Welcome back, '+esc(firstName)+'</h1><p>Your secure messaging dashboard is ready. Start a conversation, check your contacts, or review recent calls.</p></div></section>'+
+   '<section class="dashboard-actions" aria-label="Quick actions">'+
+     '<button class="dashboard-action primary" id="dashboardNewChat" type="button"><span>＋</span><b>New conversation</b><small>Message a VexaAccount user</small></button>'+\
+     '<button class="dashboard-action" id="dashboardContacts" type="button"><span>♙</span><b>Contacts</b><small>Browse and manage contacts</small></button>'+\
+     '<button class="dashboard-action" id="dashboardCalls" type="button"><span>☎</span><b>Calls</b><small>Voice and video history</small></button>'+\
+   '</section>'+\
+   '<section class="dashboard-stats" aria-label="VexaChat overview"><div><strong>'+esc(chats.length)+'</strong><span>Conversations</span></div><div><strong>'+esc(unread)+'</strong><span>Unread</span></div><div><strong>'+esc(contacts)+'</strong><span>Contacts</span></div><div><strong>'+esc(calls)+'</strong><span>Calls</span></div></section>'+\
+   '<section class="dashboard-recent"><div class="dashboard-section-head"><div><h2>Recent conversations</h2><span>Pick up where you left off</span></div><button class="ghost" id="dashboardAllChats" type="button">View all</button></div>'+\
+     (recent.length?'<div class="dashboard-chat-list">'+recent.map(c=>'<button class="dashboard-chat" data-dashboard-chat="'+esc(c.id)+'">'+avatarMarkup(c,'avatar')+'<span><b>'+esc(nameOf(c))+'</b><small>'+esc(c.last_message||'No messages yet')+'</small></span><time>'+esc(time(c.last_message_at||c.updated_at))+'</time></button>').join('')+'</div>':'<div class="dashboard-empty"><strong>No conversations yet</strong><span>Start your first secure VexaChat conversation.</span><button class="primary" id="dashboardEmptyNew" type="button">＋ Start a conversation</button></div>')+\
+   '</section>'+\
+   '<section class="dashboard-security"><span>✓</span><div><b>Secure VexaAccount session</b><small>Authentication completed inside VexaChat. Your session stays in the messenger.</small></div></section>'+\
+ '</div>';
+ $('#dashboardNewChat')?.addEventListener('click',newChat);
+ $('#dashboardEmptyNew')?.addEventListener('click',newChat);
+ $('#dashboardContacts')?.addEventListener('click',()=>sideView('contacts'));
+ $('#dashboardCalls')?.addEventListener('click',()=>sideView('calls'));
+ $('#dashboardAllChats')?.addEventListener('click',()=>sideView('chats'));
+ el.querySelectorAll('[data-dashboard-chat]').forEach(b=>b.addEventListener('click',()=>openChat(Number(b.dataset.dashboardChat))));
+}
 async function renderActive(){
  renderChats();
  const c=state.active;
  $('#back').style.display=c?'block':'none';
  $('#headName').textContent=c?nameOf(c):'VexaChat';
+ if(!c){
+  $('#headStatus').textContent='Connected · ready to message';
+  $('#headAvatar').outerHTML='<div class="avatar head-avatar"><img src="./icon.svg" alt="VexaChat"></div>';
+  $('#messageInput').disabled=true; $('.send').disabled=true; $('#voice').disabled=true; $('#video').disabled=true; $('#info').disabled=true; $('#chatMenu').disabled=true;
+  const banner=$('#conversationBanner'); if(banner){banner.hidden=true;banner.innerHTML=''}
+  renderDashboard();
+  return;
+ }
  const online=c?.online||c?.presence==='online'||c?.status==='online';
  const lastSeen=c?.last_seen||c?.lastSeen;
- const typingCount=c?Object.keys(state.typingUsers||{}).length:0;
- $('#headStatus').textContent=c?(typingCount?'typing…':(online?'online':lastSeen?'last seen '+time(lastSeen):c.conversation_type==='group'?'Group chat':'Secure conversation')):'Choose a conversation';
- $('#headAvatar').outerHTML=c?avatarMarkup(c,'avatar head-avatar'):'<div class="avatar head-avatar"><img src="./icon.svg" alt="VexaChat"></div>';
+ const typingCount=Object.keys(state.typingUsers||{}).length;
+ $('#headStatus').textContent=typingCount?'typing…':(online?'online':lastSeen?'last seen '+time(lastSeen):c.conversation_type==='group'?'Group chat':'Secure conversation');
+ $('#headAvatar').outerHTML=avatarMarkup(c,'avatar head-avatar');
  const blocked=!!c?.blocked;
- $('#messageInput').disabled=!c||blocked;
- $('.send').disabled=!c||blocked;
- $('#voice').disabled=!c||blocked;
- $('#video').disabled=!c||blocked;
- $('#info').disabled=!c;
- $('#chatMenu').disabled=!c;
+ $('#messageInput').disabled=blocked; $('.send').disabled=blocked; $('#voice').disabled=blocked; $('#video').disabled=blocked; $('#info').disabled=false; $('#chatMenu').disabled=false;
  const banner=$('#conversationBanner');
  if(banner){
-  if(!c){
-   banner.hidden=true;
-   banner.innerHTML='';
-  }else{
-   const muted=isChatMuted(c),pinned=Number(c.pinned)===1,archived=Number(c.archived)===1;
-   const flags=[];
-   if(blocked)flags.push('<span>🚫 '+(c.blocked_by_me?'You blocked this contact':'Messaging blocked')+'</span>');
-   if(pinned)flags.push('<span>📌 Pinned</span>');
-   if(muted)flags.push('<span>🔕 Notifications muted</span>');
-   if(archived)flags.push('<span>📦 Archived</span>');
-   banner.hidden=!flags.length;
-   banner.innerHTML=flags.length?'<div class="conversation-banner-copy">'+flags.join('')+'</div><div class="conversation-banner-actions">'+(blocked&&c.blocked_by_me?'<button type="button" data-banner-action="unblock">Unblock</button>':'')+(muted?'<button type="button" data-banner-action="mute">Unmute</button>':'<button type="button" data-banner-action="mute">Mute</button>')+(archived?'<button type="button" data-banner-action="archive">Restore</button>':'<button type="button" data-banner-action="archive">Archive</button>')+'</div>':'';
-   banner.querySelectorAll('[data-banner-action]').forEach(b=>b.onclick=async()=>{
-    const action=b.dataset.bannerAction;
-    try{
-     if(action==='unblock'){const d=await api('/api/chat/conversations/'+Number(c.id)+'/details');const other=d.members.find(x=>Number(x.user_id)!==Number(state.me.id));if(other)await api('/api/chat/blocks/'+Number(other.user_id),{method:'DELETE'});c.blocked=false;c.blocked_by_me=false;c.blocked_by_other=false;await loadChats();renderActive();notify('Contact unblocked');return}
-     if(action==='mute')await api('/api/chat/conversations/'+Number(c.id)+'/settings',{method:'POST',body:JSON.stringify({muted_until:muted?null:new Date(Date.now()+86400000).toISOString()})});
-     if(action==='archive')await api('/api/chat/conversations/'+Number(c.id)+'/settings',{method:'POST',body:JSON.stringify({archived:!archived})});
-     await loadChats();
-     if(action==='archive'&&!archived){state.active=null;renderActive();showMobileList('chats')}else renderActive();
-     notify(action==='mute'?(muted?'Notifications unmuted':'Notifications muted for 24 hours'):(archived?'Conversation restored':'Conversation archived'));
-    }catch(e){notify(e.message)}
-   });
-  }
+  const muted=isChatMuted(c),pinned=Number(c.pinned)===1,archived=Number(c.archived)===1,flags=[];
+  if(blocked)flags.push('<span>🚫 '+(c.blocked_by_me?'You blocked this contact':'Messaging blocked')+'</span>'); if(pinned)flags.push('<span>📌 Pinned</span>'); if(muted)flags.push('<span>🔕 Notifications muted</span>'); if(archived)flags.push('<span>📦 Archived</span>');
+  banner.hidden=!flags.length;
+  banner.innerHTML=flags.length?'<div class="conversation-banner-copy">'+flags.join('')+'</div><div class="conversation-banner-actions">'+(blocked&&c.blocked_by_me?'<button type="button" data-banner-action="unblock">Unblock</button>':'')+(muted?'<button type="button" data-banner-action="mute">Unmute</button>':'<button type="button" data-banner-action="mute">Mute</button>')+(archived?'<button type="button" data-banner-action="archive">Restore</button>':'<button type="button" data-banner-action="archive">Archive</button>')+'</div>':'';
+  banner.querySelectorAll('[data-banner-action]').forEach(b=>b.onclick=async()=>{const action=b.dataset.bannerAction;try{if(action==='unblock'){const d=await api('/api/chat/conversations/'+Number(c.id)+'/details');const other=d.members.find(x=>Number(x.user_id)!==Number(state.me.id));if(other)await api('/api/chat/blocks/'+Number(other.user_id),{method:'DELETE'});c.blocked=false;c.blocked_by_me=false;c.blocked_by_other=false;await loadChats();renderActive();notify('Contact unblocked');return}if(action==='mute')await api('/api/chat/conversations/'+Number(c.id)+'/settings',{method:'POST',body:JSON.stringify({muted_until:muted?null:new Date(Date.now()+86400000).toISOString()})});if(action==='archive')await api('/api/chat/conversations/'+Number(c.id)+'/settings',{method:'POST',body:JSON.stringify({archived:!archived})});await loadChats();if(action==='archive'&&!archived){state.active=null;renderActive();showMobileList('chats')}else renderActive();notify(action==='mute'?(muted?'Notifications unmuted':'Notifications muted for 24 hours'):(archived?'Conversation restored':'Conversation archived'))}catch(e){notify(e.message)}});
  }
- if(!c)$('#messages').innerHTML='<div class="empty"><strong>VexaChat</strong><span>Choose a conversation to start messaging.</span></div>';
 }
 function clearMessageSelection(){state.selectedMessages.clear();state.selectionMode=false;document.querySelector('.message-selection-bar')?.remove();renderMessages()}
 function updateMessageSelectionBar(){let bar=document.querySelector('.message-selection-bar');if(!state.selectionMode){bar?.remove();return}if(!bar){bar=document.createElement('div');bar.className='message-selection-bar';bar.innerHTML='<button class="icon-btn" id="cancelMessageSelection" aria-label="Cancel selection">×</button><strong id="selectionCount">0 selected</strong><button class="secondary" id="copySelected">Copy</button><button class="secondary" id="deleteSelected">Delete</button>';document.querySelector('.main')?.prepend(bar);bar.querySelector('#cancelMessageSelection').onclick=clearMessageSelection;bar.querySelector('#copySelected').onclick=async()=>{const rows=state.messages.filter(m=>state.selectedMessages.has(Number(m.id))&&!m.deleted_at);const text=rows.map(m=>m.body||'').filter(Boolean).join('\n');try{await navigator.clipboard.writeText(text);notify(rows.length+' message'+(rows.length===1?'':'s')+' copied')}catch{notify('Copy unavailable')}};bar.querySelector('#deleteSelected').onclick=async()=>{const rows=state.messages.filter(m=>state.selectedMessages.has(Number(m.id))&&!m.deleted_at&&Number(m.sender_id)===Number(state.me?.id));if(!rows.length)return notify('Only your messages can be deleted in bulk');if(!confirm('Delete '+rows.length+' selected message'+(rows.length===1?'':'s')+'?'))return;for(const m of rows){try{await api('/api/chat/conversations/'+state.active.id+'/messages/'+m.id,{method:'DELETE'});m.body='Message deleted';m.deleted_at=new Date().toISOString()}catch{}}clearMessageSelection()}}const count=bar.querySelector('#selectionCount');if(count)count.textContent=state.selectedMessages.size+' selected'}
