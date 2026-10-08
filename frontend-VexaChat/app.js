@@ -158,6 +158,8 @@ function bindTelegramInteractions(){
  const chatMenu=$('#chatMenu');if(chatMenu&&!chatMenu.dataset.bound){chatMenu.dataset.bound='1';chatMenu.addEventListener('click',activeChatMenu)}
  // Telegram/WhatsApp-style mobile navigation: swipe from the left edge or tap the chat identity to return/open details.
  const main=$('.main'), chatHead=$('.chat-head');
+ const syncChatMenu=()=>{const b=$('#chatMenu');if(b)b.disabled=!state.active};
+ syncChatMenu();
  let navTouchX=0, navTouchY=0;
  main?.addEventListener('touchstart',e=>{
   const t=e.touches?.[0]; if(!t)return;
@@ -177,6 +179,13 @@ function bindTelegramInteractions(){
 
  const list=$('#chatList'), input=$('#messageInput'), messages=$('#messages');
  if(!list||!input||!messages)return;
+ // Long-press a conversation to expose its existing action sheet, matching mobile messenger behavior.
+ let pressTimer=null;
+ list.addEventListener('touchstart',e=>{
+  const row=e.target.closest('.chat-row'); if(!row)return;
+  pressTimer=setTimeout(()=>{pressTimer=null;row.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))},520);
+ },{passive:true});
+ ['touchend','touchmove','touchcancel'].forEach(type=>list.addEventListener(type,()=>{if(pressTimer){clearTimeout(pressTimer);pressTimer=null}},{passive:true}));
  // Desktop context-click and mobile long-press are handled by the unified handlers below.
  // Mobile messenger gesture: swipe a conversation left to archive it.
  let rowSwipe=null,rowSwipeStartX=0,rowSwipeStartY=0,rowSwipeMoved=false;
