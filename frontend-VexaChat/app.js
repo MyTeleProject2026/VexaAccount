@@ -745,6 +745,7 @@ async function handleSignal(x){if(String(x.call_id)!==String(state.callId)||+x.s
 // resilient focus handling. No Telegram source code or proprietary assets are used.
 const _vexaOriginalShell=shell;
 shell=function(){
+  try{
   _vexaOriginalShell();
   const sidebar=document.querySelector('.sidebar');
   const main=document.querySelector('.main');
@@ -835,6 +836,10 @@ function installVexaNavigation(){
     }
   },{passive:true});
   document.documentElement.classList.add('vexachat-v8');
+  }catch(interactionError){
+    console.error('[VexaChat navigation layer]',interactionError);
+    document.body?.classList.add('vexachat-navigation-degraded');
+  }
 };
 window.addEventListener('pagehide',markPresenceOffline,{capture:true});
 document.addEventListener('visibilitychange',()=>{
