@@ -568,3 +568,5 @@ button,input,textarea,select{max-width:100%}
 .chat-row:focus-visible{outline:2px solid #2fa7ff;outline-offset:-2px}
 .chat-row.has-unread .row-name-text{font-weight:800}
 .chat-row.active{background:#12314a}
+
+.empty-chat-actions{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:18px 0 6px}.empty-chat-actions button{min-height:42px;padding:0 16px;border-radius:12px;font-weight:800;cursor:pointer}@media(max-width:760px){.empty-chat-actions{display:grid;grid-template-columns:1fr;max-width:300px;margin-inline:auto}.empty-chat-actions button{width:100%;min-height:46px}}
