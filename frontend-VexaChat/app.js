@@ -349,7 +349,7 @@ async function boot(){
  }catch(e){
   console.error('[VexaChat boot]',e?.stack||e);
   const message=e?.name==='AbortError'?'Connection timed out.':'Unable to start VexaChat.';
-  const detail=String(e?.message||message);
+  const detail=String(e?.message||message);const trace=e?.stack?String(e.stack).split('\n').slice(0,4).join(' · '):'';
   connectionStatus(message+' Tap to retry');
   const el=$('#connectionStatus');
   if(el){el.style.cursor='pointer';el.title='Retry VexaChat';el.removeAttribute('data-retry-bound');if(!el.dataset.retryBound){el.dataset.retryBound='1';el.addEventListener('click',boot)}}
@@ -357,7 +357,7 @@ async function boot(){
   if(app){
    let d=app.querySelector('.boot-error');
    if(!d){d=document.createElement('div');d.className='boot-error';d.setAttribute('role','alert');app.appendChild(d)}
-   d.innerHTML='<strong>VexaChat could not start</strong><span>'+esc(detail)+'</span><button type="button" class="primary" id="bootRetryAction">Retry</button>';
+   d.innerHTML='<strong>VexaChat could not start</strong><span>'+esc(detail)+'</span>'+(trace?'<small class="boot-error-trace">'+esc(trace)+'</small>':'')+'<button type="button" class="primary" id="bootRetryAction">Retry</button>';
    d.querySelector('#bootRetryAction')?.addEventListener('click',()=>{d.remove();boot()},{once:true});
   }
  }
