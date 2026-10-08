@@ -70,7 +70,7 @@ async function handleAuthSubmit(e){
   }
  }catch(err){if(mode==='login'&&Number(err.status)===403&&/verif/i.test(String(err.message||''))){authCard('verify','Your email is not verified yet. Enter the verification code, or resend it below.');return}authCard(mode,err.message||'Authentication failed. Please try again.')}
 }
-function finishAuth(d){if(d?.token)localStorage.setItem('vexaaccount_access_token',d.token);if(d?.user)state.me=d.user;AUTH_STATE.userId=d?.user?.id||AUTH_STATE.userId;shell();connectionStatus('Connected');Promise.allSettled([loadChats(),loadContacts(),loadCalls(),loadNotifications(),setPresence('online')]).then(()=>connectEvents())}
+function finishAuth(d){if(d?.token)localStorage.setItem('vexaaccount_access_token',d.token);if(d?.user)state.me=d.user;AUTH_STATE.userId=d?.user?.id||AUTH_STATE.userId;shell();connectionStatus('Connected');Promise.allSettled([loadChats(),loadContacts(),loadCalls(),loadNotifications(),setPresence('online')]).then(()=>{state.active=null;renderActive();connectEvents()})}
 async function resendVerification(){
  try{const endpoint=AUTH_STATE.method==='email'&&AUTH_STATE.userId?'/api/auth/resend-email-2fa':'/api/auth/resend-otp';const body=AUTH_STATE.method==='email'&&AUTH_STATE.userId?{userId:AUTH_STATE.userId,email:AUTH_STATE.email}:{email:AUTH_STATE.email};const d=await api(endpoint,{method:'POST',body:JSON.stringify(body)});notify(d.message||'Verification code sent');}
  catch(e){notify(e.message)}
@@ -334,7 +334,7 @@ async function boot(){
   }finally{clearTimeout(watchdog)}
   state.me=data.user; connectionStatus('Connected');
   await Promise.allSettled([loadChats(),loadContacts(),loadCalls(),loadNotifications(),setPresence('online')]);
-  renderChats(); if(state.active)renderActive(); connectEvents();
+  state.active=null; renderActive(); connectEvents();
  }catch(e){
   console.error('[VexaChat boot]',e);
   const message=e?.name==='AbortError'?'Connection timed out.':'Unable to start VexaChat.';
