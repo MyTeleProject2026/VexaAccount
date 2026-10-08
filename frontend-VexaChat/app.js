@@ -290,7 +290,32 @@ function messageQuickMenu(m,x,y){
 }
 async function forwardMessage(m){if(!m||m.deleted_at||!String(m.body||'').trim())return notify('Only non-deleted text messages can be forwarded');const chats=state.chats.filter(c=>Number(c.id)!==Number(state.active?.id));if(!chats.length)return notify('No other conversations available');modal('Forward message','<div class="forward-preview"><small>Forwarding</small><div>'+esc(m.body)+'</div></div><div class="result-list" id="forwardTargets">'+chats.map(c=>'<button class="result" data-forward="'+c.id+'">'+avatarMarkup(c,'avatar')+'<span>'+esc(nameOf(c))+'<small>'+esc(c.conversation_type==='group'?'Group':'Private chat')+'</small></span></button>').join('')+'</div>');document.querySelectorAll('[data-forward]').forEach(b=>b.onclick=async()=>{try{b.disabled=true;await api('/api/chat/conversations/'+Number(b.dataset.forward)+'/messages',{method:'POST',body:JSON.stringify({body:String(m.body),message_type:'text',client_message_id:crypto.randomUUID(),metadata:{forwarded:true,forwarded_from_message_id:Number(m.id),forwarded_from_conversation_id:Number(m.conversation_id)}})});$('#modal')?.remove();await loadChats();notify('Message forwarded')}catch(e){b.disabled=false;notify(e.message)}})}const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function connectionStatus(message){const el=$('#connectionStatus');if(el)el.textContent=message}
-async function boot(){if(!token()&&resetTokenFromUrl()){authCard('reset');return}if(!token()){authGate();return}shell();connectionStatus('Connecting…');if('Notification' in window&&Notification.permission==='default')Notification.requestPermission().catch(()=>{});let delay=1500;for(let attempt=1;attempt<=8;attempt++){try{state.me=(await api('/api/chat/me')).user;connectionStatus('Connected');await Promise.allSettled([loadChats(),loadContacts(),loadCalls(),loadNotifications(),setPresence('online')]);connectEvents();return}catch(e){if(e.message==='Sign-in required')return;connectionStatus('Connecting… ('+attempt+'/8)');if(attempt===8){connectionStatus('Service unavailable · Tap to retry');const el=$('#connectionStatus');if(el){el.style.cursor='pointer';el.title='Retry connection';el.onclick=()=>{el.onclick=null;boot()}}return}await sleep(delay);delay=Math.min(Math.round(delay*1.65),25000)}}}
+async function boot(){
+ try{
+  if(!token()&&resetTokenFromUrl()){authCard('reset');return}
+  if(!token()){authGate();return}
+  shell(); connectionStatus('Connecting…');
+  const controller=new AbortController(); const watchdog=setTimeout(()=>controller.abort(),12000);
+  let data;
+  try{
+   const h=new Headers({'Content-Type':'application/json'}); const t=token(); if(t)h.set('Authorization','Bearer '+t);
+   const x=csrf(); if(x)h.set('X-XSRF-TOKEN',decodeURIComponent(x));
+   const res=await fetch(API+'/api/chat/me',{headers:h,credentials:'include',signal:controller.signal});
+   data=await res.json().catch(()=>({}));
+   if(res.status===401){localStorage.removeItem('vexaaccount_access_token');sessionStorage.removeItem('vexaaccount_access_token');authGate(data.message||'Please sign in again.');return}
+   if(!res.ok||data.success===false)throw Error(data.message||('Server returned '+res.status));
+  }finally{clearTimeout(watchdog)}
+  state.me=data.user; connectionStatus('Connected');
+  await Promise.allSettled([loadChats(),loadContacts(),loadCalls(),loadNotifications(),setPresence('online')]);
+  renderChats(); if(state.active)renderActive(); connectEvents();
+ }catch(e){
+  console.error('[VexaChat boot]',e);
+  const message=e?.name==='AbortError'?'Connection timed out.':'Unable to start VexaChat.';
+  connectionStatus(message+' Tap to retry');
+  const el=$('#connectionStatus'); if(el){el.style.cursor='pointer';el.title='Retry VexaChat';el.onclick=()=>{el.onclick=null;boot()}}
+  const app=$('#app'); if(app&&!app.querySelector('.boot-error')){const d=document.createElement('div');d.className='boot-error';d.innerHTML='<strong>VexaChat could not start</strong><span>'+esc(e?.message||message)+'</span><button type="button">Retry</button>';d.querySelector('button').onclick=()=>{d.remove();boot()};app.appendChild(d)}
+ }
+}
 async function loadChats(){const activeId=state.active?.id;state.chats=(await api('/api/chat/conversations')).conversations||[];if(activeId!=null){const fresh=state.chats.find(x=>+x.id===+activeId);if(fresh)state.active=Object.assign(state.active||{},fresh)}renderChats();if(state.active)renderActive()}
 async function loadContacts(){state.contacts=(await api('/api/chat/contacts')).contacts||[]}
 async function loadCalls(){state.calls=(await api('/api/chat/calls?limit=50')).calls||[]}
