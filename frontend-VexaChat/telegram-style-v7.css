@@ -242,3 +242,49 @@ button,input,textarea,select{min-height:var(--touch)}button.icon-btn,.composer .
 @media(prefers-reduced-motion:reduce){.msg-menu,.reaction-chip{transition:none}}
 
 .boot-error{position:fixed;inset:0;z-index:20;display:grid;place-content:center;justify-items:center;gap:10px;padding:28px;text-align:center;background:var(--bg,#07111f);color:var(--text,#f4f8ff)}.boot-error strong{font-size:18px}.boot-error span{max-width:420px;color:var(--muted,#8298ad);font-size:12px;overflow-wrap:anywhere}.boot-error button{margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:10px 18px;background:var(--accent);color:#06111d;font-weight:800;cursor:pointer}
+/* v8.5 mobile keyboard viewport: keep the conversation header anchored while the IME resizes the visible viewport. */
+html,body{overflow:hidden}
+@media(max-width:760px){
+  body.vexa-keyboard-open{overflow:hidden}
+  body.vexa-keyboard-open .chat-shell,
+  body.vexa-keyboard-open .main{
+    height:var(--vexa-viewport-height,100dvh);
+    min-height:0;
+  }
+  body.vexa-keyboard-open .main{
+    position:fixed;
+    top:var(--vexa-viewport-top,0px);
+    right:0;
+    bottom:auto;
+    left:0;
+    transform:none;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    z-index:21;
+  }
+  body.vexa-keyboard-open .chat-head{
+    flex:0 0 60px;
+    min-height:60px;
+    position:relative;
+    top:auto;
+    z-index:30;
+    visibility:visible;
+    transform:none;
+  }
+  body.vexa-keyboard-open .messages{
+    flex:1 1 auto;
+    min-height:0;
+    height:auto;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+  }
+  body.vexa-keyboard-open .composer{
+    flex:0 0 auto;
+    position:relative;
+    z-index:31;
+  }
+  body.vexa-keyboard-open .mobile-bar{display:none!important}
+  body.vexa-keyboard-open .nav-scrim{z-index:10}
+}
