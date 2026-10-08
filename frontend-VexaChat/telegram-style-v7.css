@@ -451,3 +451,18 @@ button,input,textarea,select{max-width:100%}
  .page-modal .page-top-nav>*{display:none}
  .page-modal .page-bottom-nav{display:none}
 }
+
+/* v8.10 mobile page chrome: one Telegram-style top bar, not two stacked headers. */
+@media(max-width:760px){
+  .modal.page-modal{position:relative;padding-bottom:68px!important}
+  .modal.page-modal>.modal-head{display:none!important}
+  .modal.page-modal>.page-top-nav{display:flex;flex:0 0 52px;height:52px;min-height:52px;align-items:center;position:relative;top:auto;z-index:30;padding:0 max(10px,env(safe-area-inset-left)) 0 max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right));background:#071321f7;border-bottom:1px solid var(--line,#203047);backdrop-filter:blur(18px)}
+  .modal.page-modal>.page-top-nav button{min-width:44px;min-height:44px;border:0;border-radius:10px;background:transparent;color:#b9d5e5;font:inherit;font-size:12px;font-weight:750;display:flex;align-items:center;justify-content:center;gap:4px;touch-action:manipulation}
+  .modal.page-modal>.page-top-nav button:active{background:#ffffff0d}
+  .modal.page-modal>.page-top-nav button:first-child{justify-content:flex-start;color:#8fd8ff}
+  .modal.page-modal>.page-top-nav strong{min-width:0;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;color:#e5f4fb}
+  .modal.page-modal>.page-top-nav button:last-child{justify-content:flex-end}
+  .modal.page-modal>.page-bottom-nav{position:absolute;left:0;right:0;bottom:0;height:68px;min-height:68px}
+  .modal.page-modal>.profile-page,.modal.page-modal>.settings-layout,.modal.page-modal>.security-page,.modal.page-modal>.conversation-detail-page{padding-top:16px;padding-bottom:calc(30px + env(safe-area-inset-bottom));overflow-y:auto}
+}
+@media(min-width:761px){.modal.page-modal>.page-top-nav{display:none!important}.modal.page-modal>.page-bottom-nav{display:none!important}}
