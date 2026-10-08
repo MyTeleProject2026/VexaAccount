@@ -466,3 +466,43 @@ button,input,textarea,select{max-width:100%}
   .modal.page-modal>.profile-page,.modal.page-modal>.settings-layout,.modal.page-modal>.security-page,.modal.page-modal>.conversation-detail-page{padding-top:16px;padding-bottom:calc(30px + env(safe-area-inset-bottom));overflow-y:auto}
 }
 @media(min-width:761px){.modal.page-modal>.page-top-nav{display:none!important}.modal.page-modal>.page-bottom-nav{display:none!important}}
+
+/* v8.11 closer Telegram-style chat geometry: compact mobile list/header/composer and stable desktop split. */
+.chat-shell{min-height:0;height:100dvh;overflow:hidden}
+.sidebar,.main{min-width:0;min-height:0}
+.sidebar{display:flex;flex-direction:column}
+.side-head{flex:0 0 auto;min-height:58px}
+.sidebar .search{flex:0 0 auto}
+.sidebar .folder-tabs,.sidebar .side-tabs,.sidebar .list-filters{flex:0 0 auto}
+.sidebar .list{min-height:0;flex:1;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.main{display:flex;flex-direction:column;overflow:hidden}
+.chat-head{flex:0 0 60px;min-height:60px;display:flex;align-items:center}
+.messages{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.composer{flex:0 0 auto;min-height:56px}
+@media(min-width:761px){
+ .chat-shell{display:grid;grid-template-columns:minmax(300px,34%) minmax(0,1fr)}
+ .sidebar{border-right:1px solid var(--line,#203047)}
+ .side-head{min-height:60px}
+ .sidebar .search{padding:8px 12px}
+ .chat-head{min-height:60px}
+ .messages{padding-left:clamp(16px,3vw,42px);padding-right:clamp(16px,3vw,42px)}
+ .composer{padding-left:clamp(16px,3vw,42px);padding-right:clamp(16px,3vw,42px)}
+}
+@media(max-width:760px){
+ .chat-shell{width:100%;height:100dvh;min-height:100dvh;position:relative}
+ .sidebar{width:100%;height:100%;min-height:0}
+ .main{position:absolute;inset:0;width:100%;height:100%;min-height:0;z-index:12}
+ .chat-head{flex-basis:56px;min-height:56px;padding-top:env(safe-area-inset-top);box-sizing:content-box}
+ .messages{padding-bottom:4px}
+ .composer{min-height:56px;padding-bottom:env(safe-area-inset-bottom)}
+ .mobile-bar{height:68px;min-height:68px;padding-bottom:env(safe-area-inset-bottom)}
+ .mobile-list-open .main{display:none}
+ .mobile-list-open .sidebar{display:flex}
+ body:not(.mobile-list-open) .sidebar{display:none}
+ body:not(.mobile-list-open) .main{display:flex}
+}
+@media(max-width:380px){
+ .chat-head{flex-basis:54px;min-height:54px}
+ .composer{min-height:54px}
+ .mobile-bar{height:64px;min-height:64px}
+}
