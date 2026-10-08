@@ -637,6 +637,31 @@ async function blockCurrentContact(){if(state.active?.conversation_type!=='direc
 
 async function addCurrentContact(){if(state.active?.conversation_type!=='direct')return notify('Open a direct conversation to add a contact');try{const d=await api('/api/chat/conversations/'+state.active.id+'/details');const other=d.members.find(x=>+x.user_id!==+state.me.id);if(other){await api('/api/chat/contacts',{method:'POST',body:JSON.stringify({user_id:other.user_id})});await loadContacts();notify('Contact saved')}}catch(e){notify(e.message)}}
 async function addMember(){if(!state.active)return;modal('Add member','<input id="memberLookup" class="modal-input" placeholder="Search name or email"><div id="memberLookupResults" class="result-list"></div>');let timer=null;$('#memberLookup').oninput=e=>{clearTimeout(timer);const q=e.target.value.trim();if(!q){$('#memberLookupResults').innerHTML='';return}timer=setTimeout(async()=>{try{const d=await api('/api/chat/users?q='+encodeURIComponent(q));const users=(d.users||[]).filter(u=>Number(u.id)!==Number(state.me?.id));$('#memberLookupResults').innerHTML=users.slice(0,20).map(u=>'<button class="result" data-member="'+u.id+'"><span class="avatar">'+esc(initials(u.name||u.email))+'</span><span>'+esc(u.name||u.email)+'<small>'+esc(u.email||'VexaAccount user')+'</small></span></button>').join('')||'<div class="side-empty">No users found.</div>';document.querySelectorAll('[data-member]').forEach(b=>b.onclick=async()=>{try{await api('/api/chat/conversations/'+state.active.id+'/members',{method:'POST',body:JSON.stringify({user_id:Number(b.dataset.member)})});$('#modal')?.remove();await conversationInfo();await loadChats();notify('Member added')}catch(e){notify(e.message)}})}catch(e){notify(e.message)}},180)}}
+function openAppSurface(view){
+ const title=view==='contacts'?'Contacts':'Calls';
+ const body=view==='contacts'
+  ? '<div class="app-surface-page"><div class="app-surface-toolbar"><div><strong>Contacts</strong><span id="surfaceCount"></span></div><button class="primary" id="surfaceAddContact">＋ Add contact</button></div><label class="surface-search"><span>⌕</span><input id="surfaceSearch" placeholder="Search contacts"></label><div class="app-surface-list" id="surfaceList"></div></div>'
+  : '<div class="app-surface-page"><div class="app-surface-toolbar"><div><strong>Calls</strong><span>Recent voice and video activity</span></div><button class="secondary" id="surfaceRefreshCalls">↻ Refresh</button></div><div class="app-surface-list" id="surfaceList"></div></div>';
+ modal(title,body);
+ const list=$('#surfaceList');
+ const draw=()=>{
+  if(view==='contacts'){
+   const q=String($('#surfaceSearch')?.value||'').trim().toLowerCase();
+   const rows=state.contacts.filter(c=>!q||String(c.name||'').toLowerCase().includes(q)||String(c.email||'').toLowerCase().includes(q)).map(c=>'<button class="surface-row" data-surface-contact="'+Number(c.user_id)+'">'+avatarMarkup(c,'avatar')+'<span class="surface-row-main"><b>'+esc(c.name||c.email||'Contact')+'</b><small>'+esc(c.email||'VexaAccount contact')+' · '+esc(c.status||'offline')+'</small></span><span>›</span></button>').join('');
+   list.innerHTML=rows||'<div class="side-empty"><strong>No contacts found</strong><span>Try another name or add a contact.</span></div>';
+   $('#surfaceCount').textContent=state.contacts.length+' contact'+(state.contacts.length===1?'':'s');
+   list.querySelectorAll('[data-surface-contact]').forEach(b=>b.onclick=()=>contactDetails(Number(b.dataset.surfaceContact)));
+  }else{
+   const calls=[...state.calls].sort((a,b)=>new Date(b.started_at||0)-new Date(a.started_at||0));
+   list.innerHTML=calls.map(c=>{const out=Number(c.caller_id)===Number(state.me?.id),who=out?(c.peer_name||c.conversation_title||'Contact'):(c.caller_name||c.caller_email||'Contact');const p=out?{name:c.peer_name||c.peer_email,avatar_url:c.peer_avatar}:{name:c.caller_name||c.caller_email,avatar_url:c.caller_avatar};return '<div class="surface-row '+(String(c.status)==='missed'?'missed':'')+'">'+avatarMarkup(p,'avatar')+'<span class="surface-row-main"><b>'+esc(who)+'</b><small>'+esc(c.call_type==='video'?'Video call':'Voice call')+' · '+esc(callStatusLabel(c))+(callDuration(c)?' · '+esc(callDuration(c)):'')+'</small></span><span class="surface-row-meta">'+esc(callDate(c.started_at))+'<button class="surface-row-call" data-surface-redial="'+Number(c.conversation_id)+'">↗</button></span></div>'}).join('')||'<div class="side-empty"><strong>No calls yet</strong><span>Your voice and video call history will appear here.</span></div>';
+   list.querySelectorAll('[data-surface-redial]').forEach(b=>b.onclick=async e=>{e.stopPropagation();await openChat(Number(b.dataset.surfaceRedial));const c=calls.find(x=>Number(x.conversation_id)===Number(b.dataset.surfaceRedial));await startCall(c?.call_type==='video'?'video':'voice')});
+  }
+ };
+ $('#surfaceSearch')?.addEventListener('input',draw);
+ $('#surfaceAddContact')?.addEventListener('click',addContactModal);
+ $('#surfaceRefreshCalls')?.addEventListener('click',async()=>{await loadCalls();draw();notify('Calls refreshed')});
+ draw();
+}
 async function profile(){
  const me=state.me||{};
  const avatar=me.avatar_url||'';
