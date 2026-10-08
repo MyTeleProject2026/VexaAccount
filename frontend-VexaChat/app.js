@@ -296,8 +296,11 @@ function contextMenu(items,x,y){
  document.body.appendChild(menu);
  const w=menu.offsetWidth,h=menu.offsetHeight;
  menu.style.left=Math.max(8,Math.min(x,innerWidth-w-8))+'px';menu.style.top=Math.max(8,Math.min(y,innerHeight-h-8))+'px';
- menu.querySelectorAll('[data-cm]').forEach(btn=>btn.onclick=()=>{const i=items[Number(btn.dataset.cm)];if(i&&i[2])i[2]();closeContextMenu()});
- setTimeout(()=>document.addEventListener('pointerdown',closeContextMenu,{once:true}),0);
+ menu.addEventListener('pointerdown',e=>e.stopPropagation());
+ menu.addEventListener('click',e=>e.stopPropagation());
+ menu.querySelectorAll('[data-cm]').forEach(btn=>btn.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const item=items[Number(btn.dataset.cm)];if(!item||!item[2])return;closeContextMenu();Promise.resolve().then(()=>item[2]()).catch(err=>notify(err?.message||'Action failed'));}));
+ const dismiss=e=>{if(!menu.contains(e.target)){closeContextMenu();document.removeEventListener('pointerdown',dismiss,true)}};
+ setTimeout(()=>document.addEventListener('pointerdown',dismiss,true),0);
 }
 function chatQuickMenu(chat,x,y){
  const id=Number(chat.id),pinned=Number(chat.pinned)===1,archived=Number(chat.archived)===1,muted=isChatMuted(chat);
