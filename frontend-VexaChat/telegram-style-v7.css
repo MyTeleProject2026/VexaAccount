@@ -216,3 +216,27 @@ button,input,textarea,select{min-height:var(--touch)}button.icon-btn,.composer .
 
 /* Deep messenger media viewer */
 .media-viewer{display:grid;grid-template-rows:auto minmax(0,1fr) auto;min-height:min(72dvh,720px)}.media-viewer-top{display:flex;align-items:center;gap:10px;padding:2px 0 12px;border-bottom:1px solid var(--line);font-weight:750}.media-viewer-top span{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.media-viewer-stage{min-height:0;display:grid;place-items:center;padding:16px;overflow:auto;background:#02070d;border-radius:14px}.media-viewer-content{max-width:100%;max-height:62dvh;object-fit:contain;border-radius:10px}.media-viewer-file{display:grid;gap:8px;place-items:center;padding:40px;font-size:38px;color:#9fc6df}.media-viewer-file strong{font-size:14px}.media-viewer-actions{display:flex;justify-content:flex-end;padding-top:12px}.attachment-preview,.attachment-video{cursor:zoom-in}.msg-menu .tiny:first-child{color:#8fd6ff}@media(max-width:760px){.media-viewer-stage{padding:8px}.media-viewer-content{max-height:64dvh}.media-viewer{min-height:74dvh}}
+
+/* v8.4 Telegram-style conversation rhythm and action affordances */
+.messages{position:relative}
+.date-separator{position:sticky;top:4px;z-index:2;display:flex;justify-content:center;pointer-events:none;margin:8px 0 5px}
+.date-separator span{padding:5px 10px;border:1px solid var(--line);border-radius:999px;background:#0b1a2bd9;backdrop-filter:blur(10px);color:#8298ad;font-size:9px;font-weight:750;box-shadow:0 5px 18px #0003}
+.unread-divider{display:flex;align-items:center;gap:8px;margin:8px 0 6px;color:#67c4ff;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.4px}
+.unread-divider:before,.unread-divider:after{content:"";height:1px;flex:1;background:#2fa7ff35}
+.msg-menu{position:absolute;right:7px;top:5px;display:flex;gap:3px;padding:3px;border:1px solid var(--line);border-radius:9px;background:#0b1b2ceb;backdrop-filter:blur(10px);opacity:0;transform:translateY(-2px);transition:opacity .14s ease,transform .14s ease;z-index:5}
+.bubble:hover .msg-menu,.bubble:focus-within .msg-menu{opacity:1;transform:translateY(0)}
+.msg-menu .tiny{min-width:27px;height:27px;padding:3px 6px;border:0;border-radius:7px;background:transparent;color:#a9bfd0;font-size:10px}
+.msg-menu .tiny:hover{background:#ffffff12;color:#fff}
+.reply-preview{display:grid;width:100%;margin:0 0 7px;padding:6px 8px;border:0;border-left:3px solid var(--accent);border-radius:7px;background:#ffffff09;color:#c9d9e6;text-align:left}
+.reply-preview b{font-size:9px;color:#78caff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.reply-preview span{margin-top:2px;font-size:9px;color:#71879c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.reaction-chip{cursor:pointer;transition:transform .12s ease,background .12s ease}
+.reaction-chip:hover{transform:translateY(-1px);background:#ffffff18}
+.delivery-state{display:inline-block;margin-left:4px;color:#8fd7ff;font-size:9px;font-weight:800;letter-spacing:-2px}
+@media(max-width:760px){
+ .msg-menu{opacity:1;transform:none;position:static;width:max-content;margin:-4px 0 5px auto;border:0;background:transparent;backdrop-filter:none;padding:0}
+ .msg-menu .tiny{height:30px;min-width:30px;background:#ffffff08}
+ .date-separator{top:2px}
+ .date-separator span{font-size:8px}
+}
+@media(prefers-reduced-motion:reduce){.msg-menu,.reaction-chip{transition:none}}
