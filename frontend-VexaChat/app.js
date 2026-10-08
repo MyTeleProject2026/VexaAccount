@@ -335,9 +335,14 @@ async function boot(){
    if(!res.ok||data.success===false)throw Error(data.message||('Server returned '+res.status));
   }finally{clearTimeout(watchdog)}
   state.me=data.user; connectionStatus('Connected');
-  await Promise.allSettled([loadChats(),loadContacts(),loadCalls(),loadNotifications(),setPresence('online')]);
+  const results=await Promise.allSettled([loadChats(),loadContacts(),loadCalls(),loadNotifications(),setPresence('online')]);
+  const failed=results.filter(r=>r.status==='rejected');
+  if(failed.length)console.warn('[VexaChat bootstrap] non-fatal data loaders failed',failed.map(r=>r.reason));
   await acceptPendingInvite();
-  state.active=state.active||null; renderActive(); if(window.matchMedia?.('(max-width:760px)').matches)showMobileList('chats'); connectEvents();
+  state.active=state.active||null;
+  try{renderActive()}catch(renderError){console.error('[VexaChat render]',renderError);notify('VexaChat loaded, but one conversation view component failed. Retry from the menu to refresh it.');}
+  if(window.matchMedia?.('(max-width:760px)').matches)showMobileList('chats');
+  try{connectEvents()}catch(eventError){console.error('[VexaChat events]',eventError);connectionStatus('Connected · live sync unavailable');}
  }catch(e){
   console.error('[VexaChat boot]',e);
   const message=e?.name==='AbortError'?'Connection timed out.':'Unable to start VexaChat.';
