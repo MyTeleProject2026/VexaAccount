@@ -540,3 +540,18 @@ button,input,textarea,select{max-width:100%}
 .vexa-nav-drawer .nav-drawer-foot{margin-top:auto;min-height:44px;display:flex;align-items:center;padding:10px 14px;border-top:1px solid var(--line);color:#6f879c}.vexa-nav-drawer .nav-drawer-foot small{font-size:9px}
 @media(min-width:761px){.vexa-nav-drawer{width:340px}.vexa-nav-drawer .nav-drawer-list{max-height:none}.vexa-nav-drawer .nav-secondary{overflow:visible;flex:none}}
 @media(max-width:760px){.vexa-nav-drawer{width:min(88vw,360px);padding-bottom:env(safe-area-inset-bottom)}.vexa-nav-drawer .nav-drawer-head{padding-top:max(10px,calc(8px + env(safe-area-inset-top)))}.vexa-nav-drawer .nav-drawer-list button{min-height:48px}.vexa-nav-drawer .nav-drawer-list{padding-left:7px;padding-right:7px}}
+
+
+/* v8.15 VexaChat messenger sidebar filters: compact, touch-friendly and keyboard-safe. */
+.list-filters{display:flex;align-items:center;gap:5px;overflow-x:auto;overflow-y:hidden;padding:5px 9px;border-bottom:1px solid var(--line,#203047);scrollbar-width:none}
+.list-filters::-webkit-scrollbar{display:none}
+.list-filters .filter{flex:0 0 auto;min-height:30px;padding:5px 10px;border:1px solid transparent;border-radius:999px;background:transparent;color:#91a8bb;font:700 10px/1 inherit;cursor:pointer;touch-action:manipulation}
+.list-filters .filter:hover{background:#ffffff08;color:#cfe0eb}
+.list-filters .filter.active{background:#17364f;border-color:#24597d;color:#dff4ff}
+.folder-tabs{scrollbar-width:none}
+.folder-tabs::-webkit-scrollbar{display:none}
+.folder-tab,.folder-edit{touch-action:manipulation}
+@media(max-width:760px){
+  .list-filters{padding-left:8px;padding-right:8px;gap:4px}
+  .list-filters .filter{min-height:34px;padding-inline:11px}
+}
