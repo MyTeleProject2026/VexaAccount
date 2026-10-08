@@ -68,7 +68,7 @@ async function handleAuthSubmit(e){
    authCard('login',d.message||'Password reset successfully. Please sign in.');
 
   }
- }catch(err){authCard(mode,err.message||'Authentication failed. Please try again.')}
+ }catch(err){if(mode==='login'&&Number(err.status)===403&&/verif/i.test(String(err.message||''))){authCard('verify','Your email is not verified yet. Enter the verification code, or resend it below.');return}authCard(mode,err.message||'Authentication failed. Please try again.')}
 }
 function finishAuth(d){if(d?.token)localStorage.setItem('vexaaccount_access_token',d.token);if(d?.user)state.me=d.user;AUTH_STATE.userId=d?.user?.id||AUTH_STATE.userId;shell();connectionStatus('Connected');Promise.allSettled([loadChats(),loadContacts(),loadCalls(),loadNotifications(),setPresence('online')]).then(()=>connectEvents())}
 async function resendVerification(){
