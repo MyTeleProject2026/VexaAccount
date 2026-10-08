@@ -12,7 +12,7 @@ applyPreferences(load());
 function open(ctx,initialSection){
  const p=load();const ns=ctx.state.settings||{};
  Object.assign(p,{desktop_notifications:ns.messages_enabled!==0,message_preview:ns.previews_enabled!==0,calls_enabled:ns.calls_enabled!==0});
- let section=['home','account','privacy','notifications','privateNotifications','groupNotifications','callNotifications','chats','appearance','folders','devices','data','language','premium','help'].includes(initialSection)?initialSection:'home';
+ let section=['home','account','privacy','notifications','privateNotifications','groupNotifications','callNotifications','chats','appearance','folders','devices','data','language','premium','help'].includes(initialSection)?initialSection:'home'; const history=[];
  const sections=[['account','Account','Identity and profile'],['privacy','Privacy & Security','Visibility and calls'],['notifications','Notifications & Sounds','Alerts and previews'],['chats','Chat Settings','Composer and media'],['appearance','Appearance','Theme and density'],['folders','Chat Folders','Organize conversations'],['devices','Devices','Signed-in session'],['data','Data & Storage','Network and media'],['language','Language','Interface language'],['premium','VexaChat Premium','Premium features'],['help','Help & FAQ','Support and answers']];
  const esc=s=>ctx.esc(String(s??''));
  const row=(label,desc,control)=>'<div class="settings-row"><div><strong>'+esc(label)+'</strong><small>'+esc(desc)+'</small></div>'+control+'</div>';
@@ -27,9 +27,9 @@ function open(ctx,initialSection){
  const title=section==='home'?'Settings':(section==='privateNotifications'?'Private chats':section==='groupNotifications'?'Groups':section==='callNotifications'?'Calls':sections.find(x=>x[0]===section)?.[1]||'Settings');
  const back=section==='home'?'':'<button type="button" class="settings-page-back" id="settingsBack">‹ <span>Settings</span></button>';
  ctx.modal(title,'<div class="settings-layout"><nav class="settings-nav">'+sections.map(s=>'<button class="'+(s[0]===section?'active':'')+'" data-setting="'+s[0]+'"><span>'+icon(s[0])+'</span><b>'+esc(s[1])+'</b><small>'+esc(s[2])+'</small></button>').join('')+'</nav><section class="settings-content">'+back+body+'</section></div>');
- document.querySelectorAll('[data-setting]').forEach(b=>b.onclick=()=>{section=b.dataset.setting;render()});
- document.querySelector('#settingsBack')?.addEventListener('click',()=>{section='home';render()});
- document.querySelectorAll('[data-settings-sub]').forEach(b=>b.onclick=()=>{section=b.dataset.settingsSub;render()});
+ document.querySelectorAll('[data-setting]').forEach(b=>b.onclick=()=>{if(b.dataset.setting===section)return;history.push(section);section=b.dataset.setting;render()});
+ document.querySelector('#settingsBack')?.addEventListener('click',()=>{section=history.pop()||'home';render()});
+ document.querySelectorAll('[data-settings-sub]').forEach(b=>b.onclick=()=>{history.push(section);section=b.dataset.settingsSub;render()});
  bind()
 }
  function home(){
