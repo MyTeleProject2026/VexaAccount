@@ -429,3 +429,25 @@ button,input,textarea,select{max-width:100%}
 @media(min-width:761px){.vexa-nav-drawer{width:340px}.nav-scrim{z-index:85;background:#0008}.side-head .nav-menu-button{margin-right:2px}}
 @media(max-width:760px){.vexa-nav-drawer{width:min(88vw,360px);padding-bottom:env(safe-area-inset-bottom)}.vexa-nav-profile{padding-top:max(14px,calc(10px + env(safe-area-inset-top)))}.vexa-nav-drawer .icon-btn{min-width:42px;min-height:42px}.nav-scrim{z-index:85}}
 @media(prefers-reduced-motion:reduce){.vexa-nav-drawer{transition:none!important}}
+
+/* v8.9 consistent page navigation across contacts, calls, profile and settings. */
+.page-top-nav{display:none}
+.page-bottom-nav{display:none}
+@media(max-width:760px){
+ .page-modal{padding-bottom:68px!important}
+ .page-top-nav{height:46px;min-height:46px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;background:#07111ef7;border-bottom:1px solid var(--line,#203047);flex:none}
+ .page-top-nav button{border:0;background:transparent;color:#b9d5e5;min-width:42px;min-height:38px;border-radius:9px;font:inherit;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:4px}
+ .page-top-nav button:active{background:#ffffff0d}
+ .page-top-nav strong{font-size:12px;color:#e5f4fb;letter-spacing:.2px}
+ .page-bottom-nav{position:absolute;left:0;right:0;bottom:0;height:68px;display:grid;grid-template-columns:repeat(5,1fr);padding-bottom:env(safe-area-inset-bottom);background:#071321f8;border-top:1px solid var(--line,#203047);backdrop-filter:blur(18px);z-index:20}
+ .page-bottom-nav button{border:0;background:transparent;color:#7690a3;min-width:0;display:grid;place-items:center;align-content:center;gap:3px;font:inherit;cursor:pointer;touch-action:manipulation}
+ .page-bottom-nav button span{font-size:17px;line-height:18px}
+ .page-bottom-nav button b{font-size:8px;font-weight:700;white-space:nowrap}
+ .page-bottom-nav button:active,.page-bottom-nav button:hover{color:#a9dcf5;background:#ffffff08}
+ .page-modal>.profile-page,.page-modal>.settings-layout,.page-modal>.security-page,.page-modal>.conversation-detail-page{padding-bottom:calc(30px + env(safe-area-inset-bottom))}
+}
+@media(min-width:761px){
+ .page-modal .page-top-nav{display:flex;position:absolute;left:0;right:0;top:0;height:0;overflow:visible;z-index:7;pointer-events:none}
+ .page-modal .page-top-nav>*{display:none}
+ .page-modal .page-bottom-nav{display:none}
+}
