@@ -40,6 +40,7 @@ async function handleAuthSubmit(e){
  try{
   let d;
   if(mode==='login'){
+   AUTH_STATE.method=null; AUTH_STATE.userId=null;
    const email=$('#authEmail').value.trim().toLowerCase(),password=$('#authPassword').value;
    AUTH_STATE.email=email;
    d=await api('/api/auth/login',{method:'POST',body:JSON.stringify({email,password})});
@@ -47,6 +48,7 @@ async function handleAuthSubmit(e){
    if(d.requiresEmail2fa){AUTH_STATE.userId=d.userId;AUTH_STATE.method='email';return authCard('verify','Enter the email security code.')}
    finishAuth(d);
   }else if(mode==='register'){
+   AUTH_STATE.method=null; AUTH_STATE.userId=null;
    const name=$('#authName').value.trim(),email=$('#authEmail').value.trim().toLowerCase(),password=$('#authPassword').value;
    AUTH_STATE.email=email;
    d=await api('/api/auth/register',{method:'POST',body:JSON.stringify({name,email,password})});
@@ -70,7 +72,7 @@ async function handleAuthSubmit(e){
   }
  }catch(err){if(mode==='login'&&Number(err.status)===403&&/verif/i.test(String(err.message||''))){authCard('verify','Your email is not verified yet. Enter the verification code, or resend it below.');return}authCard(mode,err.message||'Authentication failed. Please try again.')}
 }
-function finishAuth(d){if(d?.token)localStorage.setItem('vexaaccount_access_token',d.token);if(d?.user)state.me=d.user;AUTH_STATE.userId=d?.user?.id||AUTH_STATE.userId;shell();connectionStatus('Connected');Promise.allSettled([loadChats(),loadContacts(),loadCalls(),loadNotifications(),setPresence('online')]).then(()=>{state.active=null;renderActive();connectEvents()})}
+async function finishAuth(d){const accessToken=d?.token||d?.accessToken||d?.access_token;if(!accessToken)throw Error('Authentication succeeded but no VexaAccount session token was returned.');localStorage.setItem('vexaaccount_access_token',accessToken);sessionStorage.removeItem('vexaaccount_access_token');if(d?.user)state.me=d.user;AUTH_STATE.userId=d?.user?.id||AUTH_STATE.userId;AUTH_STATE.method=null;shell();connectionStatus('Connecting…');try{await Promise.all([loadChats(),loadContacts(),loadCalls(),loadNotifications(),setPresence('online')]);state.active=null;renderActive();connectEvents();connectionStatus('Connected');}catch(e){console.error('[VexaChat auth bootstrap]',e);connectionStatus('Connected with limited data');notify('Signed in, but some VexaChat data could not be loaded.')}}
 async function resendVerification(){
  try{const endpoint=AUTH_STATE.method==='email'&&AUTH_STATE.userId?'/api/auth/resend-email-2fa':'/api/auth/resend-otp';const body=AUTH_STATE.method==='email'&&AUTH_STATE.userId?{userId:AUTH_STATE.userId,email:AUTH_STATE.email}:{email:AUTH_STATE.email};const d=await api(endpoint,{method:'POST',body:JSON.stringify(body)});notify(d.message||'Verification code sent');}
  catch(e){notify(e.message)}
