@@ -188,3 +188,20 @@ button,input,textarea,select{min-height:var(--touch)}button.icon-btn,.composer .
 @media(prefers-reduced-motion:reduce){
   .sidebar,.bubble,.head-actions .icon-btn{transition:none!important}
 }
+
+/* VexaChat Telegram-style final interaction polish */
+.chat-row{touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.chat-row.swipe-archive-ready{box-shadow:inset -72px 0 0 rgba(42,154,218,.18)}
+.chat-head .title{min-width:0;overflow:hidden}
+.chat-head .title strong,.chat-head .title small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.messages{scroll-behavior:smooth}
+.composer .send:not(:disabled){transform:scale(1);opacity:1}
+.composer .send:disabled{opacity:.42;cursor:default}
+.context-menu{z-index:100}
+.toast{z-index:120}
+@media(max-width:760px){
+ .mobile-bar{padding-bottom:max(8px,env(safe-area-inset-bottom));height:calc(60px + env(safe-area-inset-bottom))}
+ .main{padding-bottom:calc(60px + env(safe-area-inset-bottom))}
+ .composer{padding-bottom:calc(8px + env(safe-area-inset-bottom))}
+ .chat-row{min-height:68px}
+}
