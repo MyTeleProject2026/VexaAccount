@@ -782,7 +782,7 @@ function installVexaNavigation(){
     if(v==='profile'){profile();return}
     if(v==='settings'){window.VexaChatSettings?.open({state,api,modal,profile,accountSecurity,logout,notify,initials,esc});return}
     if(v==='contacts'||v==='calls'){openAppSurface(v);return}
-    if(v==='folders'){modal('Chat folders','<div class="hint">Chat folders are managed from your VexaChat settings.</div>');return}
+    if(v==='folders'){window.VexaChatSettings?.open({state,api,modal,profile,accountSecurity,logout,notify,initials,esc},'folders');return}
     if(v==='saved'){notify('Saved Messages is not connected to a dedicated backend route yet.');return}
     if(v==='invite'){notify('Invite Friends will use VexaChat contacts and sharing when the invite API is available.');return}
     if(v==='features'){modal('VexaChat features','<div class="hint">Messaging, media, reactions, replies, editing, contacts, calls, folders and VexaAccount security are available in VexaChat.</div>');return}
