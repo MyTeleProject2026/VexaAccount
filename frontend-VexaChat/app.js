@@ -342,7 +342,7 @@ async function boot(){
   }finally{clearTimeout(watchdog)}
   state.me=data.user; connectionStatus('Connected');
   await Promise.allSettled([loadChats(),loadContacts(),loadCalls(),loadNotifications(),setPresence('online')]);
-  state.active=null; renderActive(); connectEvents();
+  state.active=null; renderActive(); if(window.matchMedia?.('(max-width:760px)').matches)showMobileList('chats'); connectEvents();
  }catch(e){
   console.error('[VexaChat boot]',e);
   const message=e?.name==='AbortError'?'Connection timed out.':'Unable to start VexaChat.';
@@ -402,11 +402,12 @@ async function openChat(id){saveChatDraft();clearTimeout(searchTimer);searchRequ
 function renderDashboard(){
  const el=$('#messages');
  if(!el)return;
- el.innerHTML='<div class="empty-chat-state" aria-label="Select a conversation">'+
+ el.innerHTML='<div class="empty-chat-state" aria-label="VexaChat home">'+
    '<div class="empty-chat-icon"><img src="./icon.svg" alt="VexaChat"></div>'+
-   '<h2>Select a chat</h2>'+
-   '<p>Choose a conversation from the list to start messaging.</p>'+
-   '<span class="empty-chat-hint">Your conversations, contacts and calls stay inside VexaChat.</span>'+
+   '<h2>VexaChat</h2>'+
+   '<p>Select a conversation from your chat list, or start a new conversation.</p>'+
+   '<div class="empty-chat-actions"><button type="button" class="primary" id="emptyNewChat">＋ New chat</button><button type="button" class="secondary" id="emptyNewGroup">👥 New group</button><button type="button" class="secondary" id="emptyContacts">♙ Contacts</button></div>'+
+   '<span class="empty-chat-hint">Your messages, media, contacts and calls stay inside VexaChat.</span>'+ 
  '</div>';
 }
 async function renderActive(){
@@ -420,6 +421,9 @@ async function renderActive(){
   $('#messageInput').disabled=true; $('.send').disabled=true; $('#voice').disabled=true; $('#video').disabled=true; $('#info').disabled=true; $('#chatMenu').disabled=true;
   const banner=$('#conversationBanner'); if(banner){banner.hidden=true;banner.innerHTML=''}
   renderDashboard();
+  $('#emptyNewChat')?.addEventListener('click',newChat);
+  $('#emptyNewGroup')?.addEventListener('click',groupModal);
+  $('#emptyContacts')?.addEventListener('click',()=>openAppSurface('contacts'));
   return;
  }
  const online=c?.online||c?.presence==='online'||c?.status==='online';
