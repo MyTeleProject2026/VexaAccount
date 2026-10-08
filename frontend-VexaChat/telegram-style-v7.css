@@ -610,3 +610,14 @@ button,input,textarea,select{max-width:100%}
  .context-sheet .context-actions{grid-template-columns:repeat(3,1fr);}
  .message-selection-bar{overflow-x:auto;white-space:nowrap;}
 }
+
+/* v8.14 profile and nested settings scroll repair: allow touch, wheel and keyboard scrolling without the page shell trapping gestures. */
+html,body{overscroll-behavior-y:none}
+.modal-back.profile-overlay,.modal-back.page-overlay{overflow:hidden;min-height:0}
+.modal.profile-modal,.modal.page-modal{min-height:0}
+.modal.profile-modal>.profile-page,.modal.page-modal>.profile-page{flex:1 1 auto;min-height:0;max-height:none;overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;scrollbar-gutter:stable}
+.modal.profile-modal{display:flex;flex-direction:column;height:100dvh;max-height:100dvh;overflow:hidden}
+.modal.profile-modal>.modal-head{flex:0 0 auto}
+.profile-page .profile-section,.profile-page .profile-menu{min-height:max-content}
+.profile-page .profile-field textarea{resize:vertical;max-height:40vh;overflow-y:auto;touch-action:pan-y}
+@media(max-width:760px){.modal.profile-modal{height:100dvh;max-height:100dvh;width:100%;border-radius:0}.modal.profile-modal>.profile-page{padding-bottom:calc(36px + env(safe-area-inset-bottom));overscroll-behavior:contain}.profile-page .profile-section{padding-bottom:4px}}
