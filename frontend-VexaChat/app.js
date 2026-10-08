@@ -344,11 +344,19 @@ async function boot(){
   if(window.matchMedia?.('(max-width:760px)').matches)showMobileList('chats');
   try{connectEvents()}catch(eventError){console.error('[VexaChat events]',eventError);connectionStatus('Connected · live sync unavailable');}
  }catch(e){
-  console.error('[VexaChat boot]',e);
+  console.error('[VexaChat boot]',e?.stack||e);
   const message=e?.name==='AbortError'?'Connection timed out.':'Unable to start VexaChat.';
+  const detail=String(e?.message||message);
   connectionStatus(message+' Tap to retry');
-  const el=$('#connectionStatus'); if(el){el.style.cursor='pointer';el.title='Retry VexaChat';el.onclick=null;el.addEventListener('click',boot,{once:true})}
-  const app=$('#app'); if(app&&!app.querySelector('.boot-error')){const d=document.createElement('div');d.className='boot-error';d.innerHTML='<strong>VexaChat could not start</strong><span>'+esc(e?.message||message)+'</span><button type="button">Retry</button>';d.querySelector('button').onclick=()=>{d.remove();boot()};app.appendChild(d)}
+  const el=$('#connectionStatus');
+  if(el){el.style.cursor='pointer';el.title='Retry VexaChat';el.removeAttribute('data-retry-bound');if(!el.dataset.retryBound){el.dataset.retryBound='1';el.addEventListener('click',boot)}}
+  const app=$('#app');
+  if(app){
+   let d=app.querySelector('.boot-error');
+   if(!d){d=document.createElement('div');d.className='boot-error';d.setAttribute('role','alert');app.appendChild(d)}
+   d.innerHTML='<strong>VexaChat could not start</strong><span>'+esc(detail)+'</span><button type="button" class="primary" id="bootRetryAction">Retry</button>';
+   d.querySelector('#bootRetryAction')?.addEventListener('click',()=>{d.remove();boot()},{once:true});
+  }
  }
 }
 async function loadChats(){const activeId=state.active?.id;state.chats=(await api('/api/chat/conversations')).conversations||[];if(activeId!=null){const fresh=state.chats.find(x=>+x.id===+activeId);if(fresh)state.active=Object.assign(state.active||{},fresh)}renderChats();if(state.active)renderActive()}
