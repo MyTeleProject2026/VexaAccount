@@ -734,6 +734,7 @@ shell=function(){
     document.body.appendChild(s);
     s.addEventListener('click',()=>document.body.classList.remove('nav-drawer-open'));
   }
+  installVexaNavigation();
   sidebar.addEventListener('click',e=>{
     if(e.target.closest('.chat-row,.tab,.folder-tab,.filter,[data-view],[data-folder],[data-filter]'))
       document.body.classList.remove('nav-drawer-open');
